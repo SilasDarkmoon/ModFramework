@@ -1,0 +1,55 @@
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.sln.docstates
+*.sln.local
+
+# Build output
+bin/
+obj/
+
+# NuGet
+packages/
+.nuget/
+*.nupkg
+project.lock.json
+project.assets.json
+
+# Test results
+TestResults/
+*.coverage
+.coverage*
+
+# Docker
+.dockerignore
+Dockerfile*
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Visual Studio Code
+.vscode/
+
+# Resharper
+_ReSharper*/
+
+# StyleCop
+StyleCop.Cache
+
+# dotCover
+*.dotCover

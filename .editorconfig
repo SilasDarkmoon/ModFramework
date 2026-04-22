@@ -1,0 +1,26 @@
+# 顶层配置文件（停止向上查找其他 editorconfig）
+root = true
+
+# 全局通用配置（所有文件）
+[*]
+charset = utf-8
+end_of_line = crlf
+trim_trailing_whitespace = true
+insert_final_newline = true
+indent_style = space
+indent_size = 4
+tab_width = 4
+
+[*.cs]
+# 1) 符号定义（作用域：私有字段）
+dotnet_naming_symbols.non_public_field.applicable_kinds = field
+dotnet_naming_symbols.non_public_field.applicable_accessibilities = private, protected, internal, protected_internal, private_protected
+
+# 2) 风格定义（_大驼峰）
+dotnet_naming_style.pascal_case_underscore.capitalization = pascal_case
+dotnet_naming_style.pascal_case_underscore.required_prefix = _
+
+# 3) 规则定义（私有字段用 _PascalCase）
+dotnet_naming_rule.private_fields_should_be_pascal_case_with_underscore.severity = warning
+dotnet_naming_rule.private_fields_should_be_pascal_case_with_underscore.symbols = non_public_field
+dotnet_naming_rule.private_fields_should_be_pascal_case_with_underscore.style = pascal_case_underscore
