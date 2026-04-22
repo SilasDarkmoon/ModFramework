@@ -1,6 +1,7 @@
 using Mod;
-using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 
 var stopwatch = Stopwatch.StartNew();
 //#region Test For StringPool
@@ -198,13 +199,48 @@ var stopwatch = Stopwatch.StartNew();
 //}
 //#endregion
 
-#region Test For WeakDelegate
+#region Test For UnsafeAccessor
+Console.WriteLine(FieldExt.GetObjectHeaderSize());
+var stub = new DelegateStub();
+var offsetTarget = FieldExt.GetFieldOffset(stub, ref stub.Target);
+var offsetMethod = FieldExt.GetFieldOffset(stub, ref stub.Method);
 
-TestEventTrigger.OnTestEvent += WeakDelegate.Create((value =>
+var odel = new Action<int>(value =>
 {
     Console.WriteLine("Received event with value: " + value);
 });
+var ndel = new TestEventTrigger.TestEventHandler(value => { });
 
+Console.WriteLine(FieldExt.GetFieldRef<object>(odel, offsetTarget));
+Console.WriteLine(FieldExt.GetFieldRef<IntPtr>(odel, offsetMethod));
+ref object ntarget = ref FieldExt.GetFieldRef<object>(ndel, offsetTarget);
+ref IntPtr nmethod = ref FieldExt.GetFieldRef<IntPtr>(ndel, offsetMethod);
+Console.WriteLine(ntarget);
+Console.WriteLine(nmethod);
+ntarget = FieldExt.GetFieldRef<object>(odel, offsetTarget);
+nmethod = FieldExt.GetFieldRef<IntPtr>(odel, offsetMethod);
+
+TestEventTrigger.OnTestEventWithCustomDelegate += ndel;
+TestEventTrigger.TriggerWithCustomDelegate(18);
+
+//var fields = odel.GetType().GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+//foreach (var field in fields)
+//{
+//    Console.WriteLine(field);
+//    var handle = field.FieldHandle;
+//    Console.WriteLine(handle.Value);
+//}
+//Console.WriteLine(odel.GetType().TypeHandle.Value);
+
+Console.WriteLine(FieldExt.GetFieldOffset(typeof(DelegateStub).GetField("Method")));
+Console.WriteLine(offsetMethod);
+
+class DelegateStub
+{
+    public object Target;
+    public object MethodBase;
+    public IntPtr Method;
+}
 static class TestEventTrigger
 {
     public static event Action<int> OnTestEvent;
@@ -212,5 +248,55 @@ static class TestEventTrigger
     {
         OnTestEvent?.Invoke(value);
     }
+
+    public delegate void TestEventHandler(int value);
+    public static event TestEventHandler OnTestEventWithCustomDelegate;
+    public static void TriggerWithCustomDelegate(int value)
+    {
+        OnTestEventWithCustomDelegate?.Invoke(value);
+    } 
 }
 #endregion
+
+//#region Test For WeakDelegate
+
+//var odel = new Action<int>(value =>
+//{
+//    Console.WriteLine("Received event with value: " + value);
+//});
+//var ndel = new TestEventTrigger.TestEventHandler(value => { });
+
+//var omf = odel.GetType().GetField("_method", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+//var otf = odel.GetType().GetField("_target", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+//var nmf = ndel.GetType().GetField("_method", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+//var ntf = ndel.GetType().GetField("_target", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+//var nndel = System.Runtime.CompilerServices.Unsafe.As<TestEventTrigger.TestEventHandler>(odel);
+
+//TestEventTrigger.OnTestEventWithCustomDelegate += nndel;
+//TestEventTrigger.TriggerWithCustomDelegate(18);
+
+//static class TestEventTrigger
+//{
+//    public static event Action<int> OnTestEvent;
+
+//    public delegate void TestEventHandler(int value);
+
+//    public static event TestEventHandler OnTestEventWithCustomDelegate;
+//    public static void Trigger(int value)
+//    {
+//        OnTestEvent?.Invoke(value);
+//    }
+
+//    public static void TriggerWithCustomDelegate(int value)
+//    {
+//        OnTestEventWithCustomDelegate?.Invoke(value);
+//    }
+
+//    [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "_target")]
+//    public static void TestAccessor()
+//    {
+
+//    }
+//}
+//#endregion

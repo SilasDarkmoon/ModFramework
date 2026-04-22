@@ -5,4 +5,15 @@
     <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Reference Include="ByRefUtils">
+      <HintPath>ByRefUtils.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="ByRefUtils.TrackingRef">
+      <HintPath>ByRefUtils.TrackingRef.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+
 </Project>
