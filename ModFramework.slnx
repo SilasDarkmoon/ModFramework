@@ -1,6 +1,7 @@
 <Solution>
   <Project Path="ModClrEx.Tests/ModClrEx.Tests.csproj" />
   <Project Path="ModClrEx/ModClrEx.csproj" />
+  <Project Path="ModClrExUnsafe.Tests/ModClrExUnsafe.Tests.csproj" />
   <Project Path="ModClrExUnsafe/ModClrExUnsafe.csproj" />
   <Project Path="ModFramework/ModFramework.csproj" />
 </Solution>

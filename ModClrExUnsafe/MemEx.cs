@@ -2,11 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-using static Mod.FieldExt;
-
 namespace Mod
 {
-    public static class MemExt
+    public static partial class UnsafeEx
     {
         private unsafe struct MemCopyHelper1024
         {

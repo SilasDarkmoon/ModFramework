@@ -4,7 +4,7 @@ using System.Text;
 
 namespace Mod
 {
-    public static class Unsafe
+    public static partial class UnsafeEx
     {
         public static Span<T> AsSpan<T>(IntPtr address, int byteLength)
         {

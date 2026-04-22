@@ -6,7 +6,7 @@ using System.Text;
 
 namespace Mod
 {
-    public static class FieldExt
+    public static partial class UnsafeEx
     {
         private class ObjectHeaderStub
         {

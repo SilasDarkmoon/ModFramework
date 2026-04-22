@@ -200,10 +200,10 @@ var stopwatch = Stopwatch.StartNew();
 //#endregion
 
 #region Test For UnsafeAccessor
-Console.WriteLine(FieldExt.GetObjectHeaderSize());
+Console.WriteLine(UnsafeEx.GetObjectHeaderSize());
 var stub = new DelegateStub();
-var offsetTarget = FieldExt.GetFieldOffset(stub, ref stub.Target);
-var offsetMethod = FieldExt.GetFieldOffset(stub, ref stub.Method);
+var offsetTarget = UnsafeEx.GetFieldOffset(stub, ref stub.Target);
+var offsetMethod = UnsafeEx.GetFieldOffset(stub, ref stub.Method);
 
 var odel = new Action<int>(value =>
 {
@@ -211,15 +211,16 @@ var odel = new Action<int>(value =>
 });
 var ndel = new TestEventTrigger.TestEventHandler(value => { });
 
-Console.WriteLine(FieldExt.GetFieldRef<object>(odel, offsetTarget));
-Console.WriteLine(FieldExt.GetFieldRef<IntPtr>(odel, offsetMethod));
-ref object ntarget = ref FieldExt.GetFieldRef<object>(ndel, offsetTarget);
-ref IntPtr nmethod = ref FieldExt.GetFieldRef<IntPtr>(ndel, offsetMethod);
-Console.WriteLine(ntarget);
-Console.WriteLine(nmethod);
-ntarget = FieldExt.GetFieldRef<object>(odel, offsetTarget);
-nmethod = FieldExt.GetFieldRef<IntPtr>(odel, offsetMethod);
+//Console.WriteLine(FieldExt.GetFieldRef<object>(odel, offsetTarget));
+//Console.WriteLine(FieldExt.GetFieldRef<IntPtr>(odel, offsetMethod));
+//ref object ntarget = ref FieldExt.GetFieldRef<object>(ndel, offsetTarget);
+//ref IntPtr nmethod = ref FieldExt.GetFieldRef<IntPtr>(ndel, offsetMethod);
+//Console.WriteLine(ntarget);
+//Console.WriteLine(nmethod);
+//ntarget = FieldExt.GetFieldRef<object>(odel, offsetTarget);
+//nmethod = FieldExt.GetFieldRef<IntPtr>(odel, offsetMethod);
 
+UnsafeEx.MemCopy(ndel, odel);
 TestEventTrigger.OnTestEventWithCustomDelegate += ndel;
 TestEventTrigger.TriggerWithCustomDelegate(18);
 
@@ -232,8 +233,8 @@ TestEventTrigger.TriggerWithCustomDelegate(18);
 //}
 //Console.WriteLine(odel.GetType().TypeHandle.Value);
 
-Console.WriteLine(FieldExt.GetFieldOffset(typeof(DelegateStub).GetField("Method")));
-Console.WriteLine(offsetMethod);
+//Console.WriteLine(FieldExt.GetFieldOffset(typeof(DelegateStub).GetField("Method")));
+//Console.WriteLine(offsetMethod);
 
 class DelegateStub
 {
