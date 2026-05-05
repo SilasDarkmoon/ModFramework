@@ -2,18 +2,20 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <PublishAot>true</PublishAot>
+    <TargetFrameworks>net10.0;net48</TargetFrameworks>
     <InvariantGlobalization>true</InvariantGlobalization>
+
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
   </PropertyGroup>
+    <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0'">
+        <PublishAot>true</PublishAot>
+    </PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.23.0" />
-  </ItemGroup>
-
+    <!-- 为 .NET Framework 禁用 AOT -->
+    <PropertyGroup Condition="'$(TargetFramework)' == 'net48'">
+        <PublishAot>false</PublishAot>
+    </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\ModClrEx\ModClrEx.csproj" />
   </ItemGroup>

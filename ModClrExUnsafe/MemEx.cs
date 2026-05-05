@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace Mod
+namespace Mod.LowLevel
 {
     public static partial class UnsafeEx
     {
@@ -224,19 +224,19 @@ namespace Mod
 
         public static void MemCopy(object dst, int dstStart, object src, int srcStart)
         {
-            MemCopy(dst, dstStart, src, srcStart, Math.Min(SizeOf(dst) - dstStart, SizeOf(src) - srcStart));
+            MemCopy(dst, dstStart, src, srcStart, Math.Min(Size(dst) - dstStart, Size(src) - srcStart));
         }
         public static void MemCopy<D, S>(ref D dst, int dstStart, ref S src, int srcStart) where D : struct where S : struct
         {
-            MemCopy(ref dst, dstStart, ref src, srcStart, Math.Min(SizeOf<D>() - dstStart, SizeOf<S>() - srcStart));
+            MemCopy(ref dst, dstStart, ref src, srcStart, Math.Min(Size<D>() - dstStart, Size<S>() - srcStart));
         }
         public static void MemCopy<S>(object dst, int dstStart, ref S src, int srcStart) where S : struct
         {
-            MemCopy(dst, dstStart, ref src, srcStart, Math.Min(SizeOf(dst) - dstStart, SizeOf<S>() - srcStart));
+            MemCopy(dst, dstStart, ref src, srcStart, Math.Min(Size(dst) - dstStart, Size<S>() - srcStart));
         }
         public static void MemCopy<D>(ref D dst, int dstStart, object src, int srcStart) where D : struct
         {
-            MemCopy(ref dst, dstStart, src, srcStart, Math.Min(SizeOf<D>() - dstStart, SizeOf(src) - srcStart));
+            MemCopy(ref dst, dstStart, src, srcStart, Math.Min(Size<D>() - dstStart, Size(src) - srcStart));
         }
 
         public static void MemCopy(object dst, object src, int cnt)
@@ -258,19 +258,19 @@ namespace Mod
 
         public static void MemCopy(object dst, object src)
         {
-            MemCopy(dst, 0, src, 0, Math.Min(SizeOf(dst), SizeOf(src)));
+            MemCopy(dst, 0, src, 0, Math.Min(Size(dst), Size(src)));
         }
         public static void MemCopy<D, S>(ref D dst, ref S src) where D : struct where S : struct
         {
-            MemCopy(ref dst, 0, ref src, 0, Math.Min(SizeOf<D>(), SizeOf<S>()));
+            MemCopy(ref dst, 0, ref src, 0, Math.Min(Size<D>(), Size<S>()));
         }
         public static void MemCopy<S>(object dst, ref S src) where S : struct
         {
-            MemCopy(dst, 0, ref src, 0, Math.Min(SizeOf(dst), SizeOf<S>()));
+            MemCopy(dst, 0, ref src, 0, Math.Min(Size(dst), Size<S>()));
         }
         public static void MemCopy<D>(ref D dst, object src) where D : struct
         {
-            MemCopy(ref dst, 0, src, 0, Math.Min(SizeOf<D>(), SizeOf(src)));
+            MemCopy(ref dst, 0, src, 0, Math.Min(Size<D>(), Size(src)));
         }
     }
 }

@@ -1,10 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using System.Runtime.InteropServices;
-using System.Text;
 
-namespace Mod
+namespace Mod.LowLevel
 {
     public static partial class UnsafeEx
     {
@@ -21,14 +19,14 @@ namespace Mod
                 var o = new ObjectHeaderStub();
                 for (; ; )
                 {
-                    Capstones.ByRefUtils.RawRef refO = default;
+                    RawRef refO = default;
                     refO.SetRefObj(o);
                     var addo = refO.Address;
-                    Capstones.ByRefUtils.RawRef refF = default;
+                    RawRef refF = default;
                     refF.SetRef(ref o.StubField);
                     var addf = refF.Address;
                     var headerSize = (int)((ulong)addf - (ulong)addo);
-                    Capstones.ByRefUtils.RawRef refC = default;
+                    RawRef refC = default;
                     refC.SetRefObj(o);
                     var addc = refC.Address;
                     if (addc == addo)
@@ -41,18 +39,40 @@ namespace Mod
             return _ObjectHeaderSize;
         }
 
-        public static int GetFieldOffset<T>(object obj, ref T field)
+        public static ref IntPtr GetTypeHandleRef(this object obj)
+        {
+            var offset = GetObjectHeaderSize() - IntPtr.Size;
+            for (; ; )
+            {
+                RawRef refObj = default;
+                refObj.SetRefObj(obj);
+                var objAddress = refObj.Address;
+                var handleAddress = (IntPtr)((ulong)objAddress + (ulong)offset);
+                RawRef refHandle = default;
+                refHandle.Address = handleAddress;
+                ref IntPtr refResult = ref refHandle.GetRef<IntPtr>();
+                RawRef refCheck = default;
+                refCheck.SetRefObj(obj);
+                var checkAddress = refCheck.Address;
+                if (checkAddress == objAddress)
+                {
+                    return ref refResult;
+                }
+            }
+        }
+
+        public static FieldOffset GetFieldOffset<T>(this object obj, ref T field)
         {
             for (; ; )
             {
-                Capstones.ByRefUtils.RawRef refObj = default;
+                RawRef refObj = default;
                 refObj.SetRefObj(obj);
                 var objAddress = refObj.Address;
-                Capstones.ByRefUtils.RawRef refField = default;
+                RawRef refField = default;
                 refField.SetRef(ref field);
                 var fieldAddress = refField.Address;
                 var offset = (int)((ulong)fieldAddress - (ulong)objAddress) - GetObjectHeaderSize();
-                Capstones.ByRefUtils.RawRef refCheck = default;
+                RawRef refCheck = default;
                 refCheck.SetRefObj(obj);
                 var checkAddress = refCheck.Address;
                 if (checkAddress == objAddress)
@@ -62,18 +82,18 @@ namespace Mod
             }
         }
 
-        public static ref T GetFieldRef<T>(object obj, int offset)
+        public static ref T GetFieldRef<T>(this object obj, int offset)
         {
             for (; ; )
             {
-                Capstones.ByRefUtils.RawRef refObj = default;
+                RawRef refObj = default;
                 refObj.SetRefObj(obj);
                 var objAddress = refObj.Address;
                 var fieldAddress = (IntPtr)((ulong)objAddress + (ulong)offset + (ulong)GetObjectHeaderSize());
-                Capstones.ByRefUtils.RawRef refField = default;
+                RawRef refField = default;
                 refField.Address = fieldAddress;
                 ref T refResult = ref refField.GetRef<T>();
-                Capstones.ByRefUtils.RawRef refCheck = default;
+                RawRef refCheck = default;
                 refCheck.SetRefObj(obj);
                 var checkAddress = refCheck.Address;
                 if (checkAddress == objAddress)
@@ -83,18 +103,18 @@ namespace Mod
             }
         }
 
-        public static int GetFieldOffset<S, T>(ref S parent, ref T field) where S : struct
+        public static FieldOffset GetFieldOffset<S, T>(this ref S parent, ref T field) where S : struct
         {
             for (; ; )
             {
-                Capstones.ByRefUtils.RawRef refObj = default;
+                RawRef refObj = default;
                 refObj.SetRef(ref parent);
                 var objAddress = refObj.Address;
-                Capstones.ByRefUtils.RawRef refField = default;
+                RawRef refField = default;
                 refField.SetRef(ref field);
                 var fieldAddress = refField.Address;
                 var offset = (int)((ulong)fieldAddress - (ulong)objAddress);
-                Capstones.ByRefUtils.RawRef refCheck = default;
+                RawRef refCheck = default;
                 refCheck.SetRef(ref parent);
                 var checkAddress = refCheck.Address;
                 if (checkAddress == objAddress)
@@ -104,18 +124,18 @@ namespace Mod
             }
         }
 
-        public static ref T GetFieldRef<S, T>(ref S parent, int offset) where S : struct
+        public static ref T GetFieldRef<S, T>(this ref S parent, int offset) where S : struct
         {
             for (; ; )
             {
-                Capstones.ByRefUtils.RawRef refObj = default;
+                RawRef refObj = default;
                 refObj.SetRef(ref parent);
                 var objAddress = refObj.Address;
                 var fieldAddress = (IntPtr)((ulong)objAddress + (ulong)offset);
-                Capstones.ByRefUtils.RawRef refField = default;
+                RawRef refField = default;
                 refField.Address = fieldAddress;
                 ref T refResult = ref refField.GetRef<T>();
-                Capstones.ByRefUtils.RawRef refCheck = default;
+                RawRef refCheck = default;
                 refCheck.SetRef(ref parent);
                 var checkAddress = refCheck.Address;
                 if (checkAddress == objAddress)
@@ -125,19 +145,108 @@ namespace Mod
             }
         }
 
-        public static ref byte GetHeadRef(object obj)
+        public static FieldOffset GetFieldOffsetCommon<S, T>(ref S parent, ref T field)
+        {
+            bool isParentValueType = typeof(S).IsValueType;
+            for (; ; )
+            {
+                RawRef refObj = default;
+                if (isParentValueType)
+                {
+                    refObj.SetRef(ref parent);
+                }
+                else
+                {
+                    refObj.SetRefObj(parent);
+                }
+                var objAddress = refObj.Address;
+                RawRef refField = default;
+                refField.SetRef(ref field);
+                var fieldAddress = refField.Address;
+                var offset = (int)((ulong)fieldAddress - (ulong)objAddress);
+                RawRef refCheck = default;
+                if (isParentValueType)
+                {
+                    refCheck.SetRef(ref parent);
+                }
+                else
+                {
+                    refCheck.SetRefObj(parent);
+                }
+                var checkAddress = refCheck.Address;
+                if (checkAddress == objAddress)
+                {
+                    if (isParentValueType)
+                    {
+                        return offset;
+                    }
+                    else
+                    {
+                        return offset - GetObjectHeaderSize();
+                    }
+                }
+            }
+        }
+
+        public static ref T GetFieldRefCommon<S, T>(ref S parent, int offset)
+        {
+            bool isParentValueType = typeof(S).IsValueType;
+            ulong extraOffset = 0;
+            if (!isParentValueType)
+            {
+                extraOffset = (ulong)GetObjectHeaderSize();
+            }
+            for (; ; )
+            {
+                RawRef refObj = default;
+                if (isParentValueType)
+                {
+                    refObj.SetRef(ref parent);
+                }
+                else
+                {
+                    refObj.SetRefObj(parent);
+                }
+                var objAddress = refObj.Address;
+                var fieldAddress = (IntPtr)((ulong)objAddress + (ulong)offset + extraOffset);
+                RawRef refField = default;
+                refField.Address = fieldAddress;
+                ref T refResult = ref refField.GetRef<T>();
+                RawRef refCheck = default;
+                if (isParentValueType)
+                {
+                    refCheck.SetRef(ref parent);
+                }
+                else
+                {
+                    refCheck.SetRefObj(parent);
+                }
+                var checkAddress = refCheck.Address;
+                if (checkAddress == objAddress)
+                {
+                    return ref refResult;
+                }
+            }
+        }
+
+        public static ref byte GetHeadRef(this object obj)
         {
             return ref GetFieldRef<byte>(obj, 0);
         }
 
-        public static ref byte GetHeadRef<S>(ref S obj) where S : struct
+        public static ref byte GetHeadRef<S>(this ref S obj) where S : struct
         {
             return ref GetFieldRef<S, byte>(ref obj, 0);
         }
 
+        public static ref byte GetHeadRefCommon<S>(ref S obj)
+        {
+            return ref GetFieldRefCommon<S, byte>(ref obj, 0);
+        }
+
         private abstract class SizeMeasurer
         {
-            public static Dictionary<Type, int> _Cache = new Dictionary<Type, int>();
+            public static readonly Dictionary<RuntimeTypeHandle, int> _Cache = new Dictionary<RuntimeTypeHandle, int>();
 
             public abstract int GetSize();
 
@@ -145,31 +254,33 @@ namespace Mod
             {
                 lock (_Cache)
                 {
-                    if (_Cache.TryGetValue(type, out var size))
+                    if (_Cache.TryGetValue(type.TypeHandle, out var size))
                     {
                         return size;
                     }
                 }
                 if (type.IsValueType)
                 {
-                    int size = Type.GetTypeCode(type) switch
-                    {
-                        TypeCode.Empty => 0,
-                        TypeCode.Boolean => 1,
-                        TypeCode.Char => 2,
-                        TypeCode.SByte => 1,
-                        TypeCode.Byte => 1,
-                        TypeCode.Int16 => 2,
-                        TypeCode.UInt16 => 2,
-                        TypeCode.Int32 => 4,
-                        TypeCode.UInt32 => 4,
-                        TypeCode.Int64 => 8,
-                        TypeCode.UInt64 => 8,
-                        TypeCode.Single => 4,
-                        TypeCode.Double => 8,
-                        TypeCode.Decimal => 16,
-                        _ => -1
-                    };
+                    //int size = Type.GetTypeCode(type) switch
+                    //{
+                    //    TypeCode.Empty => 0,
+                    //    TypeCode.Boolean => 1,
+                    //    TypeCode.Char => 2,
+                    //    TypeCode.SByte => 1,
+                    //    TypeCode.Byte => 1,
+                    //    TypeCode.Int16 => 2,
+                    //    TypeCode.UInt16 => 2,
+                    //    TypeCode.Int32 => 4,
+                    //    TypeCode.UInt32 => 4,
+                    //    TypeCode.Int64 => 8,
+                    //    TypeCode.UInt64 => 8,
+                    //    TypeCode.Single => 4,
+                    //    TypeCode.Double => 8,
+                    //    TypeCode.Decimal => 16,
+                    //    _ => -1
+                    //};
+
+                    int size = -1;
 
                     if (size < 0)
                     {
@@ -182,7 +293,7 @@ namespace Mod
                     {
                         lock (_Cache)
                         {
-                            _Cache[type] = size;
+                            _Cache[type.TypeHandle] = size;
                         }
                         return size;
                     }
@@ -209,9 +320,37 @@ namespace Mod
                     }
                     lock (_Cache)
                     {
-                        _Cache[type] = size;
+                        _Cache[type.TypeHandle] = size;
                     }
                     return size;
+                }
+            }
+            public static int GetSize<T>()
+            {
+                var type = typeof(T);
+                if (type.IsValueType)
+                {
+                    int size;
+                    lock (_Cache)
+                    {
+                        if (_Cache.TryGetValue(type.TypeHandle, out size))
+                        {
+                            return size;
+                        }
+                    }
+                    unsafe
+                    {
+                        size = sizeof(T);
+                    }
+                    lock (_Cache)
+                    {
+                        _Cache[type.TypeHandle] = size;
+                    }
+                    return size;
+                }
+                else
+                {
+                    return GetSize(type);
                 }
             }
         }
@@ -230,50 +369,369 @@ namespace Mod
             {
                 lock (_Cache)
                 {
-                    _Cache[typeof(T)] = GetSize();
+                    _Cache[typeof(T).TypeHandle] = GetSize();
                 }
             }
         }
 
-        public static int SizeOf(Type t)
+        public static int Size(this Type t)
         {
             return SizeMeasurer.GetSize(t);
         }
-        public static int SizeOf<T>()
+        public static int Size<T>()
         {
-            return SizeMeasurer.GetSize(typeof(T));
+            return SizeMeasurer.GetSize<T>();
         }
-        public static int SizeOf(object obj)
+        public static int Size(this object obj)
         {
             if (obj == null)
             {
                 return 0;
             }
-            return SizeOf(obj.GetType());
+            return Size(obj.GetType());
+        }
+        public static int Size<T>(ref T obj)
+        {
+            if (typeof(T).IsValueType)
+            {
+                return Size<T>();
+            }
+            else
+            {
+                return Size(obj);
+            }
+        }
+        public static int Size<T>(this T obj)
+        {
+            if (typeof(T).IsValueType)
+            {
+                return Size<T>();
+            }
+            else
+            {
+                return Size(obj);
+            }
         }
 
-        public static int GetFieldOffset(FieldInfo fi)
+        private static readonly Dictionary<RuntimeFieldHandle, int> _FieldOffsetCache = new Dictionary<RuntimeFieldHandle, int>();
+        public static FieldOffset GetFieldOffset(this FieldInfo fi)
         {
-            var type = fi.ReflectedType;
-            var fields = type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
             int offset = 0;
-            foreach (var field in fields)
+            lock (_FieldOffsetCache)
             {
-                if (field == fi)
+                if (_FieldOffsetCache.TryGetValue(fi.FieldHandle, out offset))
                 {
                     return offset;
                 }
+            }
+            try
+            {
+                var type = fi.ReflectedType;
+                var fields = type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                foreach (var field in fields)
+                {
+                    if (field == fi)
+                    {
+                        return offset;
+                    }
+                    var fieldType = field.FieldType;
+                    if (fieldType.IsValueType)
+                    {
+                        offset += Size(fieldType);
+                    }
+                    else
+                    {
+                        offset += IntPtr.Size;
+                    }
+                }
+                return offset;
+            }
+            finally
+            {
+                lock (_FieldOffsetCache)
+                {
+                    _FieldOffsetCache[fi.FieldHandle] = offset;
+                }
+            }
+        }
+        public static ref T GetFieldRef<T>(this object target, FieldInfo fieldInfo)
+        {
+            if (target == null)
+            {
+                throw new ArgumentNullException(nameof(target));
+            }
+            if (fieldInfo == null)
+            {
+                throw new ArgumentNullException(nameof(fieldInfo));
+            }
+            var offset = GetFieldOffset(fieldInfo);
+            return ref GetFieldRef<T>(target, offset);
+        }
+        public static ref T GetFieldRef<S, T>(this ref S target, FieldInfo fieldInfo) where S : struct
+        {
+            if (fieldInfo == null)
+            {
+                throw new ArgumentNullException(nameof(fieldInfo));
+            }
+            var offset = GetFieldOffset(fieldInfo);
+            return ref GetFieldRef<S, T>(ref target, offset);
+        }
+        public static ref T GetFieldRefCommon<S, T>(ref S target, FieldInfo fieldInfo)
+        {
+            if (!typeof(S).IsValueType)
+            {
+                return ref GetFieldRef<T>(target, fieldInfo);
+            }
+            else
+            {
+                if (fieldInfo == null)
+                {
+                    throw new ArgumentNullException(nameof(fieldInfo));
+                }
+                var offset = GetFieldOffset(fieldInfo);
+                return ref GetFieldRefCommon<S, T>(ref target, offset);
+            }
+        }
+        public static T GetFieldValue<T>(this object target, FieldInfo fieldInfo)
+        {
+            return GetFieldRef<T>(target, fieldInfo);
+        }
+        public static T GetFieldValue<S, T>(this S target, FieldInfo fieldInfo) where S : struct
+        {
+            return GetFieldRef<S, T>(ref target, fieldInfo);
+        }
+        public static T GetFieldValueCommon<S, T>(this S target, FieldInfo fieldInfo)
+        {
+            return GetFieldRefCommon<S, T>(ref target, fieldInfo);
+        }
+        public static void SetFieldValue<T>(this object target, FieldInfo fieldInfo, T value)
+        {
+            GetFieldRef<T>(target, fieldInfo) = value;
+        }
+        public static void SetFieldValue<S, T>(this ref S target, FieldInfo fieldInfo, T value) where S : struct
+        {
+            GetFieldRef<S, T>(ref target, fieldInfo) = value;
+        }
+        public static void SetFieldValueCommon<S, T>(ref S target, FieldInfo fieldInfo, T value)
+        {
+            GetFieldRefCommon<S, T>(ref target, fieldInfo) = value;
+        }
+
+        /// <remarks>
+        /// No cache! Can be quite slow.
+        /// If offset is out of the class, it will return null.
+        /// Offset may be in the middle of a field, so the returned FieldInfo start ahead of the offset.
+        /// </remark>
+        public static FieldInfo GetFieldInfo(this Type type, int offset)
+        {
+            int foffset = 0;
+            var fields = type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            foreach (var field in fields)
+            {
+                if (foffset == offset)
+                {
+                    return field;
+                }
+                int delta;
                 var fieldType = field.FieldType;
                 if (fieldType.IsValueType)
                 {
-                    offset += SizeOf(fieldType);
+                    delta = Size(fieldType);
                 }
                 else
                 {
-                    offset += IntPtr.Size;
+                    delta = IntPtr.Size;
+                }
+                foffset += delta;
+                if (foffset > offset)
+                {
+                    return field;
                 }
             }
-            return offset;
+            return null;
+        }
+        public static FieldInfo GetFieldInfo(this object target, int offset)
+        {
+            return GetFieldInfo(target.GetType(), offset);
+        }
+        public static FieldInfo GetFieldInfo<S>(this ref S target, int offset) where S : struct
+        {
+            return GetFieldInfo(typeof(S), offset);
+        }
+        public static FieldInfo GetFieldInfo<S>(this S target, int offset)
+        {
+            if (typeof(S).IsValueType)
+            {
+                return GetFieldInfo(typeof(S), offset);
+            }
+            else
+            {
+                return GetFieldInfo(target.GetType(), offset);
+            }
+        }
+        public static FieldInfo GetFieldInfo<T>(this object target, ref T field)
+        {
+            return GetFieldInfo(target, GetFieldOffset(target, ref field));
+        }
+        public static FieldInfo GetFieldInfo<S, T>(this ref S target, ref T field) where S : struct
+        {
+            return GetFieldInfo(ref target, GetFieldOffset(ref target, ref field));
+        }
+        public static FieldInfo GetFieldInfoCommon<S, T>(ref S target, ref T field)
+        {
+            if (typeof(S).IsValueType)
+            {
+                return GetFieldInfo(target, GetFieldOffsetCommon(ref target, ref field));
+            }
+            else
+            {
+                return GetFieldInfo(target, ref field);
+            }
+        }
+
+        public static ref T GetField<S, T>(this ref S target, FieldIndicator<T> fi) where S : struct
+        {
+            return ref GetFieldRef<S, T>(ref target, fi.Offset);
+        }
+        public static ref T GetField<T>(this object target, FieldIndicator<T> fi)
+        {
+            return ref GetFieldRef<T>(target, fi.Offset);
+        }
+        public static FieldIndicator<T> Ref<T>(this FieldInfo fieldInfo)
+        {
+            return new FieldIndicator<T>(fieldInfo);
+        }
+        public static FieldIndicator<T> Ref<T>(this FieldOffset fo)
+        {
+            return fo;
+        }
+    }
+
+    public interface IFieldOffset
+    {
+        int Offset { get; }
+    }
+    public struct FieldOffset : IFieldOffset, IEquatable<FieldOffset>, IEquatable<int>, IComparable<FieldOffset>, IComparable<int>
+    {
+        private readonly int _Offset;
+        public int Offset => _Offset;
+
+        public FieldOffset(int offset)
+        {
+            _Offset = offset;
+        }
+        public static implicit operator FieldOffset(int offset)
+        {
+            return new FieldOffset(offset);
+        }
+        public static implicit operator int(FieldOffset fieldOffset)
+        {
+            return fieldOffset._Offset;
+        }
+
+        public override bool Equals(object obj)
+        {
+            if (obj is FieldOffset fi) return _Offset == fi._Offset;
+            else if (obj is int i) return _Offset == i;
+            else if (obj is IFieldOffset fo) return _Offset == fo.Offset;
+            return int.Equals(_Offset, obj);
+        }
+        public override int GetHashCode()
+        {
+            return _Offset.GetHashCode();
+        }
+        public override string ToString()
+        {
+            return _Offset.ToString();
+        }
+
+        public bool Equals(FieldOffset other)
+        {
+            return _Offset == other._Offset;
+        }
+        public bool Equals(int other)
+        {
+            return _Offset == other;
+        }
+        public int CompareTo(FieldOffset other)
+        {
+            return _Offset.CompareTo(other._Offset);
+        }
+        public int CompareTo(int other)
+        {
+            return _Offset.CompareTo(other);
+        }
+    }
+
+    public struct FieldIndicator<T> : IFieldOffset, IEquatable<FieldIndicator<T>>, IEquatable<FieldOffset>, IEquatable<int>, IComparable<FieldIndicator<T>>, IComparable<FieldOffset>, IComparable<int>
+    {
+        private readonly int _Offset;
+        public int Offset => _Offset;
+
+        public FieldIndicator(FieldInfo fi)
+        {
+            _Offset = fi.GetFieldOffset();
+        }
+        public FieldIndicator(int offset)
+        {
+            _Offset = offset;
+        }
+        public static implicit operator FieldIndicator<T>(int offset)
+        {
+            return new FieldIndicator<T>(offset);
+        }
+        public static implicit operator int(FieldIndicator<T> fieldOffset)
+        {
+            return fieldOffset._Offset;
+        }
+        public static implicit operator FieldIndicator<T>(FieldOffset offset)
+        {
+            return new FieldIndicator<T>(offset);
+        }
+        public static implicit operator FieldOffset(FieldIndicator<T> fieldOffset)
+        {
+            return fieldOffset._Offset;
+        }
+
+        public override bool Equals(object obj)
+        {
+            if (obj is FieldIndicator<T> fi) return _Offset == fi._Offset;
+            else if (obj is int i) return _Offset == i;
+            else if (obj is IFieldOffset fo) return _Offset == fo.Offset;
+            return int.Equals(_Offset, obj);
+        }
+        public override int GetHashCode()
+        {
+            return _Offset.GetHashCode();
+        }
+        public override string ToString()
+        {
+            return _Offset.ToString();
+        }
+
+        public bool Equals(FieldIndicator<T> other)
+        {
+            return _Offset == other.Offset;
+        }
+        public bool Equals(FieldOffset other)
+        {
+            return _Offset == other.Offset;
+        }
+        public bool Equals(int other)
+        {
+            return _Offset == other;
+        }
+        public int CompareTo(FieldIndicator<T> other)
+        {
+            return _Offset.CompareTo(other.Offset);
+        }
+        public int CompareTo(FieldOffset other)
+        {
+            return _Offset.CompareTo(other.Offset);
+        }
+        public int CompareTo(int other)
+        {
+            return _Offset.CompareTo(other);
         }
     }
 }

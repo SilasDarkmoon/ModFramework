@@ -45,7 +45,7 @@ namespace Mod.Tests
             var src = new TestClass { IntField = 42, StringField = "test" };
             var dst = new TestClass { IntField = 0, StringField = null };
 
-            UnsafeEx.MemCopy(dst, 0, src, 0, UnsafeEx.SizeOf(src));
+            UnsafeEx.MemCopy(dst, 0, src, 0, UnsafeEx.Size(src));
 
             Assert.Equal(src.IntField, dst.IntField);
         }
@@ -56,7 +56,7 @@ namespace Mod.Tests
             var src = new TestStruct { IntField = 42, ByteField = 100 };
             var dst = new TestStruct { IntField = 0, ByteField = 0 };
 
-            UnsafeEx.MemCopy(ref dst, 0, ref src, 0, UnsafeEx.SizeOf<TestStruct>());
+            UnsafeEx.MemCopy(ref dst, 0, ref src, 0, UnsafeEx.Size<TestStruct>());
 
             Assert.Equal(src.IntField, dst.IntField);
             Assert.Equal(src.ByteField, dst.ByteField);
@@ -72,7 +72,7 @@ namespace Mod.Tests
             // 这里可能会失败，因为对象有头部信息，而结构体没有
             try
             {
-                UnsafeEx.MemCopy(ref dst, 0, src, 0, Math.Min(UnsafeEx.SizeOf<TestStruct>(), UnsafeEx.SizeOf(src)));
+                UnsafeEx.MemCopy(ref dst, 0, src, 0, Math.Min(UnsafeEx.Size<TestStruct>(), UnsafeEx.Size(src)));
             }
             catch
             {
@@ -93,7 +93,7 @@ namespace Mod.Tests
             // 这里可能会失败，因为对象有头部信息，而结构体没有
             try
             {
-                UnsafeEx.MemCopy(dst, 0, ref src, 0, Math.Min(UnsafeEx.SizeOf(dst), UnsafeEx.SizeOf<TestStruct>()));
+                UnsafeEx.MemCopy(dst, 0, ref src, 0, Math.Min(UnsafeEx.Size(dst), UnsafeEx.Size<TestStruct>()));
             }
             catch
             {
@@ -122,7 +122,7 @@ namespace Mod.Tests
             var src = new TestStruct { IntField = 42, ByteField = 100 };
             var dst = new TestStruct { IntField = 0, ByteField = 0 };
 
-            UnsafeEx.MemCopy(ref dst, ref src, UnsafeEx.SizeOf<TestStruct>());
+            UnsafeEx.MemCopy(ref dst, ref src, UnsafeEx.Size<TestStruct>());
 
             Assert.Equal(src.IntField, dst.IntField);
             Assert.Equal(src.ByteField, dst.ByteField);

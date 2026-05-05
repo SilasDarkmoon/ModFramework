@@ -84,31 +84,31 @@ namespace Mod.Tests
         [Fact]
         public void SizeOf_Type_ReturnsCorrectSize()
         {
-            Assert.Equal(4, UnsafeEx.SizeOf(typeof(int)));
-            Assert.Equal(8, UnsafeEx.SizeOf(typeof(long)));
-            Assert.Equal(1, UnsafeEx.SizeOf(typeof(bool)));
+            Assert.Equal(4, UnsafeEx.Size(typeof(int)));
+            Assert.Equal(8, UnsafeEx.Size(typeof(long)));
+            Assert.Equal(1, UnsafeEx.Size(typeof(bool)));
         }
 
         [Fact]
         public void SizeOf_Generic_ReturnsCorrectSize()
         {
-            Assert.Equal(4, UnsafeEx.SizeOf<int>());
-            Assert.Equal(8, UnsafeEx.SizeOf<long>());
-            Assert.Equal(1, UnsafeEx.SizeOf<bool>());
+            Assert.Equal(4, UnsafeEx.Size<int>());
+            Assert.Equal(8, UnsafeEx.Size<long>());
+            Assert.Equal(1, UnsafeEx.Size<bool>());
         }
 
         [Fact]
         public void SizeOf_Object_ReturnsCorrectSize()
         {
             var testObj = new TestClass { IntField = 42, StringField = "test" };
-            var size = UnsafeEx.SizeOf(testObj);
+            var size = UnsafeEx.Size(testObj);
             Assert.True(size > 0, "Object size should be positive");
         }
 
         [Fact]
         public void SizeOf_NullObject_ReturnsZero()
         {
-            Assert.Equal(0, UnsafeEx.SizeOf((object)null));
+            Assert.Equal(0, UnsafeEx.Size((object)null));
         }
 
         [Fact]
