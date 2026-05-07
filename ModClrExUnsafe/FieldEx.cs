@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Runtime.InteropServices;
 
 namespace Mod.LowLevel
 {
@@ -244,6 +245,10 @@ namespace Mod.LowLevel
             return ref GetFieldRefCommon<S, byte>(ref obj, 0);
         }
 
+        private static class FieldInfoPlatDep
+        {
+        }
+
         private abstract class SizeMeasurer
         {
             public static readonly Dictionary<RuntimeTypeHandle, int> _Cache = new Dictionary<RuntimeTypeHandle, int>();
@@ -261,26 +266,24 @@ namespace Mod.LowLevel
                 }
                 if (type.IsValueType)
                 {
-                    //int size = Type.GetTypeCode(type) switch
-                    //{
-                    //    TypeCode.Empty => 0,
-                    //    TypeCode.Boolean => 1,
-                    //    TypeCode.Char => 2,
-                    //    TypeCode.SByte => 1,
-                    //    TypeCode.Byte => 1,
-                    //    TypeCode.Int16 => 2,
-                    //    TypeCode.UInt16 => 2,
-                    //    TypeCode.Int32 => 4,
-                    //    TypeCode.UInt32 => 4,
-                    //    TypeCode.Int64 => 8,
-                    //    TypeCode.UInt64 => 8,
-                    //    TypeCode.Single => 4,
-                    //    TypeCode.Double => 8,
-                    //    TypeCode.Decimal => 16,
-                    //    _ => -1
-                    //};
-
                     int size = -1;
+                    switch (Type.GetTypeCode(type))
+                    {
+                        case TypeCode.Empty: size = 0; break;
+                        case TypeCode.Boolean: size = 1; break;
+                        case TypeCode.Char: size = 2; break;
+                        case TypeCode.SByte: size = 1; break;
+                        case TypeCode.Byte: size = 1; break;
+                        case TypeCode.Int16: size = 2; break;
+                        case TypeCode.UInt16: size = 2; break;
+                        case TypeCode.Int32: size = 4; break;
+                        case TypeCode.UInt32: size = 4; break;
+                        case TypeCode.Int64: size = 8; break;
+                        case TypeCode.UInt64: size = 8; break;
+                        case TypeCode.Single: size = 4; break;
+                        case TypeCode.Double: size = 8; break;
+                        case TypeCode.Decimal: size = 16; break;
+                    }
 
                     if (size < 0)
                     {
@@ -304,18 +307,25 @@ namespace Mod.LowLevel
                 }
                 //else
                 {
-                    var fields = type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
                     int size = 0;
+                    int offset = -1;
+                    var fields = PlatDep.GetAllFields(type);
                     foreach (var field in fields)
                     {
-                        var fieldType = field.FieldType;
-                        if (fieldType.IsValueType)
+                        var foffset = GetFieldOffset(field);
+                        if (foffset > offset)
                         {
-                            size += GetSize(fieldType);
-                        }
-                        else
-                        {
-                            size += IntPtr.Size;
+                            offset = foffset;
+                            size = foffset;
+                            var fieldType = field.FieldType;
+                            if (fieldType.IsValueType)
+                            {
+                                size += GetSize(fieldType);
+                            }
+                            else
+                            {
+                                size += IntPtr.Size;
+                            }
                         }
                     }
                     lock (_Cache)
@@ -340,7 +350,9 @@ namespace Mod.LowLevel
                     }
                     unsafe
                     {
+#pragma warning disable CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
                         size = sizeof(T);
+#pragma warning restore CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
                     }
                     lock (_Cache)
                     {
@@ -361,7 +373,9 @@ namespace Mod.LowLevel
             {
                 unsafe
                 {
+#pragma warning disable CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
                     return sizeof(T);
+#pragma warning restore CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
                 }
             }
 
@@ -426,25 +440,7 @@ namespace Mod.LowLevel
             }
             try
             {
-                var type = fi.ReflectedType;
-                var fields = type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                foreach (var field in fields)
-                {
-                    if (field == fi)
-                    {
-                        return offset;
-                    }
-                    var fieldType = field.FieldType;
-                    if (fieldType.IsValueType)
-                    {
-                        offset += Size(fieldType);
-                    }
-                    else
-                    {
-                        offset += IntPtr.Size;
-                    }
-                }
-                return offset;
+                return offset = PlatDep.GetFieldOffset(fi);
             }
             finally
             {
@@ -517,6 +513,11 @@ namespace Mod.LowLevel
             GetFieldRefCommon<S, T>(ref target, fieldInfo) = value;
         }
 
+        public static FieldInfo[] GetAllFields(this Type type)
+        {
+            return PlatDep.GetAllFields(type);
+        }
+
         /// <remarks>
         /// No cache! Can be quite slow.
         /// If offset is out of the class, it will return null.
@@ -524,13 +525,17 @@ namespace Mod.LowLevel
         /// </remark>
         public static FieldInfo GetFieldInfo(this Type type, int offset)
         {
-            int foffset = 0;
-            var fields = type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            var fields = PlatDep.GetAllFields(type);
             foreach (var field in fields)
             {
-                if (foffset == offset)
+                int foffset = GetFieldOffset(field);
+                if (offset == foffset)
                 {
                     return field;
+                }
+                else if (offset < foffset)
+                {
+                    continue;
                 }
                 int delta;
                 var fieldType = field.FieldType;
@@ -542,8 +547,7 @@ namespace Mod.LowLevel
                 {
                     delta = IntPtr.Size;
                 }
-                foffset += delta;
-                if (foffset > offset)
+                if (offset < foffset + delta)
                 {
                     return field;
                 }
@@ -597,11 +601,11 @@ namespace Mod.LowLevel
         {
             return ref GetFieldRef<T>(target, fi.Offset);
         }
-        public static FieldIndicator<T> Ref<T>(this FieldInfo fieldInfo)
+        public static FieldIndicator<T> OfType<T>(this FieldInfo fieldInfo)
         {
             return new FieldIndicator<T>(fieldInfo);
         }
-        public static FieldIndicator<T> Ref<T>(this FieldOffset fo)
+        public static FieldIndicator<T> OfType<T>(this FieldOffset fo)
         {
             return fo;
         }

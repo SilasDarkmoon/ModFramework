@@ -10,14 +10,18 @@ namespace Mod.LowLevel
         {
             unsafe
             {
+#pragma warning disable CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
                 return new Span<T>(address.ToPointer(), byteLength / sizeof(T));
+#pragma warning restore CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
             }
         }
         public static ReadOnlySpan<T> AsReadOnlySpan<T>(IntPtr address, int byteLength)
         {
             unsafe
             {
+#pragma warning disable CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
                 return new ReadOnlySpan<T>(address.ToPointer(), byteLength / sizeof(T));
+#pragma warning restore CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
             }
         }
         public static Span<byte> AsCStringSpan(this IntPtr address)
@@ -34,40 +38,48 @@ namespace Mod.LowLevel
         {
             unsafe
             {
+#pragma warning disable CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
                 fixed (T* ptr = span)
                 {
                     return (IntPtr)ptr;
                 }
+#pragma warning restore CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
             }
         }
         public static (IntPtr address, int byteLength) GetAddressAndLength<T>(this Span<T> span)
         {
             unsafe
             {
+#pragma warning disable CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
                 fixed (T* ptr = span)
                 {
                     return ((IntPtr)ptr, span.Length * sizeof(T));
                 }
+#pragma warning restore CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
             }
         }
         public static IntPtr GetAddress<T>(this ReadOnlySpan<T> span)
         {
             unsafe
             {
+#pragma warning disable CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
                 fixed (T* ptr = span)
                 {
                     return (IntPtr)ptr;
                 }
+#pragma warning restore CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
             }
         }
         public static (IntPtr address, int byteLength) GetAddressAndLength<T>(this ReadOnlySpan<T> span)
         {
             unsafe
             {
+#pragma warning disable CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
                 fixed (T* ptr = span)
                 {
                     return ((IntPtr)ptr, span.Length * sizeof(T));
                 }
+#pragma warning restore CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
             }
         }
 

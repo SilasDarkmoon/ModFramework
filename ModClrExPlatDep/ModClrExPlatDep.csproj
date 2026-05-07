@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFrameworks>net10.0;netstandard2.0</TargetFrameworks>
+        <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+        <RootNamespace>Mod.LowLevel</RootNamespace>
+    </PropertyGroup>
+
+    
+    <ItemGroup>
+        <Reference Include="ByRefUtils">
+            <HintPath>../ModClrExUnsafe/ByRefUtils.dll</HintPath>
+            <Private>True</Private>
+        </Reference>
+        <Reference Include="ByRefUtils.TrackingRef">
+            <HintPath>../ModClrExUnsafe/ByRefUtils.TrackingRef.dll</HintPath>
+            <Private>True</Private>
+        </Reference>
+    </ItemGroup>
+
+</Project>

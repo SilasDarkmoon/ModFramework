@@ -215,55 +215,47 @@ class Program
         });
         var ndel = new TestEventTrigger.TestEventHandler(value => { });
 
-        //Console.WriteLine(FieldExt.GetFieldRef<object>(odel, offsetTarget));
-        //Console.WriteLine(FieldExt.GetFieldRef<IntPtr>(odel, offsetMethod));
-        //ref object ntarget = ref FieldExt.GetFieldRef<object>(ndel, offsetTarget);
-        //ref IntPtr nmethod = ref FieldExt.GetFieldRef<IntPtr>(ndel, offsetMethod);
-        //Console.WriteLine(ntarget);
-        //Console.WriteLine(nmethod);
-        //ntarget = FieldExt.GetFieldRef<object>(odel, offsetTarget);
-        //nmethod = FieldExt.GetFieldRef<IntPtr>(odel, offsetMethod);
-
-        foreach (var fi in ndel.GetType().GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
+        TestFieldsClass t = new TestFieldsClass();
+        foreach (var field in typeof(TestFieldsClass).GetAllFields())
         {
-            Console.WriteLine(fi);
+            Console.WriteLine(t.GetField(field.OfType<int>()));
         }
 
-        ref object ntarget = ref ndel.GetField(DelegateEx.FieldTarget);
-        ntarget = odel.GetField(DelegateEx.FieldTarget);
-        ref IntPtr nmethod = ref ndel.GetField(DelegateEx.FieldMethodPtr);
-        nmethod = odel.GetField(DelegateEx.FieldMethodPtr);
-
-        TestEventTrigger.OnTestEventWithCustomDelegate += ndel;
-        TestEventTrigger.TriggerWithCustomDelegate(18);
-
-        var fields = odel.GetType().GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-        foreach (var field in fields)
+        TestFieldsStruct ts = new TestFieldsStruct(0, 1, 2, 3, 4, 5);
+        foreach (var field in typeof(TestFieldsStruct).GetAllFields())
         {
-            Console.WriteLine(field);
-            var handle = field.FieldHandle;
-            Console.WriteLine(handle.Value);
-            RawRef r = new RawRef();
-            r.Address = handle.Value;
-            var fd = r.GetValue<FieldDesc>();
-            Console.WriteLine(fd.Offset);
+            Console.WriteLine(t.GetField(field.OfType<int>()));
         }
 
-        //Console.WriteLine(FieldExt.GetFieldOffset(typeof(DelegateStub).GetField("Method")));
-        //Console.WriteLine(offsetMethod);
+    }
+}
 
-        A a = new A();
-        ref B rb = ref a.b;
+class TestFieldsClass
+{
+    public int Field0 = 0;
+    public int Field1 = 1;
+    public int Field2 = 2;
+    public int Field3 = 3;
+    public int Field4 = 4;
+    public int Field5 = 5;
+}
+struct TestFieldsStruct
+{
+    public int Field0;
+    public int Field1;
+    public int Field2;
+    public int Field3;
+    public int Field4;
+    public int Field5;
 
-        RawRef rtest = new RawRef();
-        rtest.SetRefObj(odel);
-        var o = rtest.GetRefObj();
-        Console.WriteLine(o);
-
-        //ObjectLayoutInspector.TypeLayout.PrintLayout<A>();
-        //ObjectLayoutInspector.TypeLayout.PrintLayout<C>();
-        //ObjectLayoutInspector.TypeLayout.PrintLayout<D>();
-
+    public TestFieldsStruct(int i0, int i1, int i2, int i3, int i4, int i5)
+    {
+        Field0 = i0;
+        Field1 = i1;
+        Field2 = i2;
+        Field3 = i3;
+        Field4 = i4;
+        Field5 = i5;
     }
 }
 

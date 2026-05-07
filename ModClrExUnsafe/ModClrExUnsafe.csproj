@@ -11,6 +11,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\ModClrExPlatDep\ModClrExPlatDep.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Reference Include="ByRefUtils">
       <HintPath>ByRefUtils.dll</HintPath>
       <Private>True</Private>

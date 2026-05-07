@@ -1,3 +1,4 @@
+using Mod.LowLevel;
 using System;
 using System.Reflection;
 using Xunit;
@@ -108,7 +109,7 @@ namespace Mod.Tests
         [Fact]
         public void SizeOf_NullObject_ReturnsZero()
         {
-            Assert.Equal(0, UnsafeEx.Size((object)null));
+            Assert.Equal(0, UnsafeEx.Size((object?)null));
         }
 
         [Fact]
