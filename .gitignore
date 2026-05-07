@@ -29,7 +29,7 @@ Dockerfile*
 .idea/
 *.swp
 *.swo
-*~
+#*~
 
 # OS
 Thumbs.db
