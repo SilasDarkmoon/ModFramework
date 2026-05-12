@@ -42,10 +42,10 @@ namespace Mod.LowLevel
                 public IntPtr name;
                 public IntPtr type;
                 public uint offset;
-                public uint attributes;
-                public uint token;
-                public uint defaultValueIndex;
-                public IntPtr parentGenericClass;
+                //public uint attributes;
+                //public uint token;
+                //public uint defaultValueIndex;
+                //public IntPtr parentGenericClass;
 #pragma warning restore IDE1006 // 命名样式
             }
 
