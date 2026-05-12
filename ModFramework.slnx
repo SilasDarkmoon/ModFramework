@@ -1,7 +1,6 @@
 <Solution>
   <Project Path="ModClrEx.Tests/ModClrEx.Tests.csproj" />
   <Project Path="ModClrEx/ModClrEx.csproj" />
-  <Project Path="ModClrExPlatDep/ModClrExPlatDep.csproj" Id="d70c6d18-181f-40c5-9b24-b5f23fc1d40b" />
   <Project Path="ModClrExUnsafe.Tests/ModClrExUnsafe.Tests.csproj" />
   <Project Path="ModClrExUnsafe/ModClrExUnsafe.csproj" />
   <Project Path="ModFramework/ModFramework.csproj" />
