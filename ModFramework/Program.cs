@@ -2,11 +2,17 @@ using Mod;
 using Mod.LowLevel;
 using System;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.InteropServices;
 
 class Program
 {
+#if NET10_0_OR_GREATER
+    [DynamicDependency( DynamicallyAccessedMemberTypes.AllFields, type:typeof(TestFieldsClass))]
+    [DynamicDependency( DynamicallyAccessedMemberTypes.AllFields, type:typeof(TestFieldsStruct))]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.All, "System.Reflection.Runtime.FieldInfos.NativeFormat.NativeFormatRuntimeFieldInfo", "System.Private.CoreLib")]
+#endif
     public static void Main()
     {
 
@@ -207,6 +213,7 @@ class Program
         //#endregion
 
         #region Test For UnsafeAccessor
+        Console.WriteLine(RuntimeInfo.Runtime);
         Console.WriteLine(UnsafeEx.GetObjectHeaderSize());
 
         var odel = new Action<int>(value =>
@@ -226,10 +233,14 @@ class Program
         {
             Console.WriteLine(t.GetField(field.OfType<int>()));
         }
-
+        #endregion
     }
 }
 
+#if NET10_0_OR_GREATER
+[DynamicallyAccessedMembers(
+    DynamicallyAccessedMemberTypes.AllFields)]
+#endif
 class TestFieldsClass
 {
     public int Field0 = 0;
@@ -239,6 +250,10 @@ class TestFieldsClass
     public int Field4 = 4;
     public int Field5 = 5;
 }
+#if NET10_0_OR_GREATER
+[DynamicallyAccessedMembers(
+    DynamicallyAccessedMemberTypes.AllFields)]
+#endif
 struct TestFieldsStruct
 {
     public int Field0;
@@ -338,8 +353,6 @@ unsafe struct F
 {
     public fixed byte Buffer[128];
 }
-
-#endregion
 
 //#region Test For WeakDelegate
 
