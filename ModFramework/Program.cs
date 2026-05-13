@@ -11,11 +11,15 @@ class Program
 #if NET10_0_OR_GREATER
     [DynamicDependency( DynamicallyAccessedMemberTypes.AllFields, type:typeof(TestFieldsClass))]
     [DynamicDependency( DynamicallyAccessedMemberTypes.AllFields, type:typeof(TestFieldsStruct))]
-    [DynamicDependency(DynamicallyAccessedMemberTypes.All, "System.Reflection.Runtime.FieldInfos.NativeFormat.NativeFormatRuntimeFieldInfo", "System.Private.CoreLib")]
 #endif
     public static void Main()
     {
-
+#if NET10_0_OR_GREATER
+        if (RuntimeInfo.IsNativeAOT)
+        {
+            NativeAOTHelper.Prepare();
+        }
+#endif
         var stopwatch = Stopwatch.StartNew();
         //#region Test For StringPool
         //string[] strs = new string[1024 * 1024 * 2];

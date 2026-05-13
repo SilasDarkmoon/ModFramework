@@ -234,17 +234,27 @@ namespace Mod.LowLevel
 
             private class PlatDepNativeAOT : IPlatDep
             {
-                private static Func<int> _DelGetOffset;
+                private static Func<int> _DelGetOffsetTemplate;
+                [ThreadStatic] private static Func<int> _DelGetOffset;
 
                 public int GetFieldOffset(FieldInfo field)
                 {
                     // TODO: Must add [DynamicDependency(DynamicallyAccessedMemberTypes.All, "System.Reflection.Runtime.FieldInfos.NativeFormat.NativeFormatRuntimeFieldInfo", "System.Private.CoreLib")] somewhere.
                     if (_DelGetOffset == null)
                     {
-                        var prop = field.GetType().GetProperty("Offset", BindingFlags.NonPublic | BindingFlags.Instance);
-                        var gm = prop.GetGetMethod(true);
-                        _DelGetOffset = (Func<int>)Delegate.CreateDelegate(typeof(Func<int>), field, gm);
-                        return _DelGetOffset();
+                        if (_DelGetOffsetTemplate == null)
+                        {
+                            var prop = field.GetType().GetProperty("Offset", BindingFlags.NonPublic | BindingFlags.Instance);
+                            var gm = prop.GetGetMethod(true);
+                            _DelGetOffset = _DelGetOffsetTemplate = (Func<int>)Delegate.CreateDelegate(typeof(Func<int>), field, gm);
+                            return _DelGetOffset();
+                        }
+                        else
+                        {
+                            _DelGetOffset = (Func<int>)_DelGetOffsetTemplate.Clone();
+                            _DelGetOffset.GetFieldRef<object>(0) = field;
+                            return _DelGetOffset();
+                        }
                     }
                     else
                     {

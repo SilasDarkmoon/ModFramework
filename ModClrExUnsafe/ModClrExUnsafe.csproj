@@ -10,6 +10,10 @@
     <PackageReference Include="System.Memory" Version="4.6.3" />
   </ItemGroup>
 
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <ProjectReference Include="..\ModClrExPlatDep\ModClrExPlatDep.csproj" />
+  </ItemGroup>
+
   <ItemGroup>
     <Reference Include="ByRefUtils">
       <HintPath>ByRefUtils.dll</HintPath>

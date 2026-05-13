@@ -1,0 +1,18 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+using System.Text;
+
+namespace Mod.LowLevel
+{
+    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
+    public static class NativeAOTHelper
+    {
+        [DynamicDependency(DynamicallyAccessedMemberTypes.All, "System.Reflection.Runtime.FieldInfos.NativeFormat.NativeFormatRuntimeFieldInfo", "System.Private.CoreLib")]
+        public static void Prepare()
+        {
+            // 这个方法的存在是为了让 NativeAOT 保留对某些成员的访问权限，防止它们被错误地裁剪掉。
+            // 这里可以调用一些反射或者其他方式来确保这些成员被保留。
+        }
+    }
+}
