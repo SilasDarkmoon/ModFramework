@@ -280,6 +280,10 @@ namespace Mod.LowLevel
                     {
                         _PlatDep = new PlatDepNativeAOT();
                     }
+                    else if (RuntimeInfo.IsMono)
+                    {
+                        _PlatDep = new PlatDepUnity();
+                    }
                     else
                     {
                         _PlatDep = new PlatDepDotNet();
