@@ -309,7 +309,7 @@ namespace Mod.LowLevel
                 {
                     int size = 0;
                     int offset = -1;
-                    var fields = PlatDep.GetAllFields(type);
+                    var fields = GetAllFields(type);
                     foreach (var field in fields)
                     {
                         var foffset = GetFieldOffset(field);
@@ -515,7 +515,14 @@ namespace Mod.LowLevel
 
         public static FieldInfo[] GetAllFields(this Type type)
         {
-            return PlatDep.GetAllFields(type);
+            List<FieldInfo> list = new List<FieldInfo>();
+            var curType = type;
+            while (curType != null)
+            {
+                list.AddRange(curType.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly));
+                curType = curType.BaseType;
+            }
+            return list.ToArray();
         }
 
         /// <remarks>
@@ -525,7 +532,7 @@ namespace Mod.LowLevel
         /// </remark>
         public static FieldInfo GetFieldInfo(this Type type, int offset)
         {
-            var fields = PlatDep.GetAllFields(type);
+            var fields = GetAllFields(type);
             foreach (var field in fields)
             {
                 int foffset = GetFieldOffset(field);

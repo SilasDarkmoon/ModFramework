@@ -140,7 +140,7 @@ namespace Mod.LowLevel
             private interface IPlatDep
             {
                 int GetFieldOffset(FieldInfo field);
-                FieldInfo[] GetAllFields(Type type);
+                //FieldInfo[] GetAllFields(Type type);
             }
             private static IPlatDep _PlatDep;
 
@@ -170,30 +170,30 @@ namespace Mod.LowLevel
                     return (int)fd.offset - GetObjectHeaderSize();
                 }
 
-                public FieldInfo[] GetAllFields(Type type)
-                {
-                    if (typeof(Delegate).IsAssignableFrom(type))
-                    {
-                        HashSet<string> fieldNames = new HashSet<string>();
-                        List<FieldInfo> fields = new List<FieldInfo>();
-                        var curType = type;
-                        while (curType != null)
-                        {
-                            var curFields = curType.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                            foreach (var field in curFields)
-                            {
-                                if (fieldNames.Add(field.Name))
-                                {
-                                    fields.Add(field);
-                                }
-                            }
-                            curType = curType.BaseType;
-                        }
-                        return fields.ToArray();
-                    }
+                //public FieldInfo[] GetAllFields(Type type)
+                //{
+                //    if (typeof(Delegate).IsAssignableFrom(type))
+                //    {
+                //        HashSet<string> fieldNames = new HashSet<string>();
+                //        List<FieldInfo> fields = new List<FieldInfo>();
+                //        var curType = type;
+                //        while (curType != null)
+                //        {
+                //            var curFields = curType.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                //            foreach (var field in curFields)
+                //            {
+                //                if (fieldNames.Add(field.Name))
+                //                {
+                //                    fields.Add(field);
+                //                }
+                //            }
+                //            curType = curType.BaseType;
+                //        }
+                //        return fields.ToArray();
+                //    }
 
-                    return type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                }
+                //    return type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                //}
             }
 
             private class PlatDepDotNet : IPlatDep
@@ -226,10 +226,10 @@ namespace Mod.LowLevel
                     return fd.Offset;
                 }
 
-                public FieldInfo[] GetAllFields(Type type)
-                {
-                    return type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                }
+                //public FieldInfo[] GetAllFields(Type type)
+                //{
+                //    return type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                //}
             }
 
             private class PlatDepNativeAOT : IPlatDep
@@ -262,10 +262,10 @@ namespace Mod.LowLevel
                         return _DelGetOffset();
                     }
                 }
-                public FieldInfo[] GetAllFields(Type type)
-                {
-                    return type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                }
+                //public FieldInfo[] GetAllFields(Type type)
+                //{
+                //    return type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                //}
             }
 
             static PlatDep()
@@ -296,10 +296,10 @@ namespace Mod.LowLevel
                 return _PlatDep.GetFieldOffset(field);
             }
 
-            public static FieldInfo[] GetAllFields(Type type)
-            {
-                return _PlatDep.GetAllFields(type);
-            }
+            //public static FieldInfo[] GetAllFields(Type type)
+            //{
+            //    return _PlatDep.GetAllFields(type);
+            //}
         }
     }
 }
