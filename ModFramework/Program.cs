@@ -248,6 +248,9 @@ class Program
         var p1 = mi1.MethodHandle.GetFunctionPointer();
         var del2 = Marshal.GetDelegateForFunctionPointer<TestDelegate2>(p1);
         int a = 0;
+        RawRef rr = new RawRef();
+        rr.SetRef(ref a);
+        Console.WriteLine(rr.Address);
         Console.WriteLine(del2(ref a));
 
         var ti = new TestDelegateChildClass();
@@ -255,13 +258,13 @@ class Program
         RuntimeHelpers.PrepareMethod(mi2.MethodHandle);
         var p2 = mi2.MethodHandle.GetFunctionPointer();
         var deli2 = Marshal.GetDelegateForFunctionPointer<TestDelegate3>(p2);
-        Console.WriteLine(deli2(null, IntPtr.Zero));
+        Console.WriteLine(deli2(null, ref a));
 
         var mig = typeof(TestDelegateGenericClass<int>).GetMethod("TestMethod", BindingFlags.Public | BindingFlags.Instance);
         RuntimeHelpers.PrepareMethod(mig.MethodHandle);
         var pgg = mig.MethodHandle.GetFunctionPointer();
         var delg = Marshal.GetDelegateForFunctionPointer<TestDelegate3>(pgg);
-        Console.WriteLine(delg.Invoke(null, IntPtr.Zero));
+        Console.WriteLine(delg.Invoke(null, ref a));
         #endregion
     }
 
@@ -281,7 +284,7 @@ delegate TestDelegate1 CreateTestDelegate1Del(object obj, IntPtr method);
 delegate long TestDelegate1(IntPtr p);
 delegate long TestDelegate2(ref int r);
 
-delegate long TestDelegate3(object thiz, IntPtr p);
+delegate long TestDelegate3(object thiz, ref int r);
 
 #if NET10_0_OR_GREATER
 [DynamicallyAccessedMembers(

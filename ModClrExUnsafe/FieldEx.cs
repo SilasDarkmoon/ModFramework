@@ -40,27 +40,27 @@ namespace Mod.LowLevel
             return _ObjectHeaderSize;
         }
 
-        public static ref IntPtr GetTypeHandleRef(this object obj)
-        {
-            var offset = GetObjectHeaderSize() - IntPtr.Size;
-            for (; ; )
-            {
-                RawRef refObj = default;
-                refObj.SetRefObj(obj);
-                var objAddress = refObj.Address;
-                var handleAddress = (IntPtr)((ulong)objAddress + (ulong)offset);
-                RawRef refHandle = default;
-                refHandle.Address = handleAddress;
-                ref IntPtr refResult = ref refHandle.GetRef<IntPtr>();
-                RawRef refCheck = default;
-                refCheck.SetRefObj(obj);
-                var checkAddress = refCheck.Address;
-                if (checkAddress == objAddress)
-                {
-                    return ref refResult;
-                }
-            }
-        }
+        //public static ref IntPtr GetTypeHandleRef(this object obj)
+        //{
+        //    var offset = GetObjectHeaderSize() - IntPtr.Size;
+        //    for (; ; )
+        //    {
+        //        RawRef refObj = default;
+        //        refObj.SetRefObj(obj);
+        //        var objAddress = refObj.Address;
+        //        var handleAddress = (IntPtr)((ulong)objAddress + (ulong)offset);
+        //        RawRef refHandle = default;
+        //        refHandle.Address = handleAddress;
+        //        ref IntPtr refResult = ref refHandle.GetRef<IntPtr>();
+        //        RawRef refCheck = default;
+        //        refCheck.SetRefObj(obj);
+        //        var checkAddress = refCheck.Address;
+        //        if (checkAddress == objAddress)
+        //        {
+        //            return ref refResult;
+        //        }
+        //    }
+        //}
 
         public static FieldOffset GetFieldOffset<T>(this object obj, ref T field)
         {
