@@ -252,13 +252,13 @@ namespace Mod.LowLevel
                         else
                         {
                             _DelGetOffset = (Func<int>)_DelGetOffsetTemplate.Clone();
-                            _DelGetOffset.GetFieldRef<object>(0) = field;
+                            _DelGetOffset.GetField<object>(0) = field;
                             return _DelGetOffset();
                         }
                     }
                     else
                     {
-                        _DelGetOffset.GetFieldRef<object>(0) = field;
+                        _DelGetOffset.GetField<object>(0) = field;
                         return _DelGetOffset();
                     }
                 }
