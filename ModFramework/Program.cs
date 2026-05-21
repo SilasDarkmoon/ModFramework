@@ -4,13 +4,16 @@ using System;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 class Program
 {
 #if NET10_0_OR_GREATER
-    [DynamicDependency( DynamicallyAccessedMemberTypes.AllFields, type:typeof(TestFieldsClass))]
-    [DynamicDependency( DynamicallyAccessedMemberTypes.AllFields, type:typeof(TestFieldsStruct))]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.AllFields, type: typeof(TestFieldsClass))]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.AllFields, type: typeof(TestFieldsStruct))]
+    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
+    //[RequiresDynamicCode("Calls System.Reflection.MethodInfo.MakeGenericMethod(params Type[])")]
 #endif
     public static void Main()
     {
@@ -216,28 +219,107 @@ class Program
         //}
         //#endregion
 
-        #region Test For UnsafeAccessor
-        Console.WriteLine(RuntimeInfo.Runtime);
-        Console.WriteLine(UnsafeEx.GetObjectHeaderSize());
+        //#region Test For UnsafeAccessor
+        //Console.WriteLine(RuntimeInfo.Runtime);
+        //Console.WriteLine(UnsafeEx.GetObjectHeaderSize());
 
-        var odel = new Action<int>(value =>
-        {
-            Console.WriteLine("Received event with value: " + value);
-        });
-        var ndel = new TestEventTrigger.TestEventHandler(value => { });
+        //var odel = new Action<int>(value =>
+        //{
+        //    Console.WriteLine("Received event with value: " + value);
+        //});
+        //var ndel = new TestEventTrigger.TestEventHandler(value => { });
 
-        TestFieldsClass t = new TestFieldsClass();
-        foreach (var field in typeof(TestFieldsClass).GetAllFields())
-        {
-            Console.WriteLine(t.GetField(field.OfType<int>()));
-        }
+        //TestFieldsClass t = new TestFieldsClass();
+        //foreach (var field in typeof(TestFieldsClass).GetAllFields())
+        //{
+        //    Console.WriteLine(t.GetField(field.OfType<int>()));
+        //}
 
-        TestFieldsStruct ts = new TestFieldsStruct(0, 1, 2, 3, 4, 5);
-        foreach (var field in typeof(TestFieldsStruct).GetAllFields())
-        {
-            Console.WriteLine(t.GetField(field.OfType<int>()));
-        }
+        //TestFieldsStruct ts = new TestFieldsStruct(0, 1, 2, 3, 4, 5);
+        //foreach (var field in typeof(TestFieldsStruct).GetAllFields())
+        //{
+        //    Console.WriteLine(t.GetField(field.OfType<int>()));
+        //}
+        //#endregion
+
+        #region Test For Delegate
+        var mi1 = typeof(Program).GetMethod("TestMethod1", BindingFlags.NonPublic | BindingFlags.Static);
+        RuntimeHelpers.PrepareMethod(mi1.MethodHandle);
+        var p1 = mi1.MethodHandle.GetFunctionPointer();
+        var del2 = Marshal.GetDelegateForFunctionPointer<TestDelegate2>(p1);
+        int a = 0;
+        Console.WriteLine(del2(ref a));
+
+        var ti = new TestDelegateChildClass();
+        var mi2 = typeof(TestDelegateClass).GetMethod("TestMethod", BindingFlags.Public | BindingFlags.Instance);
+        RuntimeHelpers.PrepareMethod(mi2.MethodHandle);
+        var p2 = mi2.MethodHandle.GetFunctionPointer();
+        var deli2 = Marshal.GetDelegateForFunctionPointer<TestDelegate3>(p2);
+        Console.WriteLine(deli2(null, IntPtr.Zero));
+
+        var mig = typeof(TestDelegateGenericClass<int>).GetMethod("TestMethod", BindingFlags.Public | BindingFlags.Instance);
+        RuntimeHelpers.PrepareMethod(mig.MethodHandle);
+        var pgg = mig.MethodHandle.GetFunctionPointer();
+        var delg = Marshal.GetDelegateForFunctionPointer<TestDelegate3>(pgg);
+        Console.WriteLine(delg.Invoke(null, IntPtr.Zero));
         #endregion
+    }
+
+    private static long TestMethod1(IntPtr p)
+    {
+        return p.ToInt64() + 1;
+    }
+    private static long TestMethod2(ref int r)
+    {
+        RawRef rr = new RawRef();
+        rr.SetRef(ref r);
+        return rr.Address.ToInt64() + 1;
+    }
+}
+
+delegate TestDelegate1 CreateTestDelegate1Del(object obj, IntPtr method);
+delegate long TestDelegate1(IntPtr p);
+delegate long TestDelegate2(ref int r);
+
+delegate long TestDelegate3(object thiz, IntPtr p);
+
+#if NET10_0_OR_GREATER
+[DynamicallyAccessedMembers(
+    DynamicallyAccessedMemberTypes.All)]
+#endif
+public class TestDelegateClass
+{
+    public virtual long TestMethod(IntPtr p)
+    {
+        Console.WriteLine("TestDelegateClass.TestMethod");
+        return p.ToInt64() + 1;
+    }
+}
+
+#if NET10_0_OR_GREATER
+[DynamicallyAccessedMembers(
+    DynamicallyAccessedMemberTypes.All)]
+#endif
+public class TestDelegateChildClass : TestDelegateClass
+{
+    public override long TestMethod(IntPtr p)
+    {
+        Console.WriteLine("TestDelegateChildClass.TestMethod");
+        return p.ToInt64() - 1;
+    }
+}
+
+#if NET10_0_OR_GREATER
+[DynamicallyAccessedMembers(
+    DynamicallyAccessedMemberTypes.All)]
+#endif
+public class TestDelegateGenericClass<T>
+{
+    public long TestMethod(ref T r)
+    {
+        RawRef rr = new RawRef();
+        rr.SetRef(ref r);
+        return rr.Address.ToInt64() + 1;
     }
 }
 
