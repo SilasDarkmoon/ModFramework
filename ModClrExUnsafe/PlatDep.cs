@@ -38,6 +38,9 @@ namespace Mod.LowLevel
         private static bool _IsNativeAOT;
         public static bool IsNativeAOT => _IsNativeAOT;
 
+        private static bool _IsDynamicCodeEnabled;
+        public static bool IsDynamicCodeEnabled => _IsDynamicCodeEnabled;
+
         public static bool IsAOT => _IsNativeAOT || _IsIl2Cpp;
 
         static RuntimeInfo()
@@ -120,6 +123,29 @@ namespace Mod.LowLevel
             catch (NotSupportedException)
             {
                 return true;
+            }
+        }
+
+        private static bool CheckIsDynamicCodeEnabled()
+        {
+            try
+            {
+                var tdm = typeof(System.Reflection.Emit.OpCode).Assembly.GetType("System.Reflection.Emit.DynamicMethod");
+                if (tdm == null)
+                {
+                    return false;
+                }
+                var con = tdm.GetConstructor(new Type[] { typeof(string), typeof(Type), typeof(Type[]) });
+                if (con == null)
+                {
+                    return false;
+                }
+                var dm = con.Invoke(new object[] { "TestDynamicCodeEnable", typeof(void), Array.Empty<Type>() });
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
             }
         }
 
