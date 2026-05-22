@@ -41,10 +41,14 @@ namespace Mod.LowLevel
         private static bool _IsDynamicCodeEnabled;
         public static bool IsDynamicCodeEnabled => _IsDynamicCodeEnabled;
 
+        private static bool _IsHybridCLREnabled;
+        public static bool IsHybridCLREnabled => _IsHybridCLREnabled;
+
         public static bool IsAOT => _IsNativeAOT || _IsIl2Cpp;
 
         static RuntimeInfo()
         {
+            _IsDynamicCodeEnabled = CheckIsDynamicCodeEnabled();
             _IsUnity = Type.GetType("UnityEngine.Application, UnityEngine.CoreModule") != null;
             if (_IsUnity)
             {
@@ -52,11 +56,12 @@ namespace Mod.LowLevel
                 if (_IsIl2Cpp)
                 {
                     _Runtime = RuntimeCategory.UnityIl2Cpp;
+                    _IsHybridCLREnabled = CheckIsHybridCLREnabled();
                 }
                 else
                 {
-                    _IsMono = true;
                     _Runtime = RuntimeCategory.UnityMono;
+                    _IsMono = true;
                 }
             }
             else
@@ -148,6 +153,21 @@ namespace Mod.LowLevel
                 return false;
             }
         }
+
+        public static bool CheckIsHybridCLREnabled()
+        {
+            try
+            {
+                Assembly.Load(Array.Empty<byte>());
+            }
+            catch (NotSupportedException)
+            {
+                return false;
+            }
+            catch { }
+            return true;
+        }
+
 
         private class TrimThisClassOnAOT
         {
