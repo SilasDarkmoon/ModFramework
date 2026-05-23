@@ -60,6 +60,10 @@ class Program
         TestFieldsStruct inst1 = default;
         RawRef rinst1 = new RawRef();
         rinst1.SetRef(ref inst1);
+        if (RuntimeInfo.IsNativeAOT)
+        {
+            rinst1.Address -= UnsafeEx.GetObjectHeaderSize();
+        }
         delcon(rinst1, 9, 8, 7, 6, 5, 4);
         Console.WriteLine(inst1.Field0);
         Console.WriteLine(inst1.Field1);
@@ -67,6 +71,19 @@ class Program
         Console.WriteLine(inst1.Field3);
         Console.WriteLine(inst1.Field4);
         Console.WriteLine(inst1.Field5);
+
+        Console.WriteLine("---------------------------------------------------------------------");
+
+        var con2 = typeof(TestFieldsClass).GetConstructor(new[] { typeof(int), typeof(int), typeof(int), typeof(int), typeof(int), typeof(int) });
+        var delcon2 = con2.CreateDelegateUnsafe<Action<object, int, int, int, int, int, int>>();
+        TestFieldsClass inst2 = new TestFieldsClass();
+        delcon2(inst2, 2, 3, 4, 5, 6, 7);
+        Console.WriteLine(inst2.Field0);
+        Console.WriteLine(inst2.Field1);
+        Console.WriteLine(inst2.Field2);
+        Console.WriteLine(inst2.Field3);
+        Console.WriteLine(inst2.Field4);
+        Console.WriteLine(inst2.Field5);
         #endregion
     }
 
@@ -147,6 +164,17 @@ class TestFieldsClass
     public int Field3 = 3;
     public int Field4 = 4;
     public int Field5 = 5;
+
+    public TestFieldsClass() { }
+    public TestFieldsClass(int i0, int i1, int i2, int i3, int i4, int i5)
+    {
+        Field0 = i0;
+        Field1 = i1;
+        Field2 = i2;
+        Field3 = i3;
+        Field4 = i4;
+        Field5 = i5;
+    }
 }
 #if NET10_0_OR_GREATER
 [DynamicallyAccessedMembers(

@@ -425,7 +425,7 @@ namespace Mod.LowLevel
 
             private delegate void DelegateCtorDel(object delObj, object target, IntPtr methodHandle);
             private static DelegateCtorDel _DelegateCtorFuncTemplate;
-            private static MethodInfo _MiGetUninitializedObject;
+            private static MethodInfo _MiDummyStatic;
 
             static UnsafeDelegateWrapperIl2Cpp()
             {
@@ -455,11 +455,13 @@ namespace Mod.LowLevel
 
                 var comi = typeof(object).Assembly.GetType("System.Runtime.Remoting.Activation.ActivationServices").GetMethod("AllocateUninitializedClassInstance");
                 //var comi = typeof(RuntimeHelpers).GetMethod("GetUninitializedObject");
-                _MiGetUninitializedObject = comi;
                 _CreateUninitializedObjectDelFunc = (CreateUninitializedObjectDel)Delegate.CreateDelegate(typeof(CreateUninitializedObjectDel), comi);
 
                 var coni = typeof(DelegateCtorDel).GetConstructor(new[] { typeof(object), typeof(IntPtr) });
                 _DelegateCtorFuncTemplate = (DelegateCtorDel)coni.Invoke(new[] { (object)null, (object)coni.MethodHandle.Value });
+
+                Action actDummy = DummyStatic;
+                _MiDummyStatic = actDummy.Method;
             }
 
             [StructLayout(LayoutKind.Sequential)]
@@ -468,6 +470,21 @@ namespace Mod.LowLevel
                 public IntPtr methodPointer;
                 public IntPtr virtualMethodPointer;
                 public IntPtr invoker_method;
+
+                public IntPtr name;
+                public IntPtr klass;
+                public IntPtr return_type;
+                public IntPtr parameters;
+
+                public IntPtr umethodMetadataHandle;
+                public IntPtr ugenericContainerHandle;
+
+                public uint token;
+                public ushort flags;
+                public ushort iflags;
+                public ushort slot;
+                public byte parameters_count;
+                public byte exflags;
             }
 
             public object CreateDelegate(Type delType, MethodBase method)
@@ -481,10 +498,15 @@ namespace Mod.LowLevel
                 var rvdel = CreateUninitializedObject(delType);
                 if (method.IsConstructor)
                 {
-                    delcon(rvdel, null, _MiGetUninitializedObject.MethodHandle.Value);
+                    RawRef rmid = new RawRef() { Address = _MiDummyStatic.MethodHandle.Value };
                     RawRef rmi = new RawRef() { Address = method.MethodHandle.Value };
+                    lock (_MiDummyStatic)
+                    { // dangerous op here.
+                        rmid.GetRef<Il2CppMethodInfo>().parameters_count = (byte)(rmi.GetRef<Il2CppMethodInfo>().parameters_count + 1);
+                        delcon(rvdel, null, _MiDummyStatic.MethodHandle.Value);
+                    }
                     rvdel.GetField(FI_Delegate_method_ptr) = rmi.GetRef<Il2CppMethodInfo>().methodPointer;
-                    //rvdel.GetField(FI_Delegate_method) = rmi.Address;
+                    rvdel.GetField(FI_Delegate_method) = rmi.Address;
                     rvdel.GetField(FI_Delegate_method_code) = rvdel;
                     return rvdel;
                 }
@@ -499,9 +521,10 @@ namespace Mod.LowLevel
             private static CreateUninitializedObjectDel _CreateUninitializedObjectDelFunc;
             private static object CreateUninitializedObject(Type type)
             {
-                
                 return _CreateUninitializedObjectDelFunc(type);
             }
+
+            private static void DummyStatic() { }
         }
         #endregion
     }
