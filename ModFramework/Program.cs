@@ -54,6 +54,19 @@ class Program
 
         var delg2 = mig.CreateDelegateUnsafe<Func<object, IntPtr, long>>();
         Console.WriteLine(delg2.Invoke("", (IntPtr)(666666)));
+
+        var con1 = typeof(TestFieldsStruct).GetConstructor(new[] { typeof(int), typeof(int), typeof(int), typeof(int), typeof(int), typeof(int) });
+        var delcon = con1.CreateDelegateUnsafe<Action<RawRef, int, int, int, int, int, int>>();
+        TestFieldsStruct inst1 = default;
+        RawRef rinst1 = new RawRef();
+        rinst1.SetRef(ref inst1);
+        delcon(rinst1, 9, 8, 7, 6, 5, 4);
+        Console.WriteLine(inst1.Field0);
+        Console.WriteLine(inst1.Field1);
+        Console.WriteLine(inst1.Field2);
+        Console.WriteLine(inst1.Field3);
+        Console.WriteLine(inst1.Field4);
+        Console.WriteLine(inst1.Field5);
         #endregion
     }
 
