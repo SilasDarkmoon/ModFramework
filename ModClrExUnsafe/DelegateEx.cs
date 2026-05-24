@@ -31,18 +31,18 @@ namespace Mod.LowLevel
                 _UnsafeWrapper = new UnsafeDelegateWrapperCore();
             }
         }
-        public static Delegate CreateDelegateUnsafe(Type delType, MethodInfo method)
+        public static Delegate CreateDelegateUnsafe(Type delType, MethodBase method)
         {
             return (Delegate)_UnsafeWrapper.CreateDelegate(delType, method);
         }
-        public static T CreateDelegateUnsafe<T>(this MethodInfo method) where T : Delegate
+        public static T CreateDelegateUnsafe<T>(this MethodBase method) where T : Delegate
         {
             return (T)_UnsafeWrapper.CreateDelegate(typeof(T), method);
         }
 
         public interface IDelegateWrapper
         {
-            object CreateDelegate(Type delType, MethodInfo method);
+            object CreateDelegate(Type delType, MethodBase method);
         }
 
         public abstract class UnsafeDelegateWrapperBase : IDelegateWrapper
@@ -103,7 +103,7 @@ namespace Mod.LowLevel
                 (DummyDel16)DummyFunc16,
             };
 
-            public abstract object CreateDelegate(Type delType, MethodInfo method);
+            public abstract object CreateDelegate(Type delType, MethodBase method);
 
             private static Type _TypeDynamicMethod;
             private static ConstructorInfo _ConDynamicMethod;
@@ -183,7 +183,7 @@ namespace Mod.LowLevel
 
             Dictionary<int, Delegate> _DynamicTemplates = new Dictionary<int, Delegate>();
 
-            public override object CreateDelegate(Type delType, MethodInfo method)
+            public override object CreateDelegate(Type delType, MethodBase method)
             {
                 var delParamCount = method.GetParameters().Length;
                 if (!method.IsStatic) ++delParamCount;
@@ -287,27 +287,37 @@ namespace Mod.LowLevel
                 //fi_functionPointer = dummy.GetFieldOffset(ref dummy._functionPointer);
             }
 
-            public object CreateDelegate(Type delType, MethodInfo method)
+            public object CreateDelegate(Type delType, MethodBase method)
             {
-                if (method.IsStatic)
+                if (method is MethodInfo mi)
                 {
-                    var rvdel = _CreateDelegateWithoutSignatureValidationFunc(method, delType, null, true, true);
-                    return rvdel;
-                }
-                else
-                {
-                    if (method.IsVirtual)
+                    if (method.IsStatic)
                     {
-                        RuntimeHelpers.PrepareMethod(method.MethodHandle);
-                        var fn = method.MethodHandle.GetFunctionPointer();
-                        var rvdel = _UnsafeCreateDelegateFunc(delType.TypeHandle.Value, fn, null, true, true);
+                        var rvdel = _CreateDelegateWithoutSignatureValidationFunc(mi, delType, null, true, true);
                         return rvdel;
                     }
                     else
                     {
-                        var rvdel = _CreateDelegateWithoutSignatureValidationFunc(method, delType, null, false, true);
-                        return rvdel;
+                        if (method.IsVirtual)
+                        {
+                            RuntimeHelpers.PrepareMethod(method.MethodHandle);
+                            var fn = method.MethodHandle.GetFunctionPointer();
+                            var rvdel = _UnsafeCreateDelegateFunc(delType.TypeHandle.Value, fn, null, true, true);
+                            return rvdel;
+                        }
+                        else
+                        {
+                            var rvdel = _CreateDelegateWithoutSignatureValidationFunc(mi, delType, null, false, true);
+                            return rvdel;
+                        }
                     }
+                }
+                else
+                {
+                    RuntimeHelpers.PrepareMethod(method.MethodHandle);
+                    var fn = method.MethodHandle.GetFunctionPointer();
+                    var rvdel = _UnsafeCreateDelegateFunc(delType.TypeHandle.Value, fn, null, true, true);
+                    return rvdel;
                 }
             }
 
@@ -357,7 +367,7 @@ namespace Mod.LowLevel
 
             private static Dictionary<int, Delegate> _DynamicTemplates = new Dictionary<int, Delegate>();
 
-            public override object CreateDelegate(Type delType, MethodInfo method)
+            public override object CreateDelegate(Type delType, MethodBase method)
             {
                 var delParamCount = method.GetParameters().Length;
                 if (!method.IsStatic) ++delParamCount;
@@ -415,6 +425,7 @@ namespace Mod.LowLevel
 
             private delegate void DelegateCtorDel(object delObj, object target, IntPtr methodHandle);
             private static DelegateCtorDel _DelegateCtorFuncTemplate;
+            private static MethodInfo _MiDummyStatic;
 
             static UnsafeDelegateWrapperIl2Cpp()
             {
@@ -442,11 +453,15 @@ namespace Mod.LowLevel
                     }
                 }
 
-                var comi = typeof(RuntimeHelpers).GetMethod("GetUninitializedObject");
+                var comi = typeof(object).Assembly.GetType("System.Runtime.Remoting.Activation.ActivationServices").GetMethod("AllocateUninitializedClassInstance");
+                //var comi = typeof(RuntimeHelpers).GetMethod("GetUninitializedObject");
                 _CreateUninitializedObjectDelFunc = (CreateUninitializedObjectDel)Delegate.CreateDelegate(typeof(CreateUninitializedObjectDel), comi);
 
                 var coni = typeof(DelegateCtorDel).GetConstructor(new[] { typeof(object), typeof(IntPtr) });
                 _DelegateCtorFuncTemplate = (DelegateCtorDel)coni.Invoke(new[] { (object)null, (object)coni.MethodHandle.Value });
+
+                Action actDummy = DummyStatic;
+                _MiDummyStatic = actDummy.Method;
             }
 
             [StructLayout(LayoutKind.Sequential)]
@@ -455,9 +470,24 @@ namespace Mod.LowLevel
                 public IntPtr methodPointer;
                 public IntPtr virtualMethodPointer;
                 public IntPtr invoker_method;
+
+                public IntPtr name;
+                public IntPtr klass;
+                public IntPtr return_type;
+                public IntPtr parameters;
+
+                public IntPtr umethodMetadataHandle;
+                public IntPtr ugenericContainerHandle;
+
+                public uint token;
+                public ushort flags;
+                public ushort iflags;
+                public ushort slot;
+                public byte parameters_count;
+                public byte exflags;
             }
 
-            public object CreateDelegate(Type delType, MethodInfo method)
+            public object CreateDelegate(Type delType, MethodBase method)
             {
                 var con = delType.GetConstructor(new[] { typeof(object), typeof(IntPtr) });
                 RawRef rconnmi = new RawRef() { Address = con.MethodHandle.Value };
@@ -466,7 +496,24 @@ namespace Mod.LowLevel
                 delcon.GetField(FI_Delegate_method) = rconnmi.Address;
                 delcon.GetField(FI_Delegate_method_code) = delcon;
                 var rvdel = CreateUninitializedObject(delType);
-                delcon(rvdel, null, method.MethodHandle.Value);
+                if (method.IsConstructor)
+                {
+                    RawRef rmid = new RawRef() { Address = _MiDummyStatic.MethodHandle.Value };
+                    RawRef rmi = new RawRef() { Address = method.MethodHandle.Value };
+                    lock (_MiDummyStatic)
+                    { // dangerous op here.
+                        rmid.GetRef<Il2CppMethodInfo>().parameters_count = (byte)(rmi.GetRef<Il2CppMethodInfo>().parameters_count + 1);
+                        delcon(rvdel, null, _MiDummyStatic.MethodHandle.Value);
+                    }
+                    rvdel.GetField(FI_Delegate_method_ptr) = rmi.GetRef<Il2CppMethodInfo>().methodPointer;
+                    rvdel.GetField(FI_Delegate_method) = rmi.Address;
+                    rvdel.GetField(FI_Delegate_method_code) = rvdel;
+                    return rvdel;
+                }
+                else
+                {
+                    delcon(rvdel, null, method.MethodHandle.Value);
+                }
                 return rvdel;
             }
 
@@ -476,6 +523,8 @@ namespace Mod.LowLevel
             {
                 return _CreateUninitializedObjectDelFunc(type);
             }
+
+            private static void DummyStatic() { }
         }
         #endregion
     }
