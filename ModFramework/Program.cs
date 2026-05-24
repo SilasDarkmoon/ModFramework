@@ -8,6 +8,7 @@ using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Text;
 
 class Program
 {
@@ -34,7 +35,20 @@ class Program
 #endif
         var stopwatch = Stopwatch.StartNew();
 
+        #region Test For Object Creator
+        Console.WriteLine("---------- Test For Object Creator ----------");
+        Console.WriteLine(typeof(Action).GetUninitializedObject().GetType());
+        Console.WriteLine(typeof(Action<int>).GetUninitializedObject().GetType());
+        Console.WriteLine(typeof(StringBuilder).GetUninitializedObject().GetType());
+        Console.WriteLine(typeof(List<int>).GetUninitializedObject().GetType());
+        Console.WriteLine(typeof(TestFieldsClass).GetUninitializedObject().GetType());
+        Console.WriteLine(typeof(TestDelegateGenericClass<IntPtr>).GetUninitializedObject().GetType());
+        Console.WriteLine(typeof(TestFieldsStruct).GetUninitializedObject().GetType());
+        Console.WriteLine(typeof(ValueTuple<IntPtr, IntPtr>).GetUninitializedObject().GetType());
+        #endregion
+
         #region Test For Delegate
+        Console.WriteLine("---------- Test For Delegate ----------");
         var mi1 = typeof(Program).GetMethod("TestMethod1", BindingFlags.NonPublic | BindingFlags.Static);
         TestDelegate2 del2 = mi1.CreateDelegateUnsafe<TestDelegate2>();
         int a = 0;

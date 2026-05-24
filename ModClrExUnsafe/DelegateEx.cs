@@ -312,7 +312,7 @@ namespace Mod.LowLevel
                         }
                     }
                 }
-                else
+                else // Constructor
                 {
                     RuntimeHelpers.PrepareMethod(method.MethodHandle);
                     var fn = method.MethodHandle.GetFunctionPointer();
@@ -426,6 +426,7 @@ namespace Mod.LowLevel
             private delegate void DelegateCtorDel(object delObj, object target, IntPtr methodHandle);
             private static DelegateCtorDel _DelegateCtorFuncTemplate;
             private static MethodInfo _MiDummyStatic;
+            private delegate Delegate CreateDelegateInternalDel(Type type, object target, MethodBase method, bool throwOnError);
 
             static UnsafeDelegateWrapperIl2Cpp()
             {
@@ -495,26 +496,37 @@ namespace Mod.LowLevel
                 delcon.GetField(FI_Delegate_method_ptr) = rconnmi.GetRef<Il2CppMethodInfo>().methodPointer;
                 delcon.GetField(FI_Delegate_method) = rconnmi.Address;
                 delcon.GetField(FI_Delegate_method_code) = delcon;
-                var rvdel = CreateUninitializedObject(delType);
-                if (method.IsConstructor)
-                {
-                    RawRef rmid = new RawRef() { Address = _MiDummyStatic.MethodHandle.Value };
-                    RawRef rmi = new RawRef() { Address = method.MethodHandle.Value };
-                    lock (_MiDummyStatic)
-                    { // dangerous op here.
-                        rmid.GetRef<Il2CppMethodInfo>().parameters_count = (byte)(rmi.GetRef<Il2CppMethodInfo>().parameters_count + 1);
-                        delcon(rvdel, null, _MiDummyStatic.MethodHandle.Value);
-                    }
-                    rvdel.GetField(FI_Delegate_method_ptr) = rmi.GetRef<Il2CppMethodInfo>().methodPointer;
-                    rvdel.GetField(FI_Delegate_method) = rmi.Address;
-                    rvdel.GetField(FI_Delegate_method_code) = rvdel;
-                    return rvdel;
+                RawRef rmi = new RawRef() { Address = method.MethodHandle.Value };
+                if (rmi.GetRef<Il2CppMethodInfo>().methodPointer == IntPtr.Zero)
+                { // hybrid clr
+                    var micdi = typeof(Delegate).GetMethod("CreateDelegate_internal", BindingFlags.Static | BindingFlags.NonPublic);
+                    return micdi.Invoke(null, new object[] { delType, null, method, false });
+                    //var rvdel = CreateUninitializedObject(delType);
+                    //var imi = delType.GetMethod("Invoke");
+                    //return null;
                 }
                 else
                 {
-                    delcon(rvdel, null, method.MethodHandle.Value);
+                    var rvdel = CreateUninitializedObject(delType);
+                    if (method.IsConstructor)
+                    {
+                        RawRef rmid = new RawRef() { Address = _MiDummyStatic.MethodHandle.Value };
+                        lock (_MiDummyStatic)
+                        { // dangerous op here.
+                            rmid.GetRef<Il2CppMethodInfo>().parameters_count = (byte)(rmi.GetRef<Il2CppMethodInfo>().parameters_count + 1);
+                            delcon(rvdel, null, _MiDummyStatic.MethodHandle.Value);
+                        }
+                        rvdel.GetField(FI_Delegate_method_ptr) = rmi.GetRef<Il2CppMethodInfo>().methodPointer;
+                        rvdel.GetField(FI_Delegate_method) = rmi.Address;
+                        rvdel.GetField(FI_Delegate_method_code) = rvdel;
+                        return rvdel;
+                    }
+                    else
+                    {
+                        delcon(rvdel, null, method.MethodHandle.Value);
+                    }
+                    return rvdel;
                 }
-                return rvdel;
             }
 
             private delegate object CreateUninitializedObjectDel(Type type);
