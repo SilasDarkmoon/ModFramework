@@ -430,6 +430,7 @@ namespace Mod.LowLevel
 
             static UnsafeDelegateWrapperIl2Cpp()
             {
+                Console.WriteLine("static UnsafeDelegateWrapperIl2Cpp()");
                 foreach (var field in typeof(Action).GetAllFields())
                 {
                     if (field.Name == "method")
@@ -463,6 +464,7 @@ namespace Mod.LowLevel
 
                 Action actDummy = DummyStatic;
                 _MiDummyStatic = actDummy.Method;
+                Console.WriteLine("END static UnsafeDelegateWrapperIl2Cpp()");
             }
 
             [StructLayout(LayoutKind.Sequential)]
@@ -490,26 +492,30 @@ namespace Mod.LowLevel
 
             public object CreateDelegate(Type delType, MethodBase method)
             {
+                Console.WriteLine("public object CreateDelegate(Type delType, MethodBase method)");
+                var micdi = typeof(Delegate).GetMethod("CreateDelegate_internal", BindingFlags.Static | BindingFlags.NonPublic);
+                return micdi.Invoke(null, new object[] { delType, null, method, false });
                 var con = delType.GetConstructor(new[] { typeof(object), typeof(IntPtr) });
                 RawRef rconnmi = new RawRef() { Address = con.MethodHandle.Value };
-                var delcon = (DelegateCtorDel)_DelegateCtorFuncTemplate.Clone();
-                delcon.GetField(FI_Delegate_method_ptr) = rconnmi.GetRef<Il2CppMethodInfo>().methodPointer;
-                delcon.GetField(FI_Delegate_method) = rconnmi.Address;
-                delcon.GetField(FI_Delegate_method_code) = delcon;
-                RawRef rmi = new RawRef() { Address = method.MethodHandle.Value };
-                if (rmi.GetRef<Il2CppMethodInfo>().methodPointer == IntPtr.Zero)
+                Console.WriteLine(rconnmi.GetRef<Il2CppMethodInfo>().methodPointer);
+                if (rconnmi.GetRef<Il2CppMethodInfo>().methodPointer == IntPtr.Zero)
                 { // hybrid clr
-                    var micdi = typeof(Delegate).GetMethod("CreateDelegate_internal", BindingFlags.Static | BindingFlags.NonPublic);
-                    return micdi.Invoke(null, new object[] { delType, null, method, false });
+                    //var micdi = typeof(Delegate).GetMethod("CreateDelegate_internal", BindingFlags.Static | BindingFlags.NonPublic);
+                    //return micdi.Invoke(null, new object[] { delType, null, method, false });
                     //var rvdel = CreateUninitializedObject(delType);
                     //var imi = delType.GetMethod("Invoke");
                     //return null;
                 }
                 else
                 {
+                    var delcon = (DelegateCtorDel)_DelegateCtorFuncTemplate.Clone();
+                    delcon.GetField(FI_Delegate_method_ptr) = rconnmi.GetRef<Il2CppMethodInfo>().methodPointer;
+                    delcon.GetField(FI_Delegate_method) = rconnmi.Address;
+                    delcon.GetField(FI_Delegate_method_code) = delcon;
                     var rvdel = CreateUninitializedObject(delType);
                     if (method.IsConstructor)
                     {
+                        RawRef rmi = new RawRef() { Address = method.MethodHandle.Value };
                         RawRef rmid = new RawRef() { Address = _MiDummyStatic.MethodHandle.Value };
                         lock (_MiDummyStatic)
                         { // dangerous op here.
