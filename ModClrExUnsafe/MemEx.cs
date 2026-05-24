@@ -272,5 +272,365 @@ namespace Mod.LowLevel
         {
             MemCopy(ref dst, 0, src, 0, Math.Min(Size<D>(), Size(src)));
         }
+
+        public static void MemSet(ref byte dst, int offset, byte value, int cnt)
+        {
+            MemSet1024(ref dst, offset, value, cnt);
+        }
+        private static void MemSet1024(ref byte dst, int offset, byte value, int cnt)
+        {
+            MemCopyHelper1024 valueStruct = new MemCopyHelper1024();
+            Span<byte> valueSpan;
+            unsafe { valueSpan = new Span<byte>(valueStruct.Buffer, 1024); }
+            valueSpan.Fill(value);
+            while (cnt >= 1024)
+            {
+                ref MemCopyHelper1024 dstBuffer = ref GetFieldRef<byte, MemCopyHelper1024>(ref dst, offset);
+                dstBuffer = valueStruct;
+                offset += 1024;
+                cnt -= 1024;
+            }
+            MemSet512(ref dst, offset, value, cnt);
+        }
+        private static void MemSet512(ref byte dst, int offset, byte value, int cnt)
+        {
+            MemCopyHelper512 valueStruct = new MemCopyHelper512();
+            Span<byte> valueSpan;
+            unsafe { valueSpan = new Span<byte>(valueStruct.Buffer, 512); }
+            valueSpan.Fill(value);
+            while (cnt >= 512)
+            {
+                ref MemCopyHelper512 dstBuffer = ref GetFieldRef<byte, MemCopyHelper512>(ref dst, offset);
+                dstBuffer = valueStruct;
+                offset += 512;
+                cnt -= 512;
+            }
+            MemSet256(ref dst, offset, value, cnt);
+        }
+        private static void MemSet256(ref byte dst, int offset, byte value, int cnt)
+        {
+            MemCopyHelper256 valueStruct = new MemCopyHelper256();
+            Span<byte> valueSpan;
+            unsafe { valueSpan = new Span<byte>(valueStruct.Buffer, 256); }
+            valueSpan.Fill(value);
+            while (cnt >= 256)
+            {
+                ref MemCopyHelper256 dstBuffer = ref GetFieldRef<byte, MemCopyHelper256>(ref dst, offset);
+                dstBuffer = valueStruct;
+                offset += 256;
+                cnt -= 256;
+            }
+            MemSet128(ref dst, offset, value, cnt);
+        }
+        private static void MemSet128(ref byte dst, int offset, byte value, int cnt)
+        {
+            MemCopyHelper128 valueStruct = new MemCopyHelper128();
+            Span<byte> valueSpan;
+            unsafe { valueSpan = new Span<byte>(valueStruct.Buffer, 128); }
+            valueSpan.Fill(value);
+            while (cnt >= 128)
+            {
+                ref MemCopyHelper128 dstBuffer = ref GetFieldRef<byte, MemCopyHelper128>(ref dst, offset);
+                dstBuffer = valueStruct;
+                offset += 128;
+                cnt -= 128;
+            }
+            MemSet64(ref dst, offset, value, cnt);
+        }
+        private static void MemSet64(ref byte dst, int offset, byte value, int cnt)
+        {
+            MemCopyHelper64 valueStruct = new MemCopyHelper64();
+            Span<byte> valueSpan;
+            unsafe { valueSpan = new Span<byte>(valueStruct.Buffer, 64); }
+            valueSpan.Fill(value);
+            while (cnt >= 64)
+            {
+                ref MemCopyHelper64 dstBuffer = ref GetFieldRef<byte, MemCopyHelper64>(ref dst, offset);
+                dstBuffer = valueStruct;
+                offset += 64;
+                cnt -= 64;
+            }
+            MemSet32(ref dst, offset, value, cnt);
+        }
+        private static void MemSet32(ref byte dst, int offset, byte value, int cnt)
+        {
+            MemCopyHelper32 valueStruct = new MemCopyHelper32();
+            Span<byte> valueSpan;
+            unsafe { valueSpan = new Span<byte>(valueStruct.Buffer, 32); }
+            valueSpan.Fill(value);
+            while (cnt >= 32)
+            {
+                ref MemCopyHelper32 dstBuffer = ref GetFieldRef<byte, MemCopyHelper32>(ref dst, offset);
+                dstBuffer = valueStruct;
+                offset += 32;
+                cnt -= 32;
+            }
+            MemSet16(ref dst, offset, value, cnt);
+        }
+        private static void MemSet16(ref byte dst, int offset, byte value, int cnt)
+        {
+            MemCopyHelper16 valueStruct = new MemCopyHelper16();
+            Span<byte> valueSpan;
+            unsafe { valueSpan = new Span<byte>(valueStruct.Buffer, 16); }
+            valueSpan.Fill(value);
+            while (cnt >= 16)
+            {
+                ref MemCopyHelper16 dstBuffer = ref GetFieldRef<byte, MemCopyHelper16>(ref dst, offset);
+                dstBuffer = valueStruct;
+                offset += 16;
+                cnt -= 16;
+            }
+            MemSet8(ref dst, offset, value, cnt);
+        }
+        private static void MemSet8(ref byte dst, int offset, byte value, int cnt)
+        {
+            ulong valueStruct = new ulong();
+            Span<byte> valueSpan;
+            unsafe { valueSpan = new Span<byte>(&valueStruct, 8); }
+            valueSpan.Fill(value);
+            while (cnt >= 8)
+            {
+                ref ulong dstBuffer = ref GetFieldRef<byte, ulong>(ref dst, offset);
+                dstBuffer = valueStruct;
+                offset += 8;
+                cnt -= 8;
+            }
+            MemSetLE7(ref dst, offset, value, cnt);
+        }
+        private static void MemSetLE7<T>(ref byte dst, int offset, byte value) where T : struct
+        {
+            var valueStruct = new T();
+            Span<byte> valueSpan;
+#pragma warning disable CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
+            unsafe { valueSpan = new Span<byte>(&valueStruct, sizeof(T)); }
+#pragma warning restore CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
+            valueSpan.Fill(value);
+            ref T dstBuffer = ref GetFieldRef<byte, T>(ref dst, offset);
+            dstBuffer = valueStruct;
+        }
+        private static void MemSetLE7(ref byte dst, int offset, byte value, int cnt)
+        {
+            switch (cnt)
+            {
+                case 7:
+                    MemSetLE7<MemCopyHelper7>(ref dst, offset, value);
+                    break;
+                case 6:
+                    MemSetLE7<MemCopyHelper6>(ref dst, offset, value);
+                    break;
+                case 5:
+                    MemSetLE7<MemCopyHelper5>(ref dst, offset, value);
+                    break;
+                case 4:
+                    MemSetLE7<MemCopyHelper4>(ref dst, offset, value);
+                    break;
+                case 3:
+                    MemSetLE7<MemCopyHelper3>(ref dst, offset, value);
+                    break;
+                case 2:
+                    MemSetLE7<MemCopyHelper2>(ref dst, offset, value);
+                    break;
+                case 1:
+                    MemSetLE7<MemCopyHelper1>(ref dst, offset, value);
+                    break;
+            }
+        }
+
+        public static void MemSet(object dst, int offset, byte value, int cnt)
+        {
+            MemSet(ref GetHeadRef(dst), offset, value, cnt);
+        }
+        public static void MemSet<D>(ref D dst, int offset, byte value, int cnt) where D : struct
+        {
+            MemSet(ref GetHeadRef(ref dst), offset, value, cnt);
+        }
+
+        public static void MemSet(object dst, int offset, byte value)
+        {
+            MemSet(dst, offset, value, Size(dst) - offset);
+        }
+        public static void MemSet<D>(ref D dst, int offset, byte value) where D : struct
+        {
+            MemSet(ref dst, offset, value, Size<D>() - offset);
+        }
+
+        public static void MemSet(object dst, byte value, int cnt)
+        {
+            MemSet(dst, 0, value, cnt);
+        }
+        public static void MemSet<D>(ref D dst, byte value, int cnt) where D : struct
+        {
+            MemSet(ref dst, 0, value, cnt);
+        }
+
+        public static void MemSet(object dst, byte value)
+        {
+            MemSet(dst, 0, value, Size(dst));
+        }
+        public static void MemSet<D>(ref D dst, byte value) where D : struct
+        {
+            MemSet(ref dst, 0, value, Size<D>());
+        }
+
+        public static void MemClean(ref byte dst, int offset, int cnt)
+        {
+            MemClean1024(ref dst, offset, cnt);
+        }
+        private static void MemClean1024(ref byte dst, int offset, int cnt)
+        {
+            while (cnt >= 1024)
+            {
+                ref MemCopyHelper1024 dstBuffer = ref GetFieldRef<byte, MemCopyHelper1024>(ref dst, offset);
+                dstBuffer = default;
+                offset += 1024;
+                cnt -= 1024;
+            }
+            MemClean512(ref dst, offset, cnt);
+        }
+        private static void MemClean512(ref byte dst, int offset, int cnt)
+        {
+            while (cnt >= 512)
+            {
+                ref MemCopyHelper512 dstBuffer = ref GetFieldRef<byte, MemCopyHelper512>(ref dst, offset);
+                dstBuffer = default;
+                offset += 512;
+                cnt -= 512;
+            }
+            MemClean256(ref dst, offset, cnt);
+        }
+        private static void MemClean256(ref byte dst, int offset, int cnt)
+        {
+            while (cnt >= 256)
+            {
+                ref MemCopyHelper256 dstBuffer = ref GetFieldRef<byte, MemCopyHelper256>(ref dst, offset);
+                dstBuffer = default;
+                offset += 256;
+                cnt -= 256;
+            }
+            MemClean128(ref dst, offset, cnt);
+        }
+        private static void MemClean128(ref byte dst, int offset, int cnt)
+        {
+            while (cnt >= 128)
+            {
+                ref MemCopyHelper128 dstBuffer = ref GetFieldRef<byte, MemCopyHelper128>(ref dst, offset);
+                dstBuffer = default;
+                offset += 128;
+                cnt -= 128;
+            }
+            MemClean64(ref dst, offset, cnt);
+        }
+        private static void MemClean64(ref byte dst, int offset, int cnt)
+        {
+            while (cnt >= 64)
+            {
+                ref MemCopyHelper64 dstBuffer = ref GetFieldRef<byte, MemCopyHelper64>(ref dst, offset);
+                dstBuffer = default;
+                offset += 64;
+                cnt -= 64;
+            }
+            MemClean32(ref dst, offset, cnt);
+        }
+        private static void MemClean32(ref byte dst, int offset, int cnt)
+        {
+            while (cnt >= 32)
+            {
+                ref MemCopyHelper32 dstBuffer = ref GetFieldRef<byte, MemCopyHelper32>(ref dst, offset);
+                dstBuffer = default;
+                offset += 32;
+                cnt -= 32;
+            }
+            MemClean16(ref dst, offset, cnt);
+        }
+        private static void MemClean16(ref byte dst, int offset, int cnt)
+        {
+            while (cnt >= 16)
+            {
+                ref MemCopyHelper16 dstBuffer = ref GetFieldRef<byte, MemCopyHelper16>(ref dst, offset);
+                dstBuffer = default;
+                offset += 16;
+                cnt -= 16;
+            }
+            MemClean8(ref dst, offset, cnt);
+        }
+        private static void MemClean8(ref byte dst, int offset, int cnt)
+        {
+            while (cnt >= 8)
+            {
+                ref ulong dstBuffer = ref GetFieldRef<byte, ulong>(ref dst, offset);
+                dstBuffer = 0;
+                offset += 8;
+                cnt -= 8;
+            }
+            MemCleanLE7(ref dst, offset, cnt);
+        }
+        private static void MemCleanLE7<T>(ref byte dst, int offset) where T : struct
+        {
+            ref T dstBuffer = ref GetFieldRef<byte, T>(ref dst, offset);
+            dstBuffer = default;
+        }
+        private static void MemCleanLE7(ref byte dst, int offset, int cnt)
+        {
+            switch (cnt)
+            {
+                case 7:
+                    MemCleanLE7<MemCopyHelper7>(ref dst, offset);
+                    break;
+                case 6:
+                    MemCleanLE7<MemCopyHelper6>(ref dst, offset);
+                    break;
+                case 5:
+                    MemCleanLE7<MemCopyHelper5>(ref dst, offset);
+                    break;
+                case 4:
+                    MemCleanLE7<MemCopyHelper4>(ref dst, offset);
+                    break;
+                case 3:
+                    MemCleanLE7<MemCopyHelper3>(ref dst, offset);
+                    break;
+                case 2:
+                    MemCleanLE7<MemCopyHelper2>(ref dst, offset);
+                    break;
+                case 1:
+                    MemCleanLE7<MemCopyHelper1>(ref dst, offset);
+                    break;
+            }
+        }
+
+        public static void MemClean(object dst, int offset, int cnt)
+        {
+            MemClean(ref GetHeadRef(dst), offset, cnt);
+        }
+        public static void MemClean<D>(ref D dst, int offset, int cnt) where D : struct
+        {
+            MemClean(ref GetHeadRef(ref dst), offset, cnt);
+        }
+
+        public static void MemClean(object dst, int offset)
+        {
+            MemClean(dst, offset, Size(dst) - offset);
+        }
+        public static void MemClean<D>(ref D dst, int offset) where D : struct
+        {
+            MemClean(ref dst, offset, Size<D>() - offset);
+        }
+
+        public static void MemCleanSize(object dst, int cnt)
+        {
+            MemClean(dst, 0, cnt);
+        }
+        public static void MemCleanSize<D>(ref D dst, int cnt) where D : struct
+        {
+            MemClean(ref dst, 0, cnt);
+        }
+
+        public static void MemClean(object dst)
+        {
+            MemClean(dst, 0, Size(dst));
+        }
+        public static void MemClean<D>(ref D dst) where D : struct
+        {
+            MemClean(ref dst, 0, Size<D>());
+        }
     }
 }
