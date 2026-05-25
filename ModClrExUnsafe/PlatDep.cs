@@ -154,7 +154,7 @@ namespace Mod.LowLevel
             }
         }
 
-        public static bool CheckIsHybridCLREnabled()
+        private static bool CheckIsHybridCLREnabled()
         {
             try
             {

@@ -474,14 +474,9 @@ namespace Mod.LowLevel
             {
                 var con = delType.GetConstructor(new[] { typeof(object), typeof(IntPtr) });
                 RawRef rconnmi = new RawRef() { Address = con.MethodHandle.Value };
-                if (rconnmi.GetRef<Il2CppMethodInfo>().methodPointer == IntPtr.Zero)
+                if (RuntimeInfo.IsHybridCLREnabled)
                 { // hybrid clr
                     return _CreateDelegateInternalFunc(delType, null, method, false);
-                    //var micdi = typeof(Delegate).GetMethod("CreateDelegate_internal", BindingFlags.Static | BindingFlags.NonPublic);
-                    //return micdi.Invoke(null, new object[] { delType, null, method, false });
-                    //var rvdel = CreateUninitializedObject(delType);
-                    //var imi = delType.GetMethod("Invoke");
-                    //return null;
                 }
                 else
                 {
@@ -517,20 +512,5 @@ namespace Mod.LowLevel
             private static void DummyStatic() { }
         }
         #endregion
-    }
-
-    public interface IUnsafeDelegate
-    {
-        void Bind(MethodInfo method);
-        MethodInfo Method { get; }
-    }
-    public class UnsafeAction : IUnsafeDelegate
-    {
-        public MethodInfo Method => throw new NotImplementedException();
-
-        public void Bind(MethodInfo method)
-        {
-            throw new NotImplementedException();
-        }
     }
 }
