@@ -396,55 +396,55 @@ namespace Mod.LowLevel
         public class UnsafeDelegateWrapperIl2Cpp : IDelegateWrapper
         {
 #pragma warning disable IDE1006 // 命名样式
-            protected static FieldIndicator<IntPtr> FI_Delegate_method_ptr;
-            protected static FieldIndicator<IntPtr> FI_Delegate_method;
-            protected static FieldIndicator<IntPtr> FI_Delegate_invoke_impl;
-            protected static FieldIndicator<object> FI_Delegate_method_code;
-            protected static FieldIndicator<object> FI_Delegate_m_target;
+            protected static FieldIndicator<IntPtr> _FI_Delegate_method_ptr;
+            protected static FieldIndicator<IntPtr> _FI_Delegate_method;
+            protected static FieldIndicator<IntPtr> _FI_Delegate_invoke_impl;
+            protected static FieldIndicator<object> _FI_Delegate_method_code;
+            protected static FieldIndicator<object> _FI_Delegate_m_target;
 #pragma warning restore IDE1006 // 命名样式
 
             private delegate void DelegateCtorDel(object delObj, object target, IntPtr methodHandle);
             private static DelegateCtorDel _DelegateCtorFuncTemplate;
+
             private static MethodInfo _MiDummyStatic;
+
             private delegate Delegate CreateDelegateInternalDel(Type type, object target, MethodBase method, bool throwOnError);
+            private static CreateDelegateInternalDel _CreateDelegateInternalFunc;
 
             static UnsafeDelegateWrapperIl2Cpp()
             {
-                Console.WriteLine("static UnsafeDelegateWrapperIl2Cpp()");
                 foreach (var field in typeof(Action).GetAllFields())
                 {
                     if (field.Name == "method")
                     {
-                        FI_Delegate_method = field.GetFieldOffset();
+                        _FI_Delegate_method = field.GetFieldOffset();
                     }
                     else if (field.Name == "method_ptr")
                     {
-                        FI_Delegate_method_ptr = field.GetFieldOffset();
+                        _FI_Delegate_method_ptr = field.GetFieldOffset();
                     }
                     else if (field.Name == "invoke_impl")
                     {
-                        FI_Delegate_invoke_impl = field.GetFieldOffset();
+                        _FI_Delegate_invoke_impl = field.GetFieldOffset();
                     }
                     else if (field.Name == "method_code")
                     {
-                        FI_Delegate_method_code = field.GetFieldOffset();
+                        _FI_Delegate_method_code = field.GetFieldOffset();
                     }
                     else if (field.Name == "m_target")
                     {
-                        FI_Delegate_m_target = field.GetFieldOffset();
+                        _FI_Delegate_m_target = field.GetFieldOffset();
                     }
                 }
-
-                var comi = typeof(object).Assembly.GetType("System.Runtime.Remoting.Activation.ActivationServices").GetMethod("AllocateUninitializedClassInstance");
-                //var comi = typeof(RuntimeHelpers).GetMethod("GetUninitializedObject");
-                _CreateUninitializedObjectDelFunc = (CreateUninitializedObjectDel)Delegate.CreateDelegate(typeof(CreateUninitializedObjectDel), comi);
 
                 var coni = typeof(DelegateCtorDel).GetConstructor(new[] { typeof(object), typeof(IntPtr) });
                 _DelegateCtorFuncTemplate = (DelegateCtorDel)coni.Invoke(new[] { (object)null, (object)coni.MethodHandle.Value });
 
                 Action actDummy = DummyStatic;
                 _MiDummyStatic = actDummy.Method;
-                Console.WriteLine("END static UnsafeDelegateWrapperIl2Cpp()");
+
+                var micdi = typeof(Delegate).GetMethod("CreateDelegate_internal", BindingFlags.Static | BindingFlags.NonPublic);
+                _CreateDelegateInternalFunc = (CreateDelegateInternalDel)micdi.Invoke(null, new object[] { typeof(CreateDelegateInternalDel), null, micdi, false });
             }
 
             [StructLayout(LayoutKind.Sequential)]
@@ -472,14 +472,11 @@ namespace Mod.LowLevel
 
             public object CreateDelegate(Type delType, MethodBase method)
             {
-                Console.WriteLine("public object CreateDelegate(Type delType, MethodBase method)");
-                var micdi = typeof(Delegate).GetMethod("CreateDelegate_internal", BindingFlags.Static | BindingFlags.NonPublic);
-                return micdi.Invoke(null, new object[] { delType, null, method, false });
                 var con = delType.GetConstructor(new[] { typeof(object), typeof(IntPtr) });
                 RawRef rconnmi = new RawRef() { Address = con.MethodHandle.Value };
-                Console.WriteLine(rconnmi.GetRef<Il2CppMethodInfo>().methodPointer);
                 if (rconnmi.GetRef<Il2CppMethodInfo>().methodPointer == IntPtr.Zero)
                 { // hybrid clr
+                    return _CreateDelegateInternalFunc(delType, null, method, false);
                     //var micdi = typeof(Delegate).GetMethod("CreateDelegate_internal", BindingFlags.Static | BindingFlags.NonPublic);
                     //return micdi.Invoke(null, new object[] { delType, null, method, false });
                     //var rvdel = CreateUninitializedObject(delType);
@@ -489,22 +486,24 @@ namespace Mod.LowLevel
                 else
                 {
                     var delcon = (DelegateCtorDel)_DelegateCtorFuncTemplate.Clone();
-                    delcon.GetField(FI_Delegate_method_ptr) = rconnmi.GetRef<Il2CppMethodInfo>().methodPointer;
-                    delcon.GetField(FI_Delegate_method) = rconnmi.Address;
-                    delcon.GetField(FI_Delegate_method_code) = delcon;
-                    var rvdel = CreateUninitializedObject(delType);
+                    delcon.GetField(_FI_Delegate_method_ptr) = rconnmi.GetRef<Il2CppMethodInfo>().methodPointer;
+                    delcon.GetField(_FI_Delegate_method) = rconnmi.Address;
+                    delcon.GetField(_FI_Delegate_method_code) = delcon;
+                    var rvdel = UnsafeEx.GetUninitializedObject(delType);
                     if (method.IsConstructor)
                     {
-                        RawRef rmi = new RawRef() { Address = method.MethodHandle.Value };
                         RawRef rmid = new RawRef() { Address = _MiDummyStatic.MethodHandle.Value };
-                        lock (_MiDummyStatic)
-                        { // dangerous op here.
-                            rmid.GetRef<Il2CppMethodInfo>().parameters_count = (byte)(rmi.GetRef<Il2CppMethodInfo>().parameters_count + 1);
-                            delcon(rvdel, null, _MiDummyStatic.MethodHandle.Value);
-                        }
-                        rvdel.GetField(FI_Delegate_method_ptr) = rmi.GetRef<Il2CppMethodInfo>().methodPointer;
-                        rvdel.GetField(FI_Delegate_method) = rmi.Address;
-                        rvdel.GetField(FI_Delegate_method_code) = rvdel;
+                        Il2CppMethodInfo cloneddesc = rmid.GetRef<Il2CppMethodInfo>();
+                        rmid.SetRef(ref cloneddesc);
+
+                        RawRef rmi = new RawRef() { Address = method.MethodHandle.Value };
+                        cloneddesc.parameters_count = (byte)(rmi.GetRef<Il2CppMethodInfo>().parameters_count + 1);
+
+                        delcon(rvdel, null, rmid.Address);
+
+                        rvdel.GetField(_FI_Delegate_method_ptr) = rmi.GetRef<Il2CppMethodInfo>().methodPointer;
+                        rvdel.GetField(_FI_Delegate_method) = rmi.Address;
+                        rvdel.GetField(_FI_Delegate_method_code) = rvdel;
                         return rvdel;
                     }
                     else
@@ -513,13 +512,6 @@ namespace Mod.LowLevel
                     }
                     return rvdel;
                 }
-            }
-
-            private delegate object CreateUninitializedObjectDel(Type type);
-            private static CreateUninitializedObjectDel _CreateUninitializedObjectDelFunc;
-            private static object CreateUninitializedObject(Type type)
-            {
-                return _CreateUninitializedObjectDelFunc(type);
             }
 
             private static void DummyStatic() { }

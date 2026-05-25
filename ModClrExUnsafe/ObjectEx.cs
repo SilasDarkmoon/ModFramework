@@ -11,6 +11,7 @@ namespace Mod.LowLevel
 {
     public static partial class UnsafeEx
     {
+        #region GetUninitializedObject
         public static object GetUninitializedObject(this Type t)
         {
             return ObjectCreatorImp.GetUninitializedObject(t);
@@ -167,5 +168,33 @@ namespace Mod.LowLevel
                 return _CreateUninitializedObjectDelFunc(t);
             }
         }
+        #endregion
+    }
+
+    public static partial class UnsafeEx
+    {
+        #region MemberwiseClone
+        public static object MemberwiseClone(this object obj)
+        {
+            return MemberwiseCloneImp.MemberwiseClone(obj);
+        }
+
+        private static class MemberwiseCloneImp
+        {
+            private delegate object MemberwiseCloneDel(object obj);
+            private static MemberwiseCloneDel _MemberwiseCloneFunc;
+
+            static MemberwiseCloneImp()
+            {
+                var mic = typeof(object).GetMethod("MemberwiseClone", BindingFlags.Instance | BindingFlags.NonPublic);
+                _MemberwiseCloneFunc = (MemberwiseCloneDel)Delegate.CreateDelegate(typeof(MemberwiseCloneDel), mic);
+            }
+
+            public static object MemberwiseClone(object obj)
+            {
+                return _MemberwiseCloneFunc(obj);
+            }
+        }
+        #endregion
     }
 }
