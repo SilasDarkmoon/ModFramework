@@ -264,6 +264,10 @@ namespace Mod.LowLevel
                         return size;
                     }
                 }
+                if (type.IsByRef || type.IsPointer)
+                {
+                    int size = IntPtr.Size;
+                }
                 if (type.IsValueType)
                 {
                     int size = -1;
@@ -318,7 +322,7 @@ namespace Mod.LowLevel
                             offset = foffset;
                             size = foffset;
                             var fieldType = field.FieldType;
-                            if (fieldType.IsValueType)
+                            if (fieldType.IsValueType && !fieldType.IsPointer && !fieldType.IsByRef)
                             {
                                 size += GetSize(fieldType);
                             }

@@ -20,8 +20,8 @@ class Program
     }
 
 #if NET10_0_OR_GREATER
-    [DynamicDependency(DynamicallyAccessedMemberTypes.AllFields, type: typeof(TestFieldsClass))]
-    [DynamicDependency(DynamicallyAccessedMemberTypes.AllFields, type: typeof(TestFieldsStruct))]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.All, type: typeof(TestFieldsClass))]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.All, type: typeof(TestFieldsStruct))]
     [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
     //[RequiresDynamicCode("Calls System.Reflection.MethodInfo.MakeGenericMethod(params Type[])")]
 #endif
@@ -35,6 +35,7 @@ class Program
 #endif
         var stopwatch = Stopwatch.StartNew();
 
+        Console.WriteLine($"Object Header Size: {UnsafeEx.GetObjectHeaderSize()}");
         #region Test For Object Creator
         Console.WriteLine("---------- Test For Object Creator ----------");
         Console.WriteLine(typeof(Action).GetUninitializedObject().GetType());
@@ -69,35 +70,17 @@ class Program
         var delg2 = mig.CreateDelegateUnsafe<Func<object, IntPtr, long>>();
         Console.WriteLine(delg2.Invoke("", (IntPtr)(666666)));
 
-        var con1 = typeof(TestFieldsStruct).GetConstructor(new[] { typeof(int), typeof(int), typeof(int), typeof(int), typeof(int), typeof(int) });
-        var delcon = con1.CreateDelegateUnsafe<Action<RawRef, int, int, int, int, int, int>>();
-        TestFieldsStruct inst1 = default;
-        RawRef rinst1 = new RawRef();
-        rinst1.SetRef(ref inst1);
-        if (RuntimeInfo.IsNativeAOT)
-        {
-            rinst1.Address -= UnsafeEx.GetObjectHeaderSize();
-        }
-        delcon(rinst1, 9, 8, 7, 6, 5, 4);
-        Console.WriteLine(inst1.Field0);
-        Console.WriteLine(inst1.Field1);
-        Console.WriteLine(inst1.Field2);
-        Console.WriteLine(inst1.Field3);
-        Console.WriteLine(inst1.Field4);
-        Console.WriteLine(inst1.Field5);
-
         Console.WriteLine("---------------------------------------------------------------------");
 
-        var con2 = typeof(TestFieldsClass).GetConstructor(new[] { typeof(int), typeof(int), typeof(int), typeof(int), typeof(int), typeof(int) });
-        var delcon2 = con2.CreateDelegateUnsafe<Action<object, int, int, int, int, int, int>>();
-        TestFieldsClass inst2 = new TestFieldsClass();
-        delcon2(inst2, 2, 3, 4, 5, 6, 7);
-        Console.WriteLine(inst2.Field0);
-        Console.WriteLine(inst2.Field1);
-        Console.WriteLine(inst2.Field2);
-        Console.WriteLine(inst2.Field3);
-        Console.WriteLine(inst2.Field4);
-        Console.WriteLine(inst2.Field5);
+        var con1 = new UnsafeEx.Constructor<TestFieldsStruct, ConstructorDelegate1>();
+        con1.Init(ref con1.Alloc(out var inst1obj), 9, 8, 7, 6, 5, 4);
+        var inst1 = inst1obj.Value;
+        Console.WriteLine($"{inst1.Field0}, {inst1.Field1}, {inst1.Field2}, {inst1.Field3}, {inst1.Field4}, {inst1.Field5}");
+
+        var con2 = new UnsafeEx.Constructor<TestFieldsClass, ConstructorDelegate1>();
+        con2.Init(ref con2.Alloc(out var inst2container), 2, 3, 4, 5, 6, 7);
+        var inst2 = inst2container.Value;
+        Console.WriteLine($"{inst2.Field0}, {inst2.Field1}, {inst2.Field2}, {inst2.Field3}, {inst2.Field4}, {inst2.Field5}");
         #endregion
     }
 
@@ -116,6 +99,8 @@ class Program
 
     }
 }
+
+delegate void ConstructorDelegate1(ref UnsafeEx.ConstructorToken obj, int p1, int p2, int p3, int p4, int p5, int p6);
 
 delegate void DummyDelegate2(byte a);
 delegate void DummyDelegate3(byte a, byte b);
@@ -168,7 +153,7 @@ public class TestDelegateGenericClass<T>
 
 #if NET10_0_OR_GREATER
 [DynamicallyAccessedMembers(
-    DynamicallyAccessedMemberTypes.AllFields)]
+    DynamicallyAccessedMemberTypes.All)]
 #endif
 class TestFieldsClass
 {
@@ -192,7 +177,7 @@ class TestFieldsClass
 }
 #if NET10_0_OR_GREATER
 [DynamicallyAccessedMembers(
-    DynamicallyAccessedMemberTypes.AllFields)]
+    DynamicallyAccessedMemberTypes.All)]
 #endif
 struct TestFieldsStruct
 {

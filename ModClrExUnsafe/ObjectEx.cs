@@ -17,6 +17,27 @@ namespace Mod.LowLevel
             return ObjectCreatorImp.GetUninitializedObject(t);
         }
 
+        public static T GetUninitialized<T>()
+        {
+            var type = typeof(T);
+            if (type.IsValueType)
+            {
+                return default(T);
+            }
+            else
+            {
+                return (T)GetUninitializedObject(type);
+            }
+        }
+        public static T GetUninitializedStruct<T>() where T : struct
+        {
+            return default(T);
+        }
+        public static T GetUninitializedObject<T>() where T : class
+        {
+            return (T)GetUninitializedObject(typeof(T));
+        }
+
         private interface IObjectCreator
         {
             object GetUninitializedObject(Type t);
@@ -197,4 +218,175 @@ namespace Mod.LowLevel
         }
         #endregion
     }
+
+    #region Activator
+    public static partial class UnsafeEx
+    {
+        [StructLayout(LayoutKind.Sequential)]
+        public struct AllocatedObject<T>
+        {
+            private IntPtr _Preserved0;
+            private IntPtr _Preserved1;
+            internal T _Value;
+
+            public AllocatedObject(T value)
+            {
+                _Preserved0 = default;
+                _Preserved1 = default;
+                _Value = value;
+            }
+
+            public T Value => _Value;
+
+            public static implicit operator T(AllocatedObject<T> a)
+            {
+                return a.Value;
+            }
+            public static implicit operator AllocatedObject<T>(T val)
+            {
+                return new AllocatedObject<T>(val);
+            }
+        }
+        [StructLayout(LayoutKind.Sequential)]
+        public struct ConstructorToken
+        {
+        }
+
+        public class Constructor
+        {
+            private Type _TargetType;
+            private Delegate _ConDel;
+
+            public Constructor(ConstructorInfo con, Type delType)
+            {
+                CheckArguments(con, delType);
+                _ConDel = CreateDelegateUnsafe(delType, con);
+                _TargetType = con.DeclaringType;
+            }
+
+            public static void CheckArguments(ConstructorInfo con, Type delType)
+            {
+                if (con == null) throw new ArgumentNullException(nameof(con), "Please provide a constructor!");
+                if (delType == null) throw new ArgumentNullException(nameof(delType), "Please provide a Delegate Type to bind constructor to!");
+                if (!typeof(Delegate).IsAssignableFrom(delType)) throw new ArgumentException("the delType must be a Delegate Type!", nameof(delType));
+                var miInvoke = delType.GetMethod("Invoke");
+                var pars = miInvoke.GetParameters();
+                if (pars.Length < 1) throw new ArgumentException("the delType must takes a 'ref ConstructorToken' as its first parameter!", nameof(delType));
+                var par0 = pars[0].ParameterType;
+                if (!par0.IsByRef) throw new ArgumentException("the delType must takes a 'ref ConstructorToken' as its first parameter!", nameof(delType));
+                var par0elem = par0.GetElementType();
+                if (par0elem != typeof(ConstructorToken)) throw new ArgumentException("the delType must takes a 'ref ConstructorToken' as its first parameter!", nameof(delType));
+            }
+
+            public ref ConstructorToken Alloc(out object obj)
+            {
+                obj = GetUninitializedObject(_TargetType);
+                RawRef r = new RawRef();
+                RawRef rrv = new RawRef();
+                for (; ; )
+                {
+                    r.SetRefObj(obj);
+                    var preaddr = r.Address;
+                    rrv.Address = preaddr;
+                    if (!RuntimeInfo.IsNativeAOT && _TargetType.IsValueType)
+                    {
+                        rrv.Address += GetObjectHeaderSize();
+                    }
+                    ref var rv = ref rrv.GetRef<ConstructorToken>();
+                    r.SetRefObj(obj);
+                    var postaddr = r.Address;
+                    if (preaddr == postaddr)
+                    {
+                        return ref rv;
+                    }
+                }
+            }
+            public ref ConstructorToken Alloc<T>(out AllocatedObject<T> obj)
+            {
+                //if (!typeof(T).IsAssignableFrom(_TargetType))
+                //{
+                //    throw new ArgumentException($"Please provide correct T to receive value of {_TargetType}", nameof(T));
+                //}
+                obj = new AllocatedObject<T>();
+                if (!typeof(T).IsValueType)
+                {
+                    var offset = obj.GetFieldOffset(ref obj._Value).OfType<object>();
+                    ref var rinner = ref obj.GetField(offset);
+                    return ref Alloc(out rinner);
+                }
+                RawRef r = new RawRef();
+                RawRef rrv = new RawRef();
+                for (; ; )
+                {
+                    r.SetRef(ref obj._Value);
+                    var preaddr = r.Address;
+                    rrv.Address = preaddr;
+                    if (RuntimeInfo.IsNativeAOT)
+                    {
+                        rrv.Address -= GetObjectHeaderSize();
+                    }
+                    ref var rv = ref rrv.GetRef<ConstructorToken>();
+                    r.SetRef(ref obj._Value);
+                    var postaddr = r.Address;
+                    if (preaddr == postaddr)
+                    {
+                        return ref rv;
+                    }
+                }
+            }
+
+            public DelType Init<DelType>() where DelType : Delegate
+            {
+                if (typeof(DelType) != _ConDel.GetType())
+                {
+                    throw new ArgumentException("Must pass same DelType for Init<>() as Activator's ctor", nameof(DelType));
+                }
+                return (DelType)_ConDel;
+            }
+
+            public static ConstructorInfo Find(Type targetType, Type delType)
+            {
+                var miInvoke = delType.GetMethod("Invoke");
+                var pars = miInvoke.GetParameters();
+                foreach (var con in targetType.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+                {
+                    var conpars = con.GetParameters();
+                    if (pars.Length != conpars.Length + 1)
+                        continue;
+                    bool nomatch = false;
+                    for (int i = 1; i < pars.Length; ++i)
+                    {
+                        var par = pars[i].ParameterType;
+                        var conpar = conpars[i - 1].ParameterType;
+                        if (Size(par) != Size(conpar))
+                        {
+                            nomatch = true;
+                            break;
+                        }
+                    }
+                    if (!nomatch)
+                    {
+                        return con;
+                    }
+                }
+                return null;
+            }
+        }
+        public class Constructor<TTarget, TDelegate> where TDelegate : Delegate
+        {
+            private Constructor _Inner;
+            public Constructor()
+            {
+                var con = Constructor.Find(typeof(TTarget), typeof(TDelegate));
+                _Inner = new Constructor(con, typeof(TDelegate));
+            }
+
+            public ref ConstructorToken Alloc(out AllocatedObject<TTarget> obj)
+            {
+                return ref _Inner.Alloc(out obj);
+            }
+            public TDelegate Init => _Inner.Init<TDelegate>();
+        }
+    }
+    #endregion
 }
