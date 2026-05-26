@@ -22,14 +22,14 @@ namespace Mod.LowLevel
                 }
             }
         }
-        public static T ConvertRef<T>(object source) where T : class
+        public static T ConvertObjectRef<T>(object source) where T : class
         {
             RawRef r = new RawRef();
             r.SetRef(ref source);
             ref T rrv = ref r.GetRef<T>();
             return rrv;
         }
-        public static ref T ConvertRef<F, T>(this ref F source) where F : struct where T : struct
+        public static ref T ConvertStructRef<F, T>(this ref F source) where F : struct where T : struct
         {
             return ref ConvertRefCommon<F, T>(ref source);
         }
@@ -48,7 +48,7 @@ namespace Mod.LowLevel
                 var postaddr = r.Address;
                 if (postaddr == preaddr)
                 {
-                    return ConvertRef<T>(temprv);
+                    return ConvertObjectRef<T>(temprv);
                 }
             }
         }
@@ -90,7 +90,7 @@ namespace Mod.LowLevel
                 var postaddr = r.Address;
                 if (postaddr == preaddr)
                 {
-                    return ConvertRef<T>(temprv);
+                    return ConvertObjectRef<T>(temprv);
                 }
             }
         }

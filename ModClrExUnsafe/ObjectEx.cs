@@ -301,7 +301,7 @@ namespace Mod.LowLevel
                     }
                 }
             }
-            public ref ConstructorToken Alloc<T>(out AllocatedObject<T> obj)
+            public ref ConstructorToken AllocWrapped<T>(out AllocatedObject<T> obj)
             {
                 //if (!typeof(T).IsAssignableFrom(_TargetType))
                 //{
@@ -327,6 +327,37 @@ namespace Mod.LowLevel
                     }
                     ref var rv = ref rrv.GetRef<ConstructorToken>();
                     r.SetRef(ref obj._Value);
+                    var postaddr = r.Address;
+                    if (preaddr == postaddr)
+                    {
+                        return ref rv;
+                    }
+                }
+            }
+            /// <summary>
+            /// if T is ValueType, please make sure it is on the evaluation stack.
+            /// </summary>
+            public ref ConstructorToken Alloc<T>(out T val)
+            {
+                val = default;
+                if (!typeof(T).IsValueType)
+                {
+                    ref var obj = ref ConvertRefCommon<T, object>(ref val);
+                    return ref Alloc(out obj);
+                }
+                RawRef r = new RawRef();
+                RawRef rrv = new RawRef();
+                for (; ; )
+                {
+                    r.SetRef(ref val);
+                    var preaddr = r.Address;
+                    rrv.Address = preaddr;
+                    if (RuntimeInfo.IsNativeAOT)
+                    {
+                        rrv.Address -= GetObjectHeaderSize();
+                    }
+                    ref var rv = ref rrv.GetRef<ConstructorToken>();
+                    r.SetRef(ref val);
                     var postaddr = r.Address;
                     if (preaddr == postaddr)
                     {
@@ -381,9 +412,13 @@ namespace Mod.LowLevel
                 _Inner = new Constructor(con, typeof(TDelegate));
             }
 
-            public ref ConstructorToken Alloc(out AllocatedObject<TTarget> obj)
+            public ref ConstructorToken AllocWrapped(out AllocatedObject<TTarget> obj)
             {
-                return ref _Inner.Alloc(out obj);
+                return ref _Inner.AllocWrapped(out obj);
+            }
+            public ref ConstructorToken Alloc(out TTarget val)
+            {
+                return ref _Inner.Alloc(out val);
             }
             public TDelegate Init => _Inner.Init<TDelegate>();
         }

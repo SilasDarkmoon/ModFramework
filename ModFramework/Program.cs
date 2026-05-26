@@ -73,13 +73,11 @@ class Program
         Console.WriteLine("---------------------------------------------------------------------");
 
         var con1 = new UnsafeEx.Constructor<TestFieldsStruct, ConstructorDelegate1>();
-        con1.Init(ref con1.Alloc(out var inst1obj), 9, 8, 7, 6, 5, 4);
-        var inst1 = inst1obj.Value;
+        con1.Init(ref con1.Alloc(out var inst1), 9, 8, 7, 6, 5, 4);
         Console.WriteLine($"{inst1.Field0}, {inst1.Field1}, {inst1.Field2}, {inst1.Field3}, {inst1.Field4}, {inst1.Field5}");
 
         var con2 = new UnsafeEx.Constructor<TestFieldsClass, ConstructorDelegate1>();
-        con2.Init(ref con2.Alloc(out var inst2container), 2, 3, 4, 5, 6, 7);
-        var inst2 = inst2container.Value;
+        con2.Init(ref con2.Alloc(out var inst2), 2, 3, 4, 5, 6, 7);
         Console.WriteLine($"{inst2.Field0}, {inst2.Field1}, {inst2.Field2}, {inst2.Field3}, {inst2.Field4}, {inst2.Field5}");
         #endregion
     }
