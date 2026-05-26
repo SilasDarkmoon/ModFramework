@@ -255,7 +255,7 @@ namespace Mod.LowLevel
         public class Constructor
         {
             private Type _TargetType;
-            private Delegate _ConDel;
+            internal Delegate _ConDel;
 
             public Constructor(ConstructorInfo con, Type delType)
             {
@@ -379,8 +379,58 @@ namespace Mod.LowLevel
             {
                 var miInvoke = delType.GetMethod("Invoke");
                 var pars = miInvoke.GetParameters();
-                foreach (var con in targetType.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+                var allConstructors = targetType.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                // 1, strict
+                foreach (var con in allConstructors)
                 {
+                    var conpars = con.GetParameters();
+                    if (pars.Length != conpars.Length + 1)
+                        continue;
+                    bool nomatch = false;
+                    for (int i = 1; i < pars.Length; ++i)
+                    {
+                        var par = pars[i].ParameterType;
+                        var conpar = conpars[i - 1].ParameterType;
+                        if (par != conpar)
+                        {
+                            nomatch = true;
+                            break;
+                        }
+                    }
+                    if (!nomatch)
+                    {
+                        return con;
+                    }
+                }
+                // 2, public compatible
+                foreach (var con in allConstructors)
+                {
+                    if (!con.IsPublic)
+                        continue;
+                    var conpars = con.GetParameters();
+                    if (pars.Length != conpars.Length + 1)
+                        continue;
+                    bool nomatch = false;
+                    for (int i = 1; i < pars.Length; ++i)
+                    {
+                        var par = pars[i].ParameterType;
+                        var conpar = conpars[i - 1].ParameterType;
+                        if (Size(par) != Size(conpar))
+                        {
+                            nomatch = true;
+                            break;
+                        }
+                    }
+                    if (!nomatch)
+                    {
+                        return con;
+                    }
+                }
+                // 3, non-public compatible
+                foreach (var con in allConstructors)
+                {
+                    if (con.IsPublic)
+                        continue;
                     var conpars = con.GetParameters();
                     if (pars.Length != conpars.Length + 1)
                         continue;
@@ -411,6 +461,14 @@ namespace Mod.LowLevel
                 var con = Constructor.Find(typeof(TTarget), typeof(TDelegate));
                 _Inner = new Constructor(con, typeof(TDelegate));
             }
+            /// <summary>
+            /// Sometimes, the target type is non public. But we can declare a compatible class/struct to pretend it. Mostly used for ValueTypes.
+            /// </summary>
+            public Constructor(Type realTargetType)
+            {
+                var con = Constructor.Find(realTargetType, typeof(TDelegate));
+                _Inner = new Constructor(con, typeof(TDelegate));
+            }
 
             public ref ConstructorToken AllocWrapped(out AllocatedObject<TTarget> obj)
             {
@@ -420,7 +478,25 @@ namespace Mod.LowLevel
             {
                 return ref _Inner.Alloc(out val);
             }
-            public TDelegate Init => _Inner.Init<TDelegate>();
+            public TDelegate Init => (TDelegate)_Inner._ConDel;
+        }
+        /// <summary>
+        /// Sometimes, the target type is non public. in this condition, use this.
+        /// </summary>
+        public class Constructor<TDelegate> where TDelegate : Delegate
+        {
+            private Constructor _Inner;
+            public Constructor(Type targetType)
+            {
+                var con = Constructor.Find(targetType, typeof(TDelegate));
+                _Inner = new Constructor(con, typeof(TDelegate));
+            }
+
+            public ref ConstructorToken Alloc(out object val)
+            {
+                return ref _Inner.Alloc(out val);
+            }
+            public TDelegate Init => (TDelegate)_Inner._ConDel;
         }
     }
     #endregion
