@@ -19,10 +19,14 @@
       <HintPath>ByRefUtils.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="ByRefUtils.TrackingRef">
-      <HintPath>ByRefUtils.TrackingRef.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
+      <Reference Include="ByRefUtils.TrackingRef">
+          <HintPath>ByRefUtils.TrackingRef.dll</HintPath>
+          <Private>True</Private>
+      </Reference>
+      <Reference Include="PointerDelegate">
+          <HintPath>PointerDelegate.dll</HintPath>
+          <Private>True</Private>
+      </Reference>
   </ItemGroup>
 
 </Project>

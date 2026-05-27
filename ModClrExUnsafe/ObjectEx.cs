@@ -375,46 +375,44 @@ namespace Mod.LowLevel
                 return (DelType)_ConDel;
             }
 
-            public static ConstructorInfo Find(Type targetType, Type delType)
+            public static ConstructorInfo Find(Type targetType, Type[] paramTypes)
             {
-                var miInvoke = delType.GetMethod("Invoke");
-                var pars = miInvoke.GetParameters();
                 var allConstructors = targetType.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                List<(ConstructorInfo, Type[])> pendingConstructors = new List<(ConstructorInfo, Type[])>();
+
                 // 1, strict
                 foreach (var con in allConstructors)
                 {
                     var conpars = con.GetParameters();
-                    if (pars.Length != conpars.Length + 1)
+                    if (paramTypes.Length != conpars.Length)
                         continue;
+                    var conparTypes = new Type[conpars.Length];
                     bool nomatch = false;
-                    for (int i = 1; i < pars.Length; ++i)
+                    for (int i = 0; i < paramTypes.Length; ++i)
                     {
-                        var par = pars[i].ParameterType;
-                        var conpar = conpars[i - 1].ParameterType;
+                        var par = paramTypes[i];
+                        var conpar = conparTypes[i] = conpars[i].ParameterType;
                         if (par != conpar)
                         {
                             nomatch = true;
-                            break;
                         }
                     }
                     if (!nomatch)
                     {
                         return con;
                     }
+                    pendingConstructors.Add((con, conparTypes));
                 }
                 // 2, public compatible
-                foreach (var con in allConstructors)
+                foreach (var (con, conpars) in pendingConstructors)
                 {
                     if (!con.IsPublic)
                         continue;
-                    var conpars = con.GetParameters();
-                    if (pars.Length != conpars.Length + 1)
-                        continue;
                     bool nomatch = false;
-                    for (int i = 1; i < pars.Length; ++i)
+                    for (int i = 1; i < paramTypes.Length; ++i)
                     {
-                        var par = pars[i].ParameterType;
-                        var conpar = conpars[i - 1].ParameterType;
+                        var par = paramTypes[i];
+                        var conpar = conpars[i];
                         if (Size(par) != Size(conpar))
                         {
                             nomatch = true;
@@ -427,18 +425,15 @@ namespace Mod.LowLevel
                     }
                 }
                 // 3, non-public compatible
-                foreach (var con in allConstructors)
+                foreach (var (con, conpars) in pendingConstructors)
                 {
                     if (con.IsPublic)
                         continue;
-                    var conpars = con.GetParameters();
-                    if (pars.Length != conpars.Length + 1)
-                        continue;
                     bool nomatch = false;
-                    for (int i = 1; i < pars.Length; ++i)
+                    for (int i = 1; i < paramTypes.Length; ++i)
                     {
-                        var par = pars[i].ParameterType;
-                        var conpar = conpars[i - 1].ParameterType;
+                        var par = paramTypes[i];
+                        var conpar = conpars[i];
                         if (Size(par) != Size(conpar))
                         {
                             nomatch = true;
@@ -451,6 +446,18 @@ namespace Mod.LowLevel
                     }
                 }
                 return null;
+            }
+            public static ConstructorInfo Find(Type targetType, Type delType)
+            {
+                var miInvoke = delType.GetMethod("Invoke");
+                var pars = miInvoke.GetParameters();
+                if (pars.Length < 1) return null;
+                var paramTypes = new Type[pars.Length - 1];
+                for (int i = 1; i < pars.Length; ++i)
+                {
+                    paramTypes[i - 1] = pars[i].ParameterType;
+                }
+                return Find(targetType, paramTypes);
             }
         }
         public class Constructor<TTarget, TDelegate> where TDelegate : Delegate
