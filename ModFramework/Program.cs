@@ -79,6 +79,70 @@ class Program
         var con2 = new UnsafeEx.Constructor<TestFieldsClass, ConstructorDelegate1>();
         con2.Init(ref con2.Alloc(out var inst2), 2, 3, 4, 5, 6, 7);
         Console.WriteLine($"{inst2.Field0}, {inst2.Field1}, {inst2.Field2}, {inst2.Field3}, {inst2.Field4}, {inst2.Field5}");
+        Console.WriteLine("---------------------------------------------------------------------");
+        #endregion
+
+        #region Test For PointerDelegate
+        IntPtr lpda = (IntPtr)10;
+        long lpdb = 300;
+
+        var mipd1 = mi1;
+        RuntimeHelpers.PrepareMethod(mipd1.MethodHandle);
+        var fn1 = mipd1.MethodHandle.GetFunctionPointer();
+        // Pass1
+        {
+            var invoker1 = new PointerFunc<IntPtr, IntPtr>(fn1);
+            var invoker1_2 = invoker1.Clone().WithRefParam(0);
+            var invoker1_3 = invoker1.Clone().WithRefParam(0, false);
+            Console.WriteLine(invoker1.Invoke(in lpda));
+            Console.WriteLine(invoker1.Invoke(lpdb));
+            Console.WriteLine(invoker1_2.Invoke(in lpda));
+            Console.WriteLine(invoker1_2.Invoke(lpdb));
+            Console.WriteLine(invoker1_3.Invoke(in lpda));
+            Console.WriteLine(invoker1_3.Invoke(lpdb));
+            Console.WriteLine("------------------------------------------------------------------------");
+        }
+        // Pass2:
+        {
+            var invoker1 = new PointerFunc<IntPtr, ByRefParam>(fn1);
+            var invoker1_2 = invoker1.Clone().WithRefParam(0);
+            var invoker1_3 = invoker1.Clone().WithRefParam(0, false);
+            Console.WriteLine(invoker1.Invoke(in lpda));
+            Console.WriteLine(invoker1.Invoke(lpdb));
+            Console.WriteLine(invoker1_2.Invoke(in lpda));
+            Console.WriteLine(invoker1_2.Invoke(lpdb));
+            Console.WriteLine(invoker1_3.Invoke(in lpda));
+            Console.WriteLine(invoker1_3.Invoke(lpdb));
+            Console.WriteLine("------------------------------------------------------------------------");
+        }
+        Func<IntPtr, IntPtr> delpd2 = UnsafeEx.CreateDelegateUnsafe<Func<IntPtr, IntPtr>>(mipd1);
+        // Pass3
+        {
+            var invoker1 = new PointerFunc<IntPtr, IntPtr>(delpd2);
+            var invoker1_2 = invoker1.Clone().WithRefParam(0);
+            var invoker1_3 = invoker1.Clone().WithRefParam(0, false);
+            Console.WriteLine(invoker1.Invoke(in lpda));
+            Console.WriteLine(invoker1.Invoke(lpdb));
+            Console.WriteLine(invoker1_2.Invoke(in lpda));
+            Console.WriteLine(invoker1_2.Invoke(lpdb));
+            Console.WriteLine(invoker1_3.Invoke(in lpda));
+            Console.WriteLine(invoker1_3.Invoke(lpdb));
+            Console.WriteLine("------------------------------------------------------------------------");
+        }
+        Func<ByRefParam, IntPtr> delpd3 = UnsafeEx.CreateDelegateUnsafe<Func<ByRefParam, IntPtr>>(mipd1); ;
+        // Pass4
+        {
+            var invoker1 = new PointerFunc<IntPtr, ByRefParam>(delpd3);
+            var invoker1_2 = invoker1.Clone().WithRefParam(0);
+            var invoker1_3 = invoker1.Clone().WithRefParam(0, false);
+            Console.WriteLine(invoker1.Invoke(in lpda));
+            Console.WriteLine(invoker1.Invoke(lpdb));
+            Console.WriteLine(invoker1_2.Invoke(in lpda));
+            Console.WriteLine(invoker1_2.Invoke(lpdb));
+            Console.WriteLine(invoker1_3.Invoke(in lpda));
+            Console.WriteLine(invoker1_3.Invoke(lpdb));
+            Console.WriteLine("------------------------------------------------------------------------");
+        }
         #endregion
     }
 

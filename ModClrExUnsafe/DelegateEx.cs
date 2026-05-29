@@ -520,6 +520,120 @@ namespace Mod.LowLevel
         {
             return (T)DelegateExImp.CreateDelegateUnsafe(typeof(T), method);
         }
+        public static MethodBase FindMethod(this IEnumerable<MethodBase> methods, Type[] paramTypes, Type returnType = null, bool withThis = false)
+        {
+            List<(MethodBase, Type[])> pendingMethods = new List<(MethodBase, Type[])>();
+
+            // 1, strict
+            foreach (var m in methods)
+            {
+                var mpars = m.GetParameters();
+                var mparlen = mpars.Length;
+                bool isInstance = !m.IsStatic;
+                if (isInstance && withThis) ++mparlen;
+                if (paramTypes.Length != mparlen)
+                    continue;
+                if (returnType != null)
+                {
+                    Type mrtype;
+                    if (!(m is MethodInfo mi))
+                    {
+                        mrtype = typeof(void);
+                    }
+                    else
+                    {
+                        mrtype = mi.ReturnType;
+                    }
+                    if (mrtype != returnType && !returnType.IsAssignableFrom(mrtype))
+                    {
+                        continue;
+                    }
+                }
+                var mparTypes = new Type[mparlen];
+                bool nomatch = false;
+                for (int i = 0; i < paramTypes.Length; ++i)
+                {
+                    var par = paramTypes[i];
+                    Type mpar;
+                    if (i == 0 && isInstance && withThis)
+                    {
+                        mpar = m.DeclaringType;
+                        mparTypes[0] = mpar;
+                    }
+                    else
+                    {
+                        var index = i;
+                        if (isInstance && withThis) --index;
+                        mpar = mparTypes[index] = mpars[index].ParameterType;
+                    }
+                    if (!mpar.IsAssignableFrom(par))
+                    {
+                        nomatch = true;
+                    }
+                }
+                if (!nomatch)
+                {
+                    return m;
+                }
+                pendingMethods.Add((m, mparTypes));
+            }
+            // 2, public compatible
+            foreach (var (m, mpars) in pendingMethods)
+            {
+                if (!m.IsPublic)
+                    continue;
+                bool nomatch = false;
+                for (int i = 1; i < paramTypes.Length; ++i)
+                {
+                    var par = paramTypes[i];
+                    var mpar = mpars[i];
+                    if (Size(par) != Size(mpar))
+                    {
+                        nomatch = true;
+                        break;
+                    }
+                }
+                if (!nomatch)
+                {
+                    return m;
+                }
+            }
+            // 3, non-public compatible
+            foreach (var (m, mpars) in pendingMethods)
+            {
+                if (m.IsPublic)
+                    continue;
+                bool nomatch = false;
+                for (int i = 1; i < paramTypes.Length; ++i)
+                {
+                    var par = paramTypes[i];
+                    var mpar = mpars[i];
+                    if (Size(par) != Size(mpar))
+                    {
+                        nomatch = true;
+                        break;
+                    }
+                }
+                if (!nomatch)
+                {
+                    return m;
+                }
+            }
+            return null;
+        }
+        public static MethodInfo[] GetMethods(this Type type, string name)
+        {
+            var allmethods = type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
+            List<MethodInfo> foundMethods = new List<MethodInfo>();
+            foreach (var m in allmethods)
+            {
+                if (m.Name == name)
+                {
+                    foundMethods.Add(m);
+                }
+            }
+            return foundMethods.ToArray();
+        }
         #endregion
     }
 }

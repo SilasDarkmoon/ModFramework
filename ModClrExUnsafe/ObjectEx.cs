@@ -378,74 +378,7 @@ namespace Mod.LowLevel
             public static ConstructorInfo Find(Type targetType, Type[] paramTypes)
             {
                 var allConstructors = targetType.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                List<(ConstructorInfo, Type[])> pendingConstructors = new List<(ConstructorInfo, Type[])>();
-
-                // 1, strict
-                foreach (var con in allConstructors)
-                {
-                    var conpars = con.GetParameters();
-                    if (paramTypes.Length != conpars.Length)
-                        continue;
-                    var conparTypes = new Type[conpars.Length];
-                    bool nomatch = false;
-                    for (int i = 0; i < paramTypes.Length; ++i)
-                    {
-                        var par = paramTypes[i];
-                        var conpar = conparTypes[i] = conpars[i].ParameterType;
-                        if (par != conpar)
-                        {
-                            nomatch = true;
-                        }
-                    }
-                    if (!nomatch)
-                    {
-                        return con;
-                    }
-                    pendingConstructors.Add((con, conparTypes));
-                }
-                // 2, public compatible
-                foreach (var (con, conpars) in pendingConstructors)
-                {
-                    if (!con.IsPublic)
-                        continue;
-                    bool nomatch = false;
-                    for (int i = 1; i < paramTypes.Length; ++i)
-                    {
-                        var par = paramTypes[i];
-                        var conpar = conpars[i];
-                        if (Size(par) != Size(conpar))
-                        {
-                            nomatch = true;
-                            break;
-                        }
-                    }
-                    if (!nomatch)
-                    {
-                        return con;
-                    }
-                }
-                // 3, non-public compatible
-                foreach (var (con, conpars) in pendingConstructors)
-                {
-                    if (con.IsPublic)
-                        continue;
-                    bool nomatch = false;
-                    for (int i = 1; i < paramTypes.Length; ++i)
-                    {
-                        var par = paramTypes[i];
-                        var conpar = conpars[i];
-                        if (Size(par) != Size(conpar))
-                        {
-                            nomatch = true;
-                            break;
-                        }
-                    }
-                    if (!nomatch)
-                    {
-                        return con;
-                    }
-                }
-                return null;
+                return (ConstructorInfo)FindMethod(allConstructors, paramTypes);
             }
             public static ConstructorInfo Find(Type targetType, Type delType)
             {

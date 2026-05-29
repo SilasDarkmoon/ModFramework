@@ -27,6 +27,9 @@
     <Reference Include="ByRefUtils.TrackingRef">
       <HintPath>..\ModClrExUnsafe\ByRefUtils.TrackingRef.dll</HintPath>
     </Reference>
+    <Reference Include="PointerDelegate">
+      <HintPath>..\ModClrExUnsafe\PointerDelegate.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
 </Project>
