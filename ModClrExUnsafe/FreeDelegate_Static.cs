@@ -6,13 +6,13 @@ using System.Text;
 
 namespace Mod.LowLevel
 {
-    public abstract class UnsafeDelegate : ICloneable
+    public abstract class FreeDelegate : ICloneable
     {
         protected MethodBase _Method;
         public MethodBase Method => _Method;
         protected PointerDelegate _Inner;
 
-        protected UnsafeDelegate(MethodBase mi)
+        protected FreeDelegate(MethodBase mi)
         {
             if (mi == null) throw new ArgumentNullException(nameof(mi), $"Must provide method to bind {this.GetType().Name}!");
             _Method = mi;
@@ -21,9 +21,9 @@ namespace Mod.LowLevel
                 RuntimeHelpers.PrepareMethod(mi.MethodHandle);
             }
         }
-        protected UnsafeDelegate Clone()
+        protected FreeDelegate Clone()
         {
-            var clone = MemberwiseClone() as UnsafeDelegate;
+            var clone = MemberwiseClone() as FreeDelegate;
             clone._Inner = (PointerDelegate)((ICloneable)_Inner).Clone();
             return clone;
         }
@@ -32,7 +32,7 @@ namespace Mod.LowLevel
             return Clone();
         }
     }
-    public class StaticAction : UnsafeDelegate
+    public class StaticAction : FreeDelegate
     {
         public StaticAction(MethodBase mi) : base(mi)
         {
@@ -57,7 +57,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticAction;
         }
     }
-    public class StaticAction<U1> : UnsafeDelegate
+    public class StaticAction<U1> : FreeDelegate
     {
         public StaticAction(MethodBase mi) : base(mi)
         {
@@ -82,7 +82,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticAction<U1>;
         }
     }
-    public class StaticAction<U1, U2> : UnsafeDelegate
+    public class StaticAction<U1, U2> : FreeDelegate
     {
         public StaticAction(MethodBase mi) : base(mi)
         {
@@ -107,7 +107,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticAction<U1, U2>;
         }
     }
-    public class StaticAction<U1, U2, U3> : UnsafeDelegate
+    public class StaticAction<U1, U2, U3> : FreeDelegate
     {
         public StaticAction(MethodBase mi) : base(mi)
         {
@@ -132,7 +132,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticAction<U1, U2, U3>;
         }
     }
-    public class StaticAction<U1, U2, U3, U4> : UnsafeDelegate
+    public class StaticAction<U1, U2, U3, U4> : FreeDelegate
     {
         public StaticAction(MethodBase mi) : base(mi)
         {
@@ -157,7 +157,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticAction<U1, U2, U3, U4>;
         }
     }
-    public class StaticAction<U1, U2, U3, U4, U5> : UnsafeDelegate
+    public class StaticAction<U1, U2, U3, U4, U5> : FreeDelegate
     {
         public StaticAction(MethodBase mi) : base(mi)
         {
@@ -182,7 +182,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticAction<U1, U2, U3, U4, U5>;
         }
     }
-    public class StaticAction<U1, U2, U3, U4, U5, U6> : UnsafeDelegate
+    public class StaticAction<U1, U2, U3, U4, U5, U6> : FreeDelegate
     {
         public StaticAction(MethodBase mi) : base(mi)
         {
@@ -207,7 +207,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticAction<U1, U2, U3, U4, U5, U6>;
         }
     }
-    public class StaticAction<U1, U2, U3, U4, U5, U6, U7> : UnsafeDelegate
+    public class StaticAction<U1, U2, U3, U4, U5, U6, U7> : FreeDelegate
     {
         public StaticAction(MethodBase mi) : base(mi)
         {
@@ -232,7 +232,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticAction<U1, U2, U3, U4, U5, U6, U7>;
         }
     }
-    public class StaticAction<U1, U2, U3, U4, U5, U6, U7, U8> : UnsafeDelegate
+    public class StaticAction<U1, U2, U3, U4, U5, U6, U7, U8> : FreeDelegate
     {
         public StaticAction(MethodBase mi) : base(mi)
         {
@@ -257,7 +257,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticAction<U1, U2, U3, U4, U5, U6, U7, U8>;
         }
     }
-    public class StaticAction<U1, U2, U3, U4, U5, U6, U7, U8, U9> : UnsafeDelegate
+    public class StaticAction<U1, U2, U3, U4, U5, U6, U7, U8, U9> : FreeDelegate
     {
         public StaticAction(MethodBase mi) : base(mi)
         {
@@ -282,7 +282,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticAction<U1, U2, U3, U4, U5, U6, U7, U8, U9>;
         }
     }
-    public class StaticAction<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10> : UnsafeDelegate
+    public class StaticAction<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10> : FreeDelegate
     {
         public StaticAction(MethodBase mi) : base(mi)
         {
@@ -307,7 +307,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticAction<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10>;
         }
     }
-    public class StaticAction<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11> : UnsafeDelegate
+    public class StaticAction<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11> : FreeDelegate
     {
         public StaticAction(MethodBase mi) : base(mi)
         {
@@ -332,7 +332,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticAction<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11>;
         }
     }
-    public class StaticAction<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12> : UnsafeDelegate
+    public class StaticAction<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12> : FreeDelegate
     {
         public StaticAction(MethodBase mi) : base(mi)
         {
@@ -357,7 +357,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticAction<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12>;
         }
     }
-    public class StaticAction<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13> : UnsafeDelegate
+    public class StaticAction<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13> : FreeDelegate
     {
         public StaticAction(MethodBase mi) : base(mi)
         {
@@ -382,7 +382,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticAction<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13>;
         }
     }
-    public class StaticAction<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14> : UnsafeDelegate
+    public class StaticAction<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14> : FreeDelegate
     {
         public StaticAction(MethodBase mi) : base(mi)
         {
@@ -407,7 +407,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticAction<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14>;
         }
     }
-    public class StaticAction<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15> : UnsafeDelegate
+    public class StaticAction<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15> : FreeDelegate
     {
         public StaticAction(MethodBase mi) : base(mi)
         {
@@ -432,7 +432,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticAction<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15>;
         }
     }
-    public class StaticAction<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16> : UnsafeDelegate
+    public class StaticAction<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16> : FreeDelegate
     {
         public StaticAction(MethodBase mi) : base(mi)
         {
@@ -458,7 +458,7 @@ namespace Mod.LowLevel
         }
     }
 
-    public class StaticFunc<R> : UnsafeDelegate
+    public class StaticFunc<R> : FreeDelegate
     {
         public StaticFunc(MethodBase mi) : base(mi)
         {
@@ -483,7 +483,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticFunc<R>;
         }
     }
-    public class StaticFunc<R, U1> : UnsafeDelegate
+    public class StaticFunc<R, U1> : FreeDelegate
     {
         public StaticFunc(MethodBase mi) : base(mi)
         {
@@ -508,7 +508,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticFunc<R, U1>;
         }
     }
-    public class StaticFunc<R, U1, U2> : UnsafeDelegate
+    public class StaticFunc<R, U1, U2> : FreeDelegate
     {
         public StaticFunc(MethodBase mi) : base(mi)
         {
@@ -533,7 +533,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticFunc<R, U1, U2>;
         }
     }
-    public class StaticFunc<R, U1, U2, U3> : UnsafeDelegate
+    public class StaticFunc<R, U1, U2, U3> : FreeDelegate
     {
         public StaticFunc(MethodBase mi) : base(mi)
         {
@@ -558,7 +558,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticFunc<R, U1, U2, U3>;
         }
     }
-    public class StaticFunc<R, U1, U2, U3, U4> : UnsafeDelegate
+    public class StaticFunc<R, U1, U2, U3, U4> : FreeDelegate
     {
         public StaticFunc(MethodBase mi) : base(mi)
         {
@@ -583,7 +583,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticFunc<R, U1, U2, U3, U4>;
         }
     }
-    public class StaticFunc<R, U1, U2, U3, U4, U5> : UnsafeDelegate
+    public class StaticFunc<R, U1, U2, U3, U4, U5> : FreeDelegate
     {
         public StaticFunc(MethodBase mi) : base(mi)
         {
@@ -608,7 +608,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticFunc<R, U1, U2, U3, U4, U5>;
         }
     }
-    public class StaticFunc<R, U1, U2, U3, U4, U5, U6> : UnsafeDelegate
+    public class StaticFunc<R, U1, U2, U3, U4, U5, U6> : FreeDelegate
     {
         public StaticFunc(MethodBase mi) : base(mi)
         {
@@ -633,7 +633,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticFunc<R, U1, U2, U3, U4, U5, U6>;
         }
     }
-    public class StaticFunc<R, U1, U2, U3, U4, U5, U6, U7> : UnsafeDelegate
+    public class StaticFunc<R, U1, U2, U3, U4, U5, U6, U7> : FreeDelegate
     {
         public StaticFunc(MethodBase mi) : base(mi)
         {
@@ -658,7 +658,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticFunc<R, U1, U2, U3, U4, U5, U6, U7>;
         }
     }
-    public class StaticFunc<R, U1, U2, U3, U4, U5, U6, U7, U8> : UnsafeDelegate
+    public class StaticFunc<R, U1, U2, U3, U4, U5, U6, U7, U8> : FreeDelegate
     {
         public StaticFunc(MethodBase mi) : base(mi)
         {
@@ -683,7 +683,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticFunc<R, U1, U2, U3, U4, U5, U6, U7, U8>;
         }
     }
-    public class StaticFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9> : UnsafeDelegate
+    public class StaticFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9> : FreeDelegate
     {
         public StaticFunc(MethodBase mi) : base(mi)
         {
@@ -708,7 +708,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9>;
         }
     }
-    public class StaticFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10> : UnsafeDelegate
+    public class StaticFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10> : FreeDelegate
     {
         public StaticFunc(MethodBase mi) : base(mi)
         {
@@ -733,7 +733,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10>;
         }
     }
-    public class StaticFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11> : UnsafeDelegate
+    public class StaticFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11> : FreeDelegate
     {
         public StaticFunc(MethodBase mi) : base(mi)
         {
@@ -758,7 +758,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11>;
         }
     }
-    public class StaticFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12> : UnsafeDelegate
+    public class StaticFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12> : FreeDelegate
     {
         public StaticFunc(MethodBase mi) : base(mi)
         {
@@ -783,7 +783,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12>;
         }
     }
-    public class StaticFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13> : UnsafeDelegate
+    public class StaticFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13> : FreeDelegate
     {
         public StaticFunc(MethodBase mi) : base(mi)
         {
@@ -808,7 +808,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13>;
         }
     }
-    public class StaticFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14> : UnsafeDelegate
+    public class StaticFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14> : FreeDelegate
     {
         public StaticFunc(MethodBase mi) : base(mi)
         {
@@ -833,7 +833,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14>;
         }
     }
-    public class StaticFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15> : UnsafeDelegate
+    public class StaticFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15> : FreeDelegate
     {
         public StaticFunc(MethodBase mi) : base(mi)
         {
@@ -858,7 +858,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15>;
         }
     }
-    public class StaticFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16> : UnsafeDelegate
+    public class StaticFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16> : FreeDelegate
     {
         public StaticFunc(MethodBase mi) : base(mi)
         {
@@ -884,7 +884,7 @@ namespace Mod.LowLevel
         }
     }
 
-    public class StaticRefFunc<R> : UnsafeDelegate
+    public class StaticRefFunc<R> : FreeDelegate
     {
         public StaticRefFunc(MethodBase mi) : base(mi)
         {
@@ -909,7 +909,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticRefFunc<R>;
         }
     }
-    public class StaticRefFunc<R, U1> : UnsafeDelegate
+    public class StaticRefFunc<R, U1> : FreeDelegate
     {
         public StaticRefFunc(MethodBase mi) : base(mi)
         {
@@ -934,7 +934,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticRefFunc<R, U1>;
         }
     }
-    public class StaticRefFunc<R, U1, U2> : UnsafeDelegate
+    public class StaticRefFunc<R, U1, U2> : FreeDelegate
     {
         public StaticRefFunc(MethodBase mi) : base(mi)
         {
@@ -959,7 +959,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticRefFunc<R, U1, U2>;
         }
     }
-    public class StaticRefFunc<R, U1, U2, U3> : UnsafeDelegate
+    public class StaticRefFunc<R, U1, U2, U3> : FreeDelegate
     {
         public StaticRefFunc(MethodBase mi) : base(mi)
         {
@@ -984,7 +984,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticRefFunc<R, U1, U2, U3>;
         }
     }
-    public class StaticRefFunc<R, U1, U2, U3, U4> : UnsafeDelegate
+    public class StaticRefFunc<R, U1, U2, U3, U4> : FreeDelegate
     {
         public StaticRefFunc(MethodBase mi) : base(mi)
         {
@@ -1009,7 +1009,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticRefFunc<R, U1, U2, U3, U4>;
         }
     }
-    public class StaticRefFunc<R, U1, U2, U3, U4, U5> : UnsafeDelegate
+    public class StaticRefFunc<R, U1, U2, U3, U4, U5> : FreeDelegate
     {
         public StaticRefFunc(MethodBase mi) : base(mi)
         {
@@ -1034,7 +1034,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticRefFunc<R, U1, U2, U3, U4, U5>;
         }
     }
-    public class StaticRefFunc<R, U1, U2, U3, U4, U5, U6> : UnsafeDelegate
+    public class StaticRefFunc<R, U1, U2, U3, U4, U5, U6> : FreeDelegate
     {
         public StaticRefFunc(MethodBase mi) : base(mi)
         {
@@ -1059,7 +1059,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticRefFunc<R, U1, U2, U3, U4, U5, U6>;
         }
     }
-    public class StaticRefFunc<R, U1, U2, U3, U4, U5, U6, U7> : UnsafeDelegate
+    public class StaticRefFunc<R, U1, U2, U3, U4, U5, U6, U7> : FreeDelegate
     {
         public StaticRefFunc(MethodBase mi) : base(mi)
         {
@@ -1084,7 +1084,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticRefFunc<R, U1, U2, U3, U4, U5, U6, U7>;
         }
     }
-    public class StaticRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8> : UnsafeDelegate
+    public class StaticRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8> : FreeDelegate
     {
         public StaticRefFunc(MethodBase mi) : base(mi)
         {
@@ -1109,7 +1109,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8>;
         }
     }
-    public class StaticRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9> : UnsafeDelegate
+    public class StaticRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9> : FreeDelegate
     {
         public StaticRefFunc(MethodBase mi) : base(mi)
         {
@@ -1134,7 +1134,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9>;
         }
     }
-    public class StaticRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10> : UnsafeDelegate
+    public class StaticRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10> : FreeDelegate
     {
         public StaticRefFunc(MethodBase mi) : base(mi)
         {
@@ -1159,7 +1159,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10>;
         }
     }
-    public class StaticRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11> : UnsafeDelegate
+    public class StaticRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11> : FreeDelegate
     {
         public StaticRefFunc(MethodBase mi) : base(mi)
         {
@@ -1184,7 +1184,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11>;
         }
     }
-    public class StaticRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12> : UnsafeDelegate
+    public class StaticRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12> : FreeDelegate
     {
         public StaticRefFunc(MethodBase mi) : base(mi)
         {
@@ -1209,7 +1209,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12>;
         }
     }
-    public class StaticRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13> : UnsafeDelegate
+    public class StaticRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13> : FreeDelegate
     {
         public StaticRefFunc(MethodBase mi) : base(mi)
         {
@@ -1234,7 +1234,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13>;
         }
     }
-    public class StaticRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14> : UnsafeDelegate
+    public class StaticRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14> : FreeDelegate
     {
         public StaticRefFunc(MethodBase mi) : base(mi)
         {
@@ -1259,7 +1259,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14>;
         }
     }
-    public class StaticRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15> : UnsafeDelegate
+    public class StaticRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15> : FreeDelegate
     {
         public StaticRefFunc(MethodBase mi) : base(mi)
         {
@@ -1284,7 +1284,7 @@ namespace Mod.LowLevel
             return base.Clone() as StaticRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15>;
         }
     }
-    public class StaticRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16> : UnsafeDelegate
+    public class StaticRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16> : FreeDelegate
     {
         public StaticRefFunc(MethodBase mi) : base(mi)
         {
