@@ -245,28 +245,117 @@ namespace Mod.LowLevel
             return ref GetFieldRefCommon<S, byte>(ref obj, 0);
         }
 
-        private static class FieldInfoPlatDep
-        {
-        }
-
-        private abstract class SizeMeasurer
+        private static class SizeMeasurer
         {
             public static readonly Dictionary<RuntimeTypeHandle, int> _Cache = new Dictionary<RuntimeTypeHandle, int>();
+            private static readonly Dictionary<RuntimeTypeHandle, (bool blittable, int pack)> _CacheForPack = new Dictionary<RuntimeTypeHandle, (bool blittable, int pack)>();
 
-            public abstract int GetSize();
+            public static (bool blittable, int pack) GetBlittablePack(Type type)
+            {
+                if (type.IsByRef || type.IsPointer)
+                {
+                    return (true, IntPtr.Size);
+                }
+                lock (_CacheForPack)
+                {
+                    if (_CacheForPack.TryGetValue(type.TypeHandle, out var packInfo))
+                    {
+                        return packInfo;
+                    }
+                }
+                if (type.IsValueType)
+                {
+                    int size = -1;
+                    TypeCode typeCode = Type.GetTypeCode(type);
+                    switch (typeCode)
+                    {
+                        case TypeCode.Empty: size = 0; break;
+                        case TypeCode.Boolean: size = 1; break;
+                        case TypeCode.Char: size = 2; break;
+                        case TypeCode.SByte: size = 1; break;
+                        case TypeCode.Byte: size = 1; break;
+                        case TypeCode.Int16: size = 2; break;
+                        case TypeCode.UInt16: size = 2; break;
+                        case TypeCode.Int32: size = 4; break;
+                        case TypeCode.UInt32: size = 4; break;
+                        case TypeCode.Int64: size = 8; break;
+                        case TypeCode.UInt64: size = 8; break;
+                        case TypeCode.Single: size = 4; break;
+                        case TypeCode.Double: size = 8; break;
+                        case TypeCode.DateTime: size = 8; break;
+                        case TypeCode.Decimal: size = 4; break;
+                    }
+
+                    if (size < 0)
+                    {
+                        if (type == typeof(IntPtr) || type == typeof(UIntPtr))
+                        {
+                            size = IntPtr.Size;
+                        }
+                    }
+                    if (size >= 0)
+                    {
+                        lock (_CacheForPack)
+                        {
+                            _CacheForPack[type.TypeHandle] = (true, size);
+                        }
+                        return (true, size);
+                    }
+                }
+                //else
+                {
+                    int autopack = 1;
+                    bool isblittable = type.IsValueType;
+                    var fields = GetAllFields(type);
+                    foreach (var field in fields)
+                    {
+                        var fieldType = field.FieldType;
+                        if (fieldType.IsPointer || fieldType.IsByRef)
+                        {
+                            autopack = Math.Max(autopack, IntPtr.Size);
+                        }
+                        else if (fieldType.IsValueType)
+                        {
+                            (var fieldisblittable, var fieldpack) = GetBlittablePack(fieldType);
+                            isblittable = isblittable && fieldisblittable;
+                            autopack = Math.Max(autopack, fieldpack);
+                        }
+                        else
+                        {
+                            isblittable = false;
+                            autopack = Math.Max(autopack, IntPtr.Size);
+                        }
+                    }
+                    int pack = autopack;
+                    if (isblittable && (type.StructLayoutAttribute?.Pack ?? 0) > 0)
+                    {
+                        pack = Math.Min(autopack, type.StructLayoutAttribute.Pack);
+                    }
+
+                    lock (_CacheForPack)
+                    {
+                        _CacheForPack[type.TypeHandle] = (isblittable, pack);
+                    }
+                    return (isblittable, pack);
+                }
+            }
+            public static int GetPack(Type type)
+            {
+                return GetBlittablePack(type).pack;
+            }
 
             public static int GetSize(Type type)
             {
+                if (type.IsByRef || type.IsPointer)
+                {
+                    return IntPtr.Size;
+                }
                 lock (_Cache)
                 {
                     if (_Cache.TryGetValue(type.TypeHandle, out var size))
                     {
                         return size;
                     }
-                }
-                if (type.IsByRef || type.IsPointer)
-                {
-                    int size = IntPtr.Size;
                 }
                 if (type.IsValueType)
                 {
@@ -286,6 +375,7 @@ namespace Mod.LowLevel
                         case TypeCode.UInt64: size = 8; break;
                         case TypeCode.Single: size = 4; break;
                         case TypeCode.Double: size = 8; break;
+                        case TypeCode.DateTime: size = 8; break;
                         case TypeCode.Decimal: size = 16; break;
                     }
 
@@ -304,10 +394,6 @@ namespace Mod.LowLevel
                         }
                         return size;
                     }
-
-                    //var measurerType = typeof(SizeMeasurer<>).MakeGenericType(type);
-                    //var measurer = (SizeMeasurer)Activator.CreateInstance(measurerType);
-                    //return measurer.GetSize();
                 }
                 //else
                 {
@@ -331,6 +417,11 @@ namespace Mod.LowLevel
                                 size += IntPtr.Size;
                             }
                         }
+                    }
+                    int pack = GetPack(type);
+                    if (pack > 0)
+                    {
+                        size = (size + pack - 1) / pack * pack;
                     }
                     lock (_Cache)
                     {
@@ -371,27 +462,6 @@ namespace Mod.LowLevel
             }
         }
 
-        private class SizeMeasurer<T> : SizeMeasurer where T : struct
-        {
-            public override int GetSize()
-            {
-                unsafe
-                {
-#pragma warning disable CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
-                    return sizeof(T);
-#pragma warning restore CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
-                }
-            }
-
-            public SizeMeasurer()
-            {
-                lock (_Cache)
-                {
-                    _Cache[typeof(T).TypeHandle] = GetSize();
-                }
-            }
-        }
-
         public static int Size(this Type t)
         {
             return SizeMeasurer.GetSize(t);
@@ -428,6 +498,27 @@ namespace Mod.LowLevel
             else
             {
                 return Size(obj);
+            }
+        }
+
+        public static int RawSize(this Type t)
+        {
+            if (t.IsValueType)
+            {
+                return SizeMeasurer.GetSize(t);
+            }
+            else
+            {
+                return IntPtr.Size;
+            }
+        }
+        public static int RawSize<T>()
+        {
+            unsafe
+            {
+#pragma warning disable CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
+                return sizeof(T);
+#pragma warning restore CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
             }
         }
 
