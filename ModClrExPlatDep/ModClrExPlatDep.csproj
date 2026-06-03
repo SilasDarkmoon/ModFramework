@@ -1,10 +1,18 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
+    <TargetFrameworks>netstandard2.0;net7.0</TargetFrameworks>
     <RootNamespace>Mod.LowLevel</RootNamespace>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Memory" Version="4.6.3" />
+  </ItemGroup>
+    
+  <ItemGroup>
+    <Reference Include="SpanEx">
+      <HintPath>..\ModClrExUnsafe\SpanEx.dll</HintPath>
+    </Reference>
+  </ItemGroup>
 
 </Project>
