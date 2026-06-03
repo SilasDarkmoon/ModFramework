@@ -219,9 +219,9 @@ namespace Mod.LowLevel
         #endregion
     }
 
-    #region Activator
     public static partial class UnsafeEx
     {
+        #region Activator
         [StructLayout(LayoutKind.Sequential)]
         public struct AllocatedObject<T>
         {
@@ -438,6 +438,6 @@ namespace Mod.LowLevel
             }
             public TDelegate Init => (TDelegate)_Inner._ConDel;
         }
+        #endregion
     }
-    #endregion
 }
