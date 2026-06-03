@@ -42,62 +42,6 @@ namespace Mod.LowLevel
 
             private abstract class UnsafeDelegateWrapperBase : IDelegateWrapper
             {
-                private static void DummyFunc0() { }
-                private delegate void DummyDel0();
-                private static void DummyFunc1(byte p1) { }
-                private delegate void DummyDel1(byte p1);
-                private static void DummyFunc2(byte p1, byte p2) { }
-                private delegate void DummyDel2(byte p1, byte p2);
-                private static void DummyFunc3(byte p1, byte p2, byte p3) { }
-                private delegate void DummyDel3(byte p1, byte p2, byte p3);
-                private static void DummyFunc4(byte p1, byte p2, byte p3, byte p4) { }
-                private delegate void DummyDel4(byte p1, byte p2, byte p3, byte p4);
-                private static void DummyFunc5(byte p1, byte p2, byte p3, byte p4, byte p5) { }
-                private delegate void DummyDel5(byte p1, byte p2, byte p3, byte p4, byte p5);
-                private static void DummyFunc6(byte p1, byte p2, byte p3, byte p4, byte p5, byte p6) { }
-                private delegate void DummyDel6(byte p1, byte p2, byte p3, byte p4, byte p5, byte p6);
-                private static void DummyFunc7(byte p1, byte p2, byte p3, byte p4, byte p5, byte p6, byte p7) { }
-                private delegate void DummyDel7(byte p1, byte p2, byte p3, byte p4, byte p5, byte p6, byte p7);
-                private static void DummyFunc8(byte p1, byte p2, byte p3, byte p4, byte p5, byte p6, byte p7, byte p8) { }
-                private delegate void DummyDel8(byte p1, byte p2, byte p3, byte p4, byte p5, byte p6, byte p7, byte p8);
-                private static void DummyFunc9(byte p1, byte p2, byte p3, byte p4, byte p5, byte p6, byte p7, byte p8, byte p9) { }
-                private delegate void DummyDel9(byte p1, byte p2, byte p3, byte p4, byte p5, byte p6, byte p7, byte p8, byte p9);
-                private static void DummyFunc10(byte p1, byte p2, byte p3, byte p4, byte p5, byte p6, byte p7, byte p8, byte p9, byte p10) { }
-                private delegate void DummyDel10(byte p1, byte p2, byte p3, byte p4, byte p5, byte p6, byte p7, byte p8, byte p9, byte p10);
-                private static void DummyFunc11(byte p1, byte p2, byte p3, byte p4, byte p5, byte p6, byte p7, byte p8, byte p9, byte p10, byte p11) { }
-                private delegate void DummyDel11(byte p1, byte p2, byte p3, byte p4, byte p5, byte p6, byte p7, byte p8, byte p9, byte p10, byte p11);
-                private static void DummyFunc12(byte p1, byte p2, byte p3, byte p4, byte p5, byte p6, byte p7, byte p8, byte p9, byte p10, byte p11, byte p12) { }
-                private delegate void DummyDel12(byte p1, byte p2, byte p3, byte p4, byte p5, byte p6, byte p7, byte p8, byte p9, byte p10, byte p11, byte p12);
-                private static void DummyFunc13(byte p1, byte p2, byte p3, byte p4, byte p5, byte p6, byte p7, byte p8, byte p9, byte p10, byte p11, byte p12, byte p13) { }
-                private delegate void DummyDel13(byte p1, byte p2, byte p3, byte p4, byte p5, byte p6, byte p7, byte p8, byte p9, byte p10, byte p11, byte p12, byte p13);
-                private static void DummyFunc14(byte p1, byte p2, byte p3, byte p4, byte p5, byte p6, byte p7, byte p8, byte p9, byte p10, byte p11, byte p12, byte p13, byte p14) { }
-                private delegate void DummyDel14(byte p1, byte p2, byte p3, byte p4, byte p5, byte p6, byte p7, byte p8, byte p9, byte p10, byte p11, byte p12, byte p13, byte p14);
-                private static void DummyFunc15(byte p1, byte p2, byte p3, byte p4, byte p5, byte p6, byte p7, byte p8, byte p9, byte p10, byte p11, byte p12, byte p13, byte p14, byte p15) { }
-                private delegate void DummyDel15(byte p1, byte p2, byte p3, byte p4, byte p5, byte p6, byte p7, byte p8, byte p9, byte p10, byte p11, byte p12, byte p13, byte p14, byte p15);
-                private static void DummyFunc16(byte p1, byte p2, byte p3, byte p4, byte p5, byte p6, byte p7, byte p8, byte p9, byte p10, byte p11, byte p12, byte p13, byte p14, byte p15, byte p16) { }
-                private delegate void DummyDel16(byte p1, byte p2, byte p3, byte p4, byte p5, byte p6, byte p7, byte p8, byte p9, byte p10, byte p11, byte p12, byte p13, byte p14, byte p15, byte p16);
-
-                protected static Delegate[] _DummyDelTemplates = new Delegate[]
-                {
-                (DummyDel0)DummyFunc0,
-                (DummyDel1)DummyFunc1,
-                (DummyDel2)DummyFunc2,
-                (DummyDel3)DummyFunc3,
-                (DummyDel4)DummyFunc4,
-                (DummyDel5)DummyFunc5,
-                (DummyDel6)DummyFunc6,
-                (DummyDel7)DummyFunc7,
-                (DummyDel8)DummyFunc8,
-                (DummyDel9)DummyFunc9,
-                (DummyDel10)DummyFunc10,
-                (DummyDel11)DummyFunc11,
-                (DummyDel12)DummyFunc12,
-                (DummyDel13)DummyFunc13,
-                (DummyDel14)DummyFunc14,
-                (DummyDel15)DummyFunc15,
-                (DummyDel16)DummyFunc16,
-                };
-
                 public abstract object CreateDelegate(Type delType, MethodBase method);
             }
 
@@ -145,94 +89,32 @@ namespace Mod.LowLevel
                     _DelegateCtorFuncTemplate = (DelegateCtorDel)coni.Invoke(new[] { (object)null, (object)hcon.GetFunctionPointer() });
                 }
 
-                protected static Dictionary<int, Delegate> _DynamicTemplates = new Dictionary<int, Delegate>();
                 private delegate void DelegateCtorDel(object delObj, object target, IntPtr methodHandle);
                 private static DelegateCtorDel _DelegateCtorFuncTemplate;
 
                 public override object CreateDelegate(Type delType, MethodBase method)
                 {
-                    var delParamCount = method.GetParameters().Length;
-                    if (!method.IsStatic) ++delParamCount;
-                    if (delParamCount <= _DummyDelTemplates.Length)
-                    {
-                        Delegate template = _DummyDelTemplates[delParamCount];
-                        object rvdel = template.Clone();
-                        ref var oheader = ref rvdel.GetField<ObjectHeader>(-UnsafeEx.GetObjectHeaderSize());
-                        oheader.TypeHandle = delType.TypeHandle.Value;
+                    RuntimeHelpers.PrepareMethod(method.MethodHandle);
+                    var fn = method.MethodHandle.GetFunctionPointer();
 
-                        RuntimeHelpers.PrepareMethod(method.MethodHandle);
-                        var fn = method.MethodHandle.GetFunctionPointer();
-                        rvdel.GetField(fi_methodPtrAux) = fn;
-                        rvdel.GetField(fi_methodBase) = method;
-                        rvdel.GetField(fi_target) = rvdel;
-                        return rvdel;
-                    }
-                    else
-                    {
-                        RuntimeHelpers.PrepareMethod(method.MethodHandle);
-                        var fn = method.MethodHandle.GetFunctionPointer();
+                    var condeli = delType.GetConstructor(new[] { typeof(object), typeof(IntPtr) });
+                    var hcondel = condeli.MethodHandle;
+                    RuntimeHelpers.PrepareMethod(hcondel);
+                    var fncondel = hcondel.GetFunctionPointer();
+                    var delcon = (DelegateCtorDel)_DelegateCtorFuncTemplate.Clone();
+                    delcon.GetField(fi_methodPtrAux) = fncondel;
+                    delcon.GetField(fi_methodBase) = condeli;
+                    delcon.GetField(fi_target) = delcon;
 
-                        Delegate template = null;
-                        lock (_DynamicTemplates)
-                        {
-                            _DynamicTemplates.TryGetValue(delParamCount, out template);
-                        }
-                        object rvdel;
-                        if (template != null)
-                        {
-                            rvdel = template.Clone();
-                            ref var oheader = ref rvdel.GetField<ObjectHeader>(-UnsafeEx.GetObjectHeaderSize());
-                            oheader.TypeHandle = delType.TypeHandle.Value;
-
-                            rvdel.GetField(fi_methodPtrAux) = fn;
-                            rvdel.GetField(fi_methodBase) = method;
-                            rvdel.GetField(fi_target) = rvdel;
-                            return rvdel;
-                        }
-
-                        var condeli = delType.GetConstructor(new[] { typeof(object), typeof(IntPtr) });
-                        var hcondel = condeli.MethodHandle;
-                        RuntimeHelpers.PrepareMethod(hcondel);
-                        var fncondel = hcondel.GetFunctionPointer();
-                        var delcon = (DelegateCtorDel)_DelegateCtorFuncTemplate.Clone();
-                        delcon.GetField(fi_methodPtrAux) = fncondel;
-                        delcon.GetField(fi_methodBase) = condeli;
-                        delcon.GetField(fi_target) = delcon;
-
-                        template = (Delegate)UnsafeEx.GetUninitializedObject(delType);
-                        delcon(template, null, fn);
-                        template.GetField(fi_methodPtrAux) = fn; // reset the methodPtrAux to avoid virtual searching.
-                        rvdel = template.Clone();
-                        lock (_DynamicTemplates)
-                        {
-                            _DynamicTemplates[delParamCount] = template;
-                        }
-                        return rvdel;
-                    }
+                    var rvdel = (Delegate)UnsafeEx.GetUninitializedObject(delType);
+                    delcon(rvdel, null, fn);
+                    rvdel.GetField(fi_methodPtrAux) = fn; // reset the methodPtrAux to avoid virtual searching.
+                    return rvdel;
                 }
             }
 
             private class UnsafeDelegateWrapperNativeAOT : IDelegateWrapper
             {
-                //[StructLayout(LayoutKind.Sequential)]
-                //private struct DelegateFields
-                //{
-                //    public IntPtr _firstParameter;
-                //    public IntPtr _helperObject;
-                //    public IntPtr _extraFunctionPointerOrData;
-                //    public IntPtr _functionPointer;
-                //}
-                //protected static FieldIndicator<object> fi_firstParameter;
-                //protected static FieldIndicator<object> fi_helperObject;
-                //protected static FieldIndicator<IntPtr> fi_extraFunctionPointerOrData;
-                //protected static FieldIndicator<IntPtr> fi_functionPointer;
-
-                //[StructLayout(LayoutKind.Sequential)]
-                //protected struct ObjectHeader
-                //{
-                //    public IntPtr TypeHandle;
-                //}
-
                 private delegate Delegate CreateDelegateWithoutSignatureValidationDel(MethodInfo thiz, Type delType, object target, bool isStatic, bool isOpen);
                 private static CreateDelegateWithoutSignatureValidationDel _CreateDelegateWithoutSignatureValidationFunc;
                 private delegate Delegate UnsafeCreateDelegateDel(IntPtr typeHandle, IntPtr realfn, object target, bool isStatic, bool isOpen);
@@ -255,12 +137,6 @@ namespace Mod.LowLevel
                     var cmi = cdmi.GetType().GetMethod("CreateDelegateWithoutSignatureValidation", BindingFlags.Instance | BindingFlags.NonPublic);
                     _CreateDelegateWithoutSignatureValidationFunc = (CreateDelegateWithoutSignatureValidationDel)cmi.Invoke(cmi, new object[] { typeof(CreateDelegateWithoutSignatureValidationDel), null, false, true });
                     _UnsafeCreateDelegateFunc = (UnsafeCreateDelegateDel)_CreateDelegateWithoutSignatureValidationFunc(cdmi, typeof(UnsafeCreateDelegateDel), null, true, true);
-
-                    //DelegateFields dummy = default;
-                    //fi_firstParameter = dummy.GetFieldOffset(ref dummy._firstParameter);
-                    //fi_helperObject = dummy.GetFieldOffset(ref dummy._helperObject);
-                    //fi_extraFunctionPointerOrData = dummy.GetFieldOffset(ref dummy._extraFunctionPointerOrData);
-                    //fi_functionPointer = dummy.GetFieldOffset(ref dummy._functionPointer);
                 }
 
                 public object CreateDelegate(Type delType, MethodBase method)
@@ -304,6 +180,7 @@ namespace Mod.LowLevel
                 protected static FieldIndicator<IntPtr> FI_Delegate_method_ptr;
                 protected static FieldIndicator<IntPtr> FI_Delegate_method;
                 protected static FieldIndicator<IntPtr> FI_Delegate_invoke_impl;
+                protected static FieldIndicator<object> FI_Delegate_method_info;
 #pragma warning restore IDE1006 // 命名样式
 
                 static UnsafeDelegateWrapperMono()
@@ -322,6 +199,10 @@ namespace Mod.LowLevel
                         {
                             FI_Delegate_invoke_impl = field.GetFieldOffset();
                         }
+                        else if (field.Name == "method_info")
+                        {
+                            FI_Delegate_method_info = field.GetFieldOffset();
+                        }
                     }
 
                     var coni = typeof(DelegateCtorDel).GetConstructor(new[] { typeof(object), typeof(IntPtr) });
@@ -330,42 +211,14 @@ namespace Mod.LowLevel
                     _DelegateCtorFuncTemplate = (DelegateCtorDel)coni.Invoke(new[] { (object)null, (object)hcon.GetFunctionPointer() });
                 }
 
-                private static Dictionary<int, Delegate> _DynamicTemplates = new Dictionary<int, Delegate>();
                 private delegate void DelegateCtorDel(object delObj, object target, IntPtr methodHandle);
                 private static DelegateCtorDel _DelegateCtorFuncTemplate;
 
                 public override object CreateDelegate(Type delType, MethodBase method)
                 {
-                    var delParamCount = method.GetParameters().Length;
-                    if (!method.IsStatic) ++delParamCount;
-                    if (delParamCount <= _DummyDelTemplates.Length)
-                    {
-                        Delegate template = _DummyDelTemplates[delParamCount];
-                        object rvdel = UnsafeEx.GetUninitializedObject(delType);
-                        RuntimeHelpers.PrepareMethod(method.MethodHandle);
-                        var fn = method.MethodHandle.GetFunctionPointer();
-                        rvdel.GetField(FI_Delegate_method_ptr) = fn;
-                        rvdel.GetField(FI_Delegate_invoke_impl) = template.GetField(FI_Delegate_invoke_impl);
-                        return rvdel;
-                    }
-                    else
                     {
                         RuntimeHelpers.PrepareMethod(method.MethodHandle);
                         var fn = method.MethodHandle.GetFunctionPointer();
-
-                        Delegate template = null;
-                        lock (_DynamicTemplates)
-                        {
-                            _DynamicTemplates.TryGetValue(delParamCount, out template);
-                        }
-                        object rvdel;
-                        if (template != null)
-                        {
-                            rvdel = UnsafeEx.GetUninitializedObject(delType);
-                            rvdel.GetField(FI_Delegate_method_ptr) = fn;
-                            rvdel.GetField(FI_Delegate_invoke_impl) = template.GetField(FI_Delegate_invoke_impl);
-                            return rvdel;
-                        }
 
                         var condeli = delType.GetConstructor(new[] { typeof(object), typeof(IntPtr) });
                         var hcondel = condeli.MethodHandle;
@@ -374,15 +227,11 @@ namespace Mod.LowLevel
                         var delcon = (DelegateCtorDel)_DelegateCtorFuncTemplate.Clone();
                         delcon.GetField(FI_Delegate_method_ptr) = fncondel;
 
-                        template = (Delegate)UnsafeEx.GetUninitializedObject(delType);
-                        delcon(template, null, fn);
-                        template.GetField(FI_Delegate_method_ptr) = fn;
-                        template.GetField(FI_Delegate_method) = IntPtr.Zero;
-                        rvdel = template.Clone();
-                        lock (_DynamicTemplates)
-                        {
-                            _DynamicTemplates[delParamCount] = template;
-                        }
+                        var rvdel = (Delegate)UnsafeEx.GetUninitializedObject(delType);
+                        delcon(rvdel, null, IntPtr.Zero + 1); // use 1 as fn address to force it generate a static call
+                        rvdel.GetField(FI_Delegate_method_ptr) = fn;
+                        rvdel.GetField(FI_Delegate_method) = IntPtr.Zero;
+                        rvdel.GetField(FI_Delegate_method_info) = null;
                         return rvdel;
                     }
                 }
@@ -536,6 +385,7 @@ namespace Mod.LowLevel
                 if (returnType != null)
                 {
                     Type mrtype;
+                    bool mrvoid = false, rtvoid = false;
                     if (!(m is MethodInfo mi))
                     {
                         mrtype = typeof(void);
@@ -544,7 +394,13 @@ namespace Mod.LowLevel
                     {
                         mrtype = mi.ReturnType;
                     }
-                    if (mrtype != returnType && !returnType.IsAssignableFrom(mrtype))
+                    mrvoid = mrtype == typeof(void) || mrtype == typeof(VoidReturn) || mrtype == null;
+                    rtvoid = returnType == typeof(void) || returnType == typeof(VoidReturn);
+                    if (mrvoid ^ rtvoid)
+                    {
+                        continue;
+                    }
+                    if (mrtype != returnType && !returnType.IsAssignableFrom(mrtype) && RawSize(returnType) != RawSize(mrtype))
                     {
                         continue;
                     }
@@ -587,7 +443,7 @@ namespace Mod.LowLevel
                 {
                     var par = paramTypes[i];
                     var mpar = mpars[i];
-                    if (Size(par) != Size(mpar))
+                    if (RawSize(par) != RawSize(mpar))
                     {
                         nomatch = true;
                         break;
@@ -608,7 +464,7 @@ namespace Mod.LowLevel
                 {
                     var par = paramTypes[i];
                     var mpar = mpars[i];
-                    if (Size(par) != Size(mpar))
+                    if (RawSize(par) != RawSize(mpar))
                     {
                         nomatch = true;
                         break;
