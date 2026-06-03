@@ -15,6 +15,27 @@ namespace Mod.LowLevel
 #pragma warning restore CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
             }
         }
+        public static Span<T> AsSpan<T>(ref T r, int byteLength)
+        {
+            unsafe
+            {
+#pragma warning disable CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
+                Span<T> span;
+                for (; ; )
+                {
+                    var rr = RawRef.Of(ref r);
+                    var addrprev = rr.Address;
+                    span = new Span<T>(addrprev.ToPointer(), byteLength / sizeof(T));
+                    rr.SetRef(ref r);
+                    var addrpost = rr.Address;
+                    if (addrprev == addrpost)
+                    {
+                        return span;
+                    }
+                }
+#pragma warning restore CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
+            }
+        }
         public static ReadOnlySpan<T> AsReadOnlySpan<T>(IntPtr address, int byteLength)
         {
             unsafe
@@ -24,15 +45,46 @@ namespace Mod.LowLevel
 #pragma warning restore CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
             }
         }
+        public static ReadOnlySpan<T> AsReadOnlySpan<T>(ref T r, int byteLength)
+        {
+            unsafe
+            {
+#pragma warning disable CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
+                ReadOnlySpan<T> span;
+                for (; ; )
+                {
+                    var rr = RawRef.Of(ref r);
+                    var addrprev = rr.Address;
+                    span = new ReadOnlySpan<T>(addrprev.ToPointer(), byteLength / sizeof(T));
+                    rr.SetRef(ref r);
+                    var addrpost = rr.Address;
+                    if (addrprev == addrpost)
+                    {
+                        return span;
+                    }
+                }
+#pragma warning restore CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
+            }
+        }
         public static Span<byte> AsCStringSpan(this IntPtr address)
         {
             var length = StrLen(address);
             return AsSpan<byte>(address, length);
         }
+        public static Span<byte> AsCStringSpan(ref byte address)
+        {
+            var length = StrLen(ref address);
+            return AsSpan<byte>(ref address, length);
+        }
         public static ReadOnlySpan<byte> AsReadOnlyCStringSpan(this IntPtr address)
         {
             var length = StrLen(address);
             return AsReadOnlySpan<byte>(address, length);
+        }
+        public static ReadOnlySpan<byte> AsReadOnlyCStringSpan(ref byte address)
+        {
+            var length = StrLen(ref address);
+            return AsReadOnlySpan<byte>(ref address, length);
         }
         public static IntPtr GetAddress<T>(this Span<T> span)
         {
@@ -83,6 +135,57 @@ namespace Mod.LowLevel
             }
         }
 
+        public static ref T GetRef<T>(this Span<T> span)
+        {
+            unsafe
+            {
+#pragma warning disable CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
+                fixed (T* ptr = span)
+                {
+                    return ref RawRef.Of((IntPtr)ptr).GetRef<T>();
+                }
+#pragma warning restore CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
+            }
+        }
+        public static ref T GetRefAndLength<T>(this Span<T> span, out int byteLength)
+        {
+            unsafe
+            {
+#pragma warning disable CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
+                byteLength = span.Length * sizeof(T);
+                fixed (T* ptr = span)
+                {
+                    return ref RawRef.Of((IntPtr)ptr).GetRef<T>();
+                }
+#pragma warning restore CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
+            }
+        }
+        public static ref T GetRef<T>(this ReadOnlySpan<T> span)
+        {
+            unsafe
+            {
+#pragma warning disable CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
+                fixed (T* ptr = span)
+                {
+                    return ref RawRef.Of((IntPtr)ptr).GetRef<T>();
+                }
+#pragma warning restore CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
+            }
+        }
+        public static ref T GetRefAndLength<T>(this ReadOnlySpan<T> span, out int byteLength)
+        {
+            unsafe
+            {
+#pragma warning disable CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
+                byteLength = span.Length * sizeof(T);
+                fixed (T* ptr = span)
+                {
+                    return ref RawRef.Of((IntPtr)ptr).GetRef<T>();
+                }
+#pragma warning restore CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
+            }
+        }
+
         public static int StrLen(IntPtr address)
         {
             if (address == IntPtr.Zero)
@@ -97,6 +200,26 @@ namespace Mod.LowLevel
                     if (ptr[i] == 0)
                     {
                         return i;
+                    }
+                }
+            }
+        }
+        public static int StrLen(ref byte r)
+        {
+            if (Ref.IsEmpty(ref r))
+            {
+                return 0;
+            }
+            unsafe
+            {
+                fixed (byte* ptr = &r)
+                {
+                    for (int i = 0; ; ++i)
+                    {
+                        if (ptr[i] == 0)
+                        {
+                            return i;
+                        }
                     }
                 }
             }
@@ -119,6 +242,27 @@ namespace Mod.LowLevel
                     }
                 }
                 return maxsize;
+            }
+        }
+        public static int StrLen(ref byte r, int maxsize)
+        {
+            if (Ref.IsEmpty(ref r))
+            {
+                return 0;
+            }
+            unsafe
+            {
+                fixed (byte* ptr = &r)
+                {
+                    for (int i = 0; i < maxsize; ++i)
+                    {
+                        if (ptr[i] == 0)
+                        {
+                            return i;
+                        }
+                    }
+                    return maxsize;
+                }
             }
         }
 
