@@ -30,6 +30,9 @@
     <Reference Include="PointerDelegate">
       <HintPath>..\ModClrExUnsafe\PointerDelegate.dll</HintPath>
     </Reference>
+    <Reference Include="SpanEx">
+      <HintPath>..\ModClrExUnsafe\SpanEx.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
 </Project>

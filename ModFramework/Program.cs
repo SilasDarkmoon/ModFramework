@@ -10,6 +10,15 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 
+#if NETCOREAPP
+using SpanStubChar = Mod.LowLevel.SpanStubModern<char>;
+#else
+using SpanStubChar = Mod.LowLevel.SpanStubOld<char>;
+#endif
+
+#if NET10_0_OR_GREATER
+[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
+#endif
 class Program
 {
     [StructLayout(LayoutKind.Sequential)]
@@ -22,7 +31,7 @@ class Program
 #if NET10_0_OR_GREATER
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, type: typeof(TestFieldsClass))]
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, type: typeof(TestFieldsStruct))]
-    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.All, type: typeof(Program))]
     //[RequiresDynamicCode("Calls System.Reflection.MethodInfo.MakeGenericMethod(params Type[])")]
 #endif
     public static void Main()
@@ -84,73 +93,69 @@ class Program
 
         #region Test For PointerDelegate
         IntPtr lpda = (IntPtr)10;
+        int lpdi = (int)100;
         long lpdb = 300;
-
-        var mipd1 = mi1;
-        RuntimeHelpers.PrepareMethod(mipd1.MethodHandle);
-        var fn1 = mipd1.MethodHandle.GetFunctionPointer();
         // Pass1
         {
-            var invoker1 = new PointerFunc<IntPtr, IntPtr>(fn1);
-            var invoker1_2 = invoker1.Clone().WithRefParam(0);
-            var invoker1_3 = invoker1.Clone().WithRefParam(0, false);
-            Console.WriteLine(invoker1.Invoke(in lpda));
-            Console.WriteLine(invoker1.Invoke(lpdb));
-            Console.WriteLine(invoker1_2.Invoke(in lpda));
-            Console.WriteLine(invoker1_2.Invoke(lpdb));
-            Console.WriteLine(invoker1_3.Invoke(in lpda));
-            Console.WriteLine(invoker1_3.Invoke(lpdb));
-            Console.WriteLine("------------------------------------------------------------------------");
+            var invoker = new StaticInvoker<IntPtr, IntPtr, IntPtr>(typeof(Program), "TestMethod2");
+            Console.WriteLine(invoker.Invoke(lpda));
         }
         // Pass2:
         {
-            var invoker1 = new PointerFunc<IntPtr, ByRefParam>(fn1);
-            var invoker1_2 = invoker1.Clone().WithRefParam(0);
-            var invoker1_3 = invoker1.Clone().WithRefParam(0, false);
-            Console.WriteLine(invoker1.Invoke(in lpda));
-            Console.WriteLine(invoker1.Invoke(lpdb));
-            Console.WriteLine(invoker1_2.Invoke(in lpda));
-            Console.WriteLine(invoker1_2.Invoke(lpdb));
-            Console.WriteLine(invoker1_3.Invoke(in lpda));
-            Console.WriteLine(invoker1_3.Invoke(lpdb));
-            Console.WriteLine("------------------------------------------------------------------------");
+            var invoker = new StaticInvoker<IntPtr, ByRefParam, IntPtr>(typeof(Program), "TestMethod2");
+            Console.WriteLine(invoker.Invoke(in lpda));
         }
-        Func<IntPtr, IntPtr> delpd2 = UnsafeEx.CreateDelegateUnsafe<Func<IntPtr, IntPtr>>(mipd1);
-        // Pass3
+        // Pass5
         {
-            var invoker1 = new PointerFunc<IntPtr, IntPtr>(delpd2);
-            var invoker1_2 = invoker1.Clone().WithRefParam(0);
-            var invoker1_3 = invoker1.Clone().WithRefParam(0, false);
-            Console.WriteLine(invoker1.Invoke(in lpda));
-            Console.WriteLine(invoker1.Invoke(lpdb));
-            Console.WriteLine(invoker1_2.Invoke(in lpda));
-            Console.WriteLine(invoker1_2.Invoke(lpdb));
-            Console.WriteLine(invoker1_3.Invoke(in lpda));
-            Console.WriteLine(invoker1_3.Invoke(lpdb));
-            Console.WriteLine("------------------------------------------------------------------------");
+            var invoker = new StaticInvoker<ByRefParam, ByRefParam, int>(typeof(Program), "TestFunc5");
+            Console.WriteLine(invoker.Invoke(in lpdi).ToRef<int>());
         }
-        Func<ByRefParam, IntPtr> delpd3 = UnsafeEx.CreateDelegateUnsafe<Func<ByRefParam, IntPtr>>(mipd1); ;
-        // Pass4
+        // Pass6
         {
-            var invoker1 = new PointerFunc<IntPtr, ByRefParam>(delpd3);
-            var invoker1_2 = invoker1.Clone().WithRefParam(0);
-            var invoker1_3 = invoker1.Clone().WithRefParam(0, false);
-            Console.WriteLine(invoker1.Invoke(in lpda));
-            Console.WriteLine(invoker1.Invoke(lpdb));
-            Console.WriteLine(invoker1_2.Invoke(in lpda));
-            Console.WriteLine(invoker1_2.Invoke(lpdb));
-            Console.WriteLine(invoker1_3.Invoke(in lpda));
-            Console.WriteLine(invoker1_3.Invoke(lpdb));
-            Console.WriteLine("------------------------------------------------------------------------");
+            var invoker = new StaticInvoker<VoidReturn, IntPtr, ByRefParam>(typeof(Program), "TestFunc6");
+            Console.WriteLine(invoker.Invoke(lpdi.ToFakeObj()));
+            Console.WriteLine(lpdi);
+        }
+        // Pass7
+        {
+            var invoker = new StaticInvoker<SpanStubChar, string, string>(typeof(Program), "TestFunc7");
+            string str = "Hello, World!";
+            var span = invoker.Invoke(str).ConvertToReadOnlySpan();
+            foreach (var ch in span)
+            {
+                Console.Write(ch);
+            }
+            Console.WriteLine();
+        }
+        // Pass8
+        {
+            var invoker = new StaticInvoker<string, SpanStubChar, SpanStubChar>(typeof(Program), "TestFunc8");
+            Span<char> span = stackalloc char[] { 'H', 'e', 'l', 'l', 'o' };
+            var str = invoker.Invoke(span);
+            Console.WriteLine(str);
         }
         #endregion
+        Console.WriteLine(UnsafeEx.Size(typeof(Span<byte>)));
+        // Pass7
+        {
+            var invoker = UnsafeEx.CreateDelegateUnsafe<Func<string, SpanStubModern<char>>>(UnsafeEx.FindMethod(typeof(Program).GetMethods("TestFunc7"), new[] { typeof(string) }));
+            //var invoker = new StaticInvoker<SpanStubModern<char>, string, string>(typeof(TestScript), "TestFunc7");
+            string str = "Hello, World!";
+            var span = invoker.Invoke(str).ConvertToReadOnlySpan();
+            Console.WriteLine(span.GetAddress());
+            foreach (var ch in span)
+            {
+                Console.Write(ch);
+            }
+            Console.WriteLine();
+        }
     }
 
     private static long TestMethod1(IntPtr p)
     {
         return p.ToInt64() + 1;
     }
-    private static long TestMethod2(ref int r)
+    public static long TestMethod2(ref int r)
     {
         RawRef rr = new RawRef();
         rr.SetRef(ref r);
@@ -160,6 +165,34 @@ class Program
     {
 
     }
+    public static ref int TestFunc5(ref int r)
+    {
+        ++r;
+        return ref r;
+    }
+    public static void TestFunc6(ref int r)
+    {
+        Console.WriteLine("in TestFunc6");
+        ++r;
+    }
+    public static ReadOnlySpan<char> TestFunc7(string str)
+    {
+        ReadOnlySpan<char> rv = str.AsSpan();
+        return rv;
+    }
+    public static string TestFunc8(ReadOnlySpan<char> span)
+    {
+        return new string(span.ToArray());
+    }
+}
+
+[StructLayout(LayoutKind.Sequential, Pack = 0)]
+public struct TestPack
+{
+    //public int n;
+    //public object o;
+    public DateTime d;
+    public byte b;
 }
 
 delegate void ConstructorDelegate1(ref UnsafeEx.ConstructorToken obj, int p1, int p2, int p3, int p4, int p5, int p6);

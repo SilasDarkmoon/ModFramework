@@ -9,4 +9,10 @@
     <ProjectReference Include="..\ModClrExUnsafe\ModClrExUnsafe.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Reference Include="PointerDelegate">
+      <HintPath>..\ModClrExUnsafe\PointerDelegate.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
 </Project>
