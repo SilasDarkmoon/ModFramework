@@ -22,21 +22,21 @@ namespace Mod.LowLevel
                 }
             }
         }
-        public static T ConvertObjectRef<T>(object source) where T : class
+        public static T ConvertObjectRef<T>(this object source)
         {
             RawRef r = new RawRef();
             r.SetRef(ref source);
             ref T rrv = ref r.GetRef<T>();
             return rrv;
         }
-        public static ref T ConvertStructRef<F, T>(this ref F source) where F : struct where T : struct
+        public static ref T ConvertStructRef<F, T>(this ref F source) where F : struct
         {
             return ref ConvertRefCommon<F, T>(ref source);
         }
         /// <summary>
         /// Pretend that the ref of a struct is an object
         /// </summary>
-        public static T ConvertPretend<F, T>(ref F from) where F : struct where T : class
+        public static T ConvertPretend<F, T>(ref F from)
         {
             RawRef r = new RawRef();
             for (; ; )
@@ -55,7 +55,7 @@ namespace Mod.LowLevel
         /// <summary>
         /// Pretend that the object is a ref to a struct.
         /// </summary>
-        public static ref T ConvertPretend<T>(object from) where T : struct
+        public static ref T ConvertPretend<T>(object from)
         {
             RawRef r = new RawRef();
             for (; ; )
@@ -77,7 +77,7 @@ namespace Mod.LowLevel
         /// <remarks>
         /// extra danger: if Address-ObjectHeaderSize is outside the containing object of "from" on heap, returned value will be wild pointer after GC moved the container of "from"
         /// </remarks>
-        public static T ConvertToOuterObject<F, T>(ref F from) where T : class
+        public static T ConvertToOuterObject<F, T>(ref F from)
         {
             RawRef r = new RawRef();
             for (; ; )
@@ -97,7 +97,7 @@ namespace Mod.LowLevel
         /// <summary>
         /// Pretend that the object is a ref to a struct, will move the returned pointer +ObjectHeaderSize to point to the first field in the object.
         /// </summary>
-        public static ref T ConvertToInnerRef<T>(this object from) where T : struct
+        public static ref T ConvertToInnerRef<T>(this object from)
         {
             RawRef r = new RawRef();
             for (; ; )
