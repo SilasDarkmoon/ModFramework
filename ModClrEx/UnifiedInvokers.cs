@@ -56,7 +56,7 @@ namespace Mod
         }
         public StaticInvoker(MethodInfo method)
         {
-            if (RuntimeInfo.IsUnity)
+            if (RuntimeInfo.IsIl2Cpp)
             {
                 if (method.ReturnType == typeof(void))
                 {
