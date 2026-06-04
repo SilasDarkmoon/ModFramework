@@ -396,26 +396,46 @@ namespace Mod.LowLevel
         }
         public static bool IsGenericParameterCompatiable(Type gtype, Type itype)
         {
-            if ((gtype.GenericParameterAttributes & GenericParameterAttributes.NotNullableValueTypeConstraint) != 0 && !itype.IsValueType)
+            if (gtype.IsGenericParameter)
             {
-                return false;
-            }
-            if ((gtype.GenericParameterAttributes & GenericParameterAttributes.ReferenceTypeConstraint) != 0 && itype.IsValueType)
-            {
-                return false;
-            }
-            if (gtype.GetGenericParameterConstraints() is Type[] gparents && gparents.Length > 0)
-            {
-                foreach (var gparent in gparents)
+                if ((gtype.GenericParameterAttributes & GenericParameterAttributes.NotNullableValueTypeConstraint) != 0 && !itype.IsValueType)
                 {
-                    if (!gparent.IsAssignableFrom(itype))
+                    return false;
+                }
+                if ((gtype.GenericParameterAttributes & GenericParameterAttributes.ReferenceTypeConstraint) != 0 && itype.IsValueType)
+                {
+                    return false;
+                }
+                if (gtype.GetGenericParameterConstraints() is Type[] gparents && gparents.Length > 0)
+                {
+                    foreach (var gparent in gparents)
                     {
-                        return false;
+                        if (!gparent.IsAssignableFrom(itype))
+                        {
+                            return false;
+                        }
                     }
                 }
+                // TODO: recursively check generic parameter if gtype and itype themselves are generics.
+                return true;
             }
-            // TODO: recursively check generic parameter if gtype and itype themselves are generics.
-            return true;
+            else if (gtype.ContainsGenericParameters)
+            {
+                if (gtype.HasElementType != itype.HasElementType) return false;
+                if (gtype.HasElementType) return IsGenericParameterCompatiable(gtype.GetElementType(), itype.GetElementType());
+                var gpars = gtype.GetGenericArguments();
+                var ipars = itype.GetGenericArguments();
+                if (gpars.Length != ipars.Length) return false;
+                for (int i = 0; i < gpars.Length; ++i)
+                {
+                    if (!IsGenericParameterCompatiable(gpars[i], ipars[i])) return false;
+                }
+                return true;
+            }
+            else
+            {
+                return RawSize(gtype) == RawSize(itype);
+            }
         }
         public static MethodBase FindOverload(this IEnumerable<MethodBase> methods, Type[] paramTypes, Type returnType = null, bool withThis = false, bool checkGeneric = false)
         {
@@ -445,11 +465,11 @@ namespace Mod.LowLevel
                     }
                     mrvoid = mrtype == typeof(void) || mrtype == typeof(VoidReturn) || mrtype == null;
                     rtvoid = returnType == typeof(void) || returnType == typeof(VoidReturn);
-                    if (mrvoid ^ rtvoid)
+                    if (mrvoid != rtvoid)
                     {
                         continue;
                     }
-                    if (checkGeneric && mrtype.IsGenericParameter)
+                    if (checkGeneric && (mrtype.IsGenericParameter || mrtype.ContainsGenericParameters))
                     {
                         if (!IsGenericParameterCompatiable(mrtype, returnType))
                         {
@@ -473,6 +493,7 @@ namespace Mod.LowLevel
                     if (i == 0 && isInstance && withThis)
                     {
                         mpar = m.ReflectedType;
+                        if (mpar.IsValueType) mpar = mpar.MakeByRefType();
                         mparTypes[0] = mpar;
                     }
                     else
@@ -481,7 +502,7 @@ namespace Mod.LowLevel
                         if (isInstance && withThis) --index;
                         mpar = mparTypes[i] = mpars[index].ParameterType;
                     }
-                    if (checkGeneric && mpar.IsGenericParameter)
+                    if (checkGeneric && (mpar.IsGenericParameter || mpar.ContainsGenericParameters))
                     {
                         if (IsGenericParameterCompatiable(mpar, par))
                         {
@@ -560,6 +581,92 @@ namespace Mod.LowLevel
                 }
             }
             return foundMethods.ToArray();
+        }
+        public static MethodInfo[] GetGenericMethods(this Type type, string name)
+        {
+            var allmethods = type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
+            List<MethodInfo> foundMethods = new List<MethodInfo>();
+            foreach (var m in allmethods)
+            {
+                if (m.Name == name && m.IsGenericMethod)
+                {
+                    foundMethods.Add(m);
+                }
+            }
+            return foundMethods.ToArray();
+        }
+        public static MethodInfo[] GetGenericMethods(this IEnumerable<MethodBase> methods)
+        {
+            List<MethodInfo> foundMethods = new List<MethodInfo>();
+            foreach (var m in methods)
+            {
+                if (m.IsGenericMethod)
+                {
+                    foundMethods.Add((MethodInfo)m);
+                }
+            }
+            return foundMethods.ToArray();
+        }
+        public static MethodBase MakeGenericMethod(this MethodBase method, params Type[] types)
+        {
+            if (!(method is MethodInfo mi)) return method;
+            if (!mi.ContainsGenericParameters) return method;
+            return mi.MakeGenericMethod(types);
+        }
+        public static Type[] GuessGenericParameters(this MethodBase method, Type[] paramTypes, Type returnType = null, bool withThis = false)
+        {
+            if (!method.IsGenericMethod) return Array.Empty<Type>();
+            var gpars = method.GetGenericArguments();
+            Dictionary<Type, int> gparmap = new Dictionary<Type, int>();
+            for (int i = 0; i < gpars.Length; ++i)
+            {
+                gparmap[gpars[i]] = i;
+            }
+            var guessed = new Type[gpars.Length];
+            if (returnType != null)
+            {
+                GuessGenericParameters(gparmap, guessed, ((MethodInfo)method).ReturnType, returnType);
+            }
+            var mpars = method.GetParameters();
+            bool isInstance = !method.IsStatic;
+            for (int i = 0; i < paramTypes.Length; ++i)
+            {
+                var par = paramTypes[i];
+                Type mpar;
+                if (i == 0 && isInstance && withThis)
+                {
+                    mpar = method.ReflectedType;
+                    if (mpar.IsGenericType) mpar = mpar.MakeByRefType();
+                    GuessGenericParameters(gparmap, guessed, mpar, par);
+                }
+                else
+                {
+                    var index = i;
+                    if (isInstance && withThis) --index;
+                    GuessGenericParameters(gparmap, guessed, mpars[index].ParameterType, par);
+                }
+            }
+            return guessed;
+        }
+        private static void GuessGenericParameters(Dictionary<Type, int> gparmap, Type[] guessed, Type gtype, Type itype)
+        {
+            if (gtype.IsGenericParameter)
+            {
+                guessed[gparmap[gtype]] = itype;
+            }
+            else if (gtype.ContainsGenericParameters)
+            {
+                if (gtype.HasElementType && itype.HasElementType)
+                {
+                    GuessGenericParameters(gparmap, guessed, gtype.GetElementType(), itype.GetElementType());
+                }
+                var gpars = gtype.GetGenericArguments();
+                var ipars = itype.GetGenericArguments();
+                for (int i = 0; i < gpars.Length && i < ipars.Length; ++i)
+                {
+                    GuessGenericParameters(gparmap, guessed, gpars[i], ipars[i]);
+                }
+            }
         }
         #endregion
     }

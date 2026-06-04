@@ -157,33 +157,38 @@ public static class TestScript
         Console.WriteLine("---------- Test For Ctor Invokers ----------");
         // Pass8
         { // struct ctor
-            var ctor = typeof(TestFieldsStruct).CreateCustructor<TestFieldsStruct, int, int, int, int, int, int, int, int, int, int, int, int>();
+            var ctor = typeof(TestFieldsStruct).CreateCustructorInvoker<TestFieldsStruct, int, int, int, int, int, int, int, int, int, int, int, int>();
             var inst10 = ctor(1, 1, 1, 1, 1, 1);
             Console.WriteLine($"{inst10.Field0}, {inst10.Field1}, {inst10.Field2}, {inst10.Field3}, {inst10.Field4}, {inst10.Field5}");
         }
         // Pass9
         { // class ctor
-            var ctor = typeof(TestFieldsClass).CreateCustructor<TestFieldsClass, int, int, int, int, int, int, int, int, int, int, int, int>();
+            var ctor = typeof(TestFieldsClass).CreateCustructorInvoker<TestFieldsClass, int, int, int, int, int, int, int, int, int, int, int, int>();
             var inst10 = ctor(2, 2, 2, 2, 2, 2);
             Console.WriteLine($"{inst10.Field0}, {inst10.Field1}, {inst10.Field2}, {inst10.Field3}, {inst10.Field4}, {inst10.Field5}");
         }
         // Pass10
         { // generic struct ctor
-            var ctor = typeof(TestFieldsStruct<int>).CreateCustructor<TestFieldsStruct<int>, int, int, int, int, int, int, int, int, int, int, int, int>();
+            var ctor = typeof(TestFieldsStruct<int>).CreateCustructorInvoker<TestFieldsStruct<int>, int, int, int, int, int, int, int, int, int, int, int, int>();
             var inst10 = ctor(3, 3, 3, 3, 3, 3);
             Console.WriteLine($"{inst10.Field0}, {inst10.Field1}, {inst10.Field2}, {inst10.Field3}, {inst10.Field4}, {inst10.Field5}");
         }
         // Pass11
         { // generic struct ctor
-            var ctor = typeof(TestFieldsClass<int>).CreateCustructor<TestFieldsClass<int>, int, int, int, int, int, int, int, int, int, int, int, int>();
+            var ctor = typeof(TestFieldsClass<int>).CreateCustructorInvoker<TestFieldsClass<int>, int, int, int, int, int, int, int, int, int, int, int, int>();
             var inst10 = ctor(4, 4, 4, 4, 4, 4);
             Console.WriteLine($"{inst10.Field0}, {inst10.Field1}, {inst10.Field2}, {inst10.Field3}, {inst10.Field4}, {inst10.Field5}");
         }
         Console.WriteLine("---------- Test For Generic Invokers ----------");
         // Pass1
         { // generic method in normal struct
-            var invoker = ((MethodInfo)typeof(TestFieldsStruct).GetMethods(nameof(TestFieldsStruct.TestGeneric)).FindOverload(new[] { typeof(IntPtr) }, checkGeneric: true)).MakeGenericMethod(typeof(IntPtr)).CreateDelegateUnified<IntPtr, ByRefParam, IntPtr, TestFieldsStruct, IntPtr >();
+            var invoker = typeof(TestFieldsStruct).CreateGenericInvoker<IntPtr, ByRefParam, IntPtr, TestFieldsStruct, IntPtr>(nameof(TestFieldsStruct.TestGeneric));
             Console.WriteLine($"100 -> {invoker(default, (IntPtr)100)}");
+        }
+        // Pass2
+        { // generic method in generic struct
+            var invoker = typeof(TestFieldsStruct<long>).CreateGenericInvoker<long, ByRefParam, IntPtr, byte, IntPtr>(nameof(TestFieldsStruct<long>.TestGeneric));
+            Console.WriteLine($"111 -> {invoker(default, (IntPtr)111)}");
         }
         #endregion
 

@@ -857,7 +857,7 @@ namespace Mod.LowLevel
             return CreateInstanceInvoker(target, target.GetType().CreateInvoker<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15, P16>(methodName));
         }
 
-        public static UnifiedFunc<R> CreateCustructor<R>(this Type type)
+        public static UnifiedFunc<R> CreateCustructorInvoker<R>(this Type type)
         {
             if (!typeof(R).IsAssignableFrom(type)) throw new ArgumentException($"{typeof(R).Name} is not parent of {type.Name}.", nameof(R));
             var ctor = type.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).FindOverload(Array.Empty<Type>());
@@ -924,7 +924,7 @@ namespace Mod.LowLevel
                 };
             }
         }
-        public static UnifiedFunc<R, P2> CreateCustructor<R, U2, P2>(this Type type)
+        public static UnifiedFunc<R, P2> CreateCustructorInvoker<R, U2, P2>(this Type type)
         {
             if (!typeof(R).IsAssignableFrom(type)) throw new ArgumentException($"{typeof(R).Name} is not parent of {type.Name}.", nameof(R));
             var ctor = type.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).FindOverload(new[] { typeof(U2) });
@@ -991,7 +991,7 @@ namespace Mod.LowLevel
                 };
             }
         }
-        public static UnifiedFunc<R, P2, P3> CreateCustructor<R, U2, U3, P2, P3>(this Type type)
+        public static UnifiedFunc<R, P2, P3> CreateCustructorInvoker<R, U2, U3, P2, P3>(this Type type)
         {
             if (!typeof(R).IsAssignableFrom(type)) throw new ArgumentException($"{typeof(R).Name} is not parent of {type.Name}.", nameof(R));
             var ctor = type.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).FindOverload(new[] { typeof(U2), typeof(U3) });
@@ -1058,7 +1058,7 @@ namespace Mod.LowLevel
                 };
             }
         }
-        public static UnifiedFunc<R, P2, P3, P4> CreateCustructor<R, U2, U3, U4, P2, P3, P4>(this Type type)
+        public static UnifiedFunc<R, P2, P3, P4> CreateCustructorInvoker<R, U2, U3, U4, P2, P3, P4>(this Type type)
         {
             if (!typeof(R).IsAssignableFrom(type)) throw new ArgumentException($"{typeof(R).Name} is not parent of {type.Name}.", nameof(R));
             var ctor = type.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).FindOverload(new[] { typeof(U2), typeof(U3), typeof(U4) });
@@ -1125,7 +1125,7 @@ namespace Mod.LowLevel
                 };
             }
         }
-        public static UnifiedFunc<R, P2, P3, P4, P5> CreateCustructor<R, U2, U3, U4, U5, P2, P3, P4, P5>(this Type type)
+        public static UnifiedFunc<R, P2, P3, P4, P5> CreateCustructorInvoker<R, U2, U3, U4, U5, P2, P3, P4, P5>(this Type type)
         {
             if (!typeof(R).IsAssignableFrom(type)) throw new ArgumentException($"{typeof(R).Name} is not parent of {type.Name}.", nameof(R));
             var ctor = type.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).FindOverload(new[] { typeof(U2), typeof(U3), typeof(U4), typeof(U5) });
@@ -1192,7 +1192,7 @@ namespace Mod.LowLevel
                 };
             }
         }
-        public static UnifiedFunc<R, P2, P3, P4, P5, P6> CreateCustructor<R, U2, U3, U4, U5, U6, P2, P3, P4, P5, P6>(this Type type)
+        public static UnifiedFunc<R, P2, P3, P4, P5, P6> CreateCustructorInvoker<R, U2, U3, U4, U5, U6, P2, P3, P4, P5, P6>(this Type type)
         {
             if (!typeof(R).IsAssignableFrom(type)) throw new ArgumentException($"{typeof(R).Name} is not parent of {type.Name}.", nameof(R));
             var ctor = type.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).FindOverload(new[] { typeof(U2), typeof(U3), typeof(U4), typeof(U5), typeof(U6) });
@@ -1259,7 +1259,7 @@ namespace Mod.LowLevel
                 };
             }
         }
-        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7> CreateCustructor<R, U2, U3, U4, U5, U6, U7, P2, P3, P4, P5, P6, P7>(this Type type)
+        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7> CreateCustructorInvoker<R, U2, U3, U4, U5, U6, U7, P2, P3, P4, P5, P6, P7>(this Type type)
         {
             if (!typeof(R).IsAssignableFrom(type)) throw new ArgumentException($"{typeof(R).Name} is not parent of {type.Name}.", nameof(R));
             var ctor = type.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).FindOverload(new[] { typeof(U2), typeof(U3), typeof(U4), typeof(U5), typeof(U6), typeof(U7) });
@@ -1326,7 +1326,7 @@ namespace Mod.LowLevel
                 };
             }
         }
-        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7, P8> CreateCustructor<R, U2, U3, U4, U5, U6, U7, U8, P2, P3, P4, P5, P6, P7, P8>(this Type type)
+        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7, P8> CreateCustructorInvoker<R, U2, U3, U4, U5, U6, U7, U8, P2, P3, P4, P5, P6, P7, P8>(this Type type)
         {
             if (!typeof(R).IsAssignableFrom(type)) throw new ArgumentException($"{typeof(R).Name} is not parent of {type.Name}.", nameof(R));
             var ctor = type.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).FindOverload(new[] { typeof(U2), typeof(U3), typeof(U4), typeof(U5), typeof(U6), typeof(U7), typeof(U8) });
@@ -1393,7 +1393,7 @@ namespace Mod.LowLevel
                 };
             }
         }
-        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7, P8, P9> CreateCustructor<R, U2, U3, U4, U5, U6, U7, U8, U9, P2, P3, P4, P5, P6, P7, P8, P9>(this Type type)
+        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7, P8, P9> CreateCustructorInvoker<R, U2, U3, U4, U5, U6, U7, U8, U9, P2, P3, P4, P5, P6, P7, P8, P9>(this Type type)
         {
             if (!typeof(R).IsAssignableFrom(type)) throw new ArgumentException($"{typeof(R).Name} is not parent of {type.Name}.", nameof(R));
             var ctor = type.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).FindOverload(new[] { typeof(U2), typeof(U3), typeof(U4), typeof(U5), typeof(U6), typeof(U7), typeof(U8), typeof(U9) });
@@ -1460,7 +1460,7 @@ namespace Mod.LowLevel
                 };
             }
         }
-        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7, P8, P9, P10> CreateCustructor<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, P2, P3, P4, P5, P6, P7, P8, P9, P10>(this Type type)
+        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7, P8, P9, P10> CreateCustructorInvoker<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, P2, P3, P4, P5, P6, P7, P8, P9, P10>(this Type type)
         {
             if (!typeof(R).IsAssignableFrom(type)) throw new ArgumentException($"{typeof(R).Name} is not parent of {type.Name}.", nameof(R));
             var ctor = type.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).FindOverload(new[] { typeof(U2), typeof(U3), typeof(U4), typeof(U5), typeof(U6), typeof(U7), typeof(U8), typeof(U9), typeof(U10) });
@@ -1527,7 +1527,7 @@ namespace Mod.LowLevel
                 };
             }
         }
-        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11> CreateCustructor<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11>(this Type type)
+        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11> CreateCustructorInvoker<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11>(this Type type)
         {
             if (!typeof(R).IsAssignableFrom(type)) throw new ArgumentException($"{typeof(R).Name} is not parent of {type.Name}.", nameof(R));
             var ctor = type.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).FindOverload(new[] { typeof(U2), typeof(U3), typeof(U4), typeof(U5), typeof(U6), typeof(U7), typeof(U8), typeof(U9), typeof(U10), typeof(U11) });
@@ -1594,7 +1594,7 @@ namespace Mod.LowLevel
                 };
             }
         }
-        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12> CreateCustructor<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12>(this Type type)
+        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12> CreateCustructorInvoker<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12>(this Type type)
         {
             if (!typeof(R).IsAssignableFrom(type)) throw new ArgumentException($"{typeof(R).Name} is not parent of {type.Name}.", nameof(R));
             var ctor = type.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).FindOverload(new[] { typeof(U2), typeof(U3), typeof(U4), typeof(U5), typeof(U6), typeof(U7), typeof(U8), typeof(U9), typeof(U10), typeof(U11), typeof(U12) });
@@ -1661,7 +1661,7 @@ namespace Mod.LowLevel
                 };
             }
         }
-        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13> CreateCustructor<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13>(this Type type)
+        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13> CreateCustructorInvoker<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13>(this Type type)
         {
             if (!typeof(R).IsAssignableFrom(type)) throw new ArgumentException($"{typeof(R).Name} is not parent of {type.Name}.", nameof(R));
             var ctor = type.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).FindOverload(new[] { typeof(U2), typeof(U3), typeof(U4), typeof(U5), typeof(U6), typeof(U7), typeof(U8), typeof(U9), typeof(U10), typeof(U11), typeof(U12), typeof(U13) });
@@ -1728,7 +1728,7 @@ namespace Mod.LowLevel
                 };
             }
         }
-        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14> CreateCustructor<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14>(this Type type)
+        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14> CreateCustructorInvoker<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14>(this Type type)
         {
             if (!typeof(R).IsAssignableFrom(type)) throw new ArgumentException($"{typeof(R).Name} is not parent of {type.Name}.", nameof(R));
             var ctor = type.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).FindOverload(new[] { typeof(U2), typeof(U3), typeof(U4), typeof(U5), typeof(U6), typeof(U7), typeof(U8), typeof(U9), typeof(U10), typeof(U11), typeof(U12), typeof(U13), typeof(U14) });
@@ -1795,7 +1795,7 @@ namespace Mod.LowLevel
                 };
             }
         }
-        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15> CreateCustructor<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15>(this Type type)
+        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15> CreateCustructorInvoker<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15>(this Type type)
         {
             if (!typeof(R).IsAssignableFrom(type)) throw new ArgumentException($"{typeof(R).Name} is not parent of {type.Name}.", nameof(R));
             var ctor = type.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).FindOverload(new[] { typeof(U2), typeof(U3), typeof(U4), typeof(U5), typeof(U6), typeof(U7), typeof(U8), typeof(U9), typeof(U10), typeof(U11), typeof(U12), typeof(U13), typeof(U14), typeof(U15) });
@@ -1862,7 +1862,7 @@ namespace Mod.LowLevel
                 };
             }
         }
-        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15, P16> CreateCustructor<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15, P16>(this Type type)
+        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15, P16> CreateCustructorInvoker<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15, P16>(this Type type)
         {
             if (!typeof(R).IsAssignableFrom(type)) throw new ArgumentException($"{typeof(R).Name} is not parent of {type.Name}.", nameof(R));
             var ctor = type.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).FindOverload(new[] { typeof(U2), typeof(U3), typeof(U4), typeof(U5), typeof(U6), typeof(U7), typeof(U8), typeof(U9), typeof(U10), typeof(U11), typeof(U12), typeof(U13), typeof(U14), typeof(U15), typeof(U16) });
@@ -1930,69 +1930,69 @@ namespace Mod.LowLevel
             }
         }
 
-        public static UnifiedFunc<R> CreateCustructor<R>()
+        public static UnifiedFunc<R> CreateCustructorInvoker<R>()
         {
-            return CreateCustructor<R>(typeof(R));
+            return CreateCustructorInvoker<R>(typeof(R));
         }
-        public static UnifiedFunc<R, P2> CreateCustructor<R, U2, P2>()
+        public static UnifiedFunc<R, P2> CreateCustructorInvoker<R, U2, P2>()
         {
-            return CreateCustructor<R, U2, P2>(typeof(R));
+            return CreateCustructorInvoker<R, U2, P2>(typeof(R));
         }
-        public static UnifiedFunc<R, P2, P3> CreateCustructor<R, U2, U3, P2, P3>()
+        public static UnifiedFunc<R, P2, P3> CreateCustructorInvoker<R, U2, U3, P2, P3>()
         {
-            return CreateCustructor<R, U2, U3, P2, P3>(typeof(R));
+            return CreateCustructorInvoker<R, U2, U3, P2, P3>(typeof(R));
         }
-        public static UnifiedFunc<R, P2, P3, P4> CreateCustructor<R, U2, U3, U4, P2, P3, P4>()
+        public static UnifiedFunc<R, P2, P3, P4> CreateCustructorInvoker<R, U2, U3, U4, P2, P3, P4>()
         {
-            return CreateCustructor<R, U2, U3, U4, P2, P3, P4>(typeof(R));
+            return CreateCustructorInvoker<R, U2, U3, U4, P2, P3, P4>(typeof(R));
         }
-        public static UnifiedFunc<R, P2, P3, P4, P5> CreateCustructor<R, U2, U3, U4, U5, P2, P3, P4, P5>()
+        public static UnifiedFunc<R, P2, P3, P4, P5> CreateCustructorInvoker<R, U2, U3, U4, U5, P2, P3, P4, P5>()
         {
-            return CreateCustructor<R, U2, U3, U4, U5, P2, P3, P4, P5>(typeof(R));
+            return CreateCustructorInvoker<R, U2, U3, U4, U5, P2, P3, P4, P5>(typeof(R));
         }
-        public static UnifiedFunc<R, P2, P3, P4, P5, P6> CreateCustructor<R, U2, U3, U4, U5, U6, P2, P3, P4, P5, P6>()
+        public static UnifiedFunc<R, P2, P3, P4, P5, P6> CreateCustructorInvoker<R, U2, U3, U4, U5, U6, P2, P3, P4, P5, P6>()
         {
-            return CreateCustructor<R, U2, U3, U4, U5, U6, P2, P3, P4, P5, P6>(typeof(R));
+            return CreateCustructorInvoker<R, U2, U3, U4, U5, U6, P2, P3, P4, P5, P6>(typeof(R));
         }
-        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7> CreateCustructor<R, U2, U3, U4, U5, U6, U7, P2, P3, P4, P5, P6, P7>()
+        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7> CreateCustructorInvoker<R, U2, U3, U4, U5, U6, U7, P2, P3, P4, P5, P6, P7>()
         {
-            return CreateCustructor<R, U2, U3, U4, U5, U6, U7, P2, P3, P4, P5, P6, P7>(typeof(R));
+            return CreateCustructorInvoker<R, U2, U3, U4, U5, U6, U7, P2, P3, P4, P5, P6, P7>(typeof(R));
         }
-        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7, P8> CreateCustructor<R, U2, U3, U4, U5, U6, U7, U8, P2, P3, P4, P5, P6, P7, P8>()
+        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7, P8> CreateCustructorInvoker<R, U2, U3, U4, U5, U6, U7, U8, P2, P3, P4, P5, P6, P7, P8>()
         {
-            return CreateCustructor<R, U2, U3, U4, U5, U6, U7, U8, P2, P3, P4, P5, P6, P7, P8>(typeof(R));
+            return CreateCustructorInvoker<R, U2, U3, U4, U5, U6, U7, U8, P2, P3, P4, P5, P6, P7, P8>(typeof(R));
         }
-        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7, P8, P9> CreateCustructor<R, U2, U3, U4, U5, U6, U7, U8, U9, P2, P3, P4, P5, P6, P7, P8, P9>()
+        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7, P8, P9> CreateCustructorInvoker<R, U2, U3, U4, U5, U6, U7, U8, U9, P2, P3, P4, P5, P6, P7, P8, P9>()
         {
-            return CreateCustructor<R, U2, U3, U4, U5, U6, U7, U8, U9, P2, P3, P4, P5, P6, P7, P8, P9>(typeof(R));
+            return CreateCustructorInvoker<R, U2, U3, U4, U5, U6, U7, U8, U9, P2, P3, P4, P5, P6, P7, P8, P9>(typeof(R));
         }
-        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7, P8, P9, P10> CreateCustructor<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, P2, P3, P4, P5, P6, P7, P8, P9, P10>()
+        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7, P8, P9, P10> CreateCustructorInvoker<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, P2, P3, P4, P5, P6, P7, P8, P9, P10>()
         {
-            return CreateCustructor<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, P2, P3, P4, P5, P6, P7, P8, P9, P10>(typeof(R));
+            return CreateCustructorInvoker<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, P2, P3, P4, P5, P6, P7, P8, P9, P10>(typeof(R));
         }
-        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11> CreateCustructor<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11>()
+        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11> CreateCustructorInvoker<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11>()
         {
-            return CreateCustructor<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11>(typeof(R));
+            return CreateCustructorInvoker<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11>(typeof(R));
         }
-        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12> CreateCustructor<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12>()
+        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12> CreateCustructorInvoker<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12>()
         {
-            return CreateCustructor<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12>(typeof(R));
+            return CreateCustructorInvoker<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12>(typeof(R));
         }
-        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13> CreateCustructor<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13>()
+        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13> CreateCustructorInvoker<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13>()
         {
-            return CreateCustructor<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13>(typeof(R));
+            return CreateCustructorInvoker<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13>(typeof(R));
         }
-        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14> CreateCustructor<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14>()
+        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14> CreateCustructorInvoker<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14>()
         {
-            return CreateCustructor<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14>(typeof(R));
+            return CreateCustructorInvoker<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14>(typeof(R));
         }
-        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15> CreateCustructor<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15>()
+        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15> CreateCustructorInvoker<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15>()
         {
-            return CreateCustructor<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15>(typeof(R));
+            return CreateCustructorInvoker<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15>(typeof(R));
         }
-        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15, P16> CreateCustructor<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15, P16>()
+        public static UnifiedFunc<R, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15, P16> CreateCustructorInvoker<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15, P16>()
         {
-            return CreateCustructor<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15, P16>(typeof(R));
+            return CreateCustructorInvoker<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15, P16>(typeof(R));
         }
     }
     #endregion
