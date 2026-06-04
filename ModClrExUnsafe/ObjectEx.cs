@@ -261,7 +261,7 @@ namespace Mod.LowLevel
             {
                 CheckArguments(con, delType);
                 _ConDel = CreateDelegateUnsafe(delType, con);
-                _TargetType = con.DeclaringType;
+                _TargetType = con.ReflectedType;
             }
 
             public static void CheckArguments(ConstructorInfo con, Type delType)
@@ -378,7 +378,7 @@ namespace Mod.LowLevel
             public static ConstructorInfo Find(Type targetType, Type[] paramTypes)
             {
                 var allConstructors = targetType.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                return (ConstructorInfo)FindMethod(allConstructors, paramTypes);
+                return (ConstructorInfo)FindOverload(allConstructors, paramTypes);
             }
             public static ConstructorInfo Find(Type targetType, Type delType)
             {

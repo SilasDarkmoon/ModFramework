@@ -94,12 +94,37 @@ namespace Mod.LowLevel
 
                 public override object CreateDelegate(Type delType, MethodBase method)
                 {
-                    RuntimeHelpers.PrepareMethod(method.MethodHandle);
+                    try
+                    {
+                        RuntimeHelpers.PrepareMethod(method.MethodHandle);
+                    }
+                    catch (ArgumentException)
+                    { // very rare case: .NET framework Generic Delegate's ctor.
+                        var gpars = method.ReflectedType.GetGenericArguments();
+                        RuntimeTypeHandle[] gparhandles = new RuntimeTypeHandle[gpars.Length];
+                        for (int i = 0; i < gpars.Length; ++i)
+                        {
+                            gparhandles[i] = gpars[i].TypeHandle;
+                        }
+                        RuntimeHelpers.PrepareMethod(method.MethodHandle, gparhandles);
+                    }
                     var fn = method.MethodHandle.GetFunctionPointer();
 
                     var condeli = delType.GetConstructor(new[] { typeof(object), typeof(IntPtr) });
                     var hcondel = condeli.MethodHandle;
-                    RuntimeHelpers.PrepareMethod(hcondel);
+                    if (RuntimeInfo.IsNetFramework && delType.GetGenericArguments() is Type[] congpars && congpars.Length > 0)
+                    {
+                        RuntimeTypeHandle[] gparhandles = new RuntimeTypeHandle[congpars.Length];
+                        for (int i = 0; i < congpars.Length; ++i)
+                        {
+                            gparhandles[i] = congpars[i].TypeHandle;
+                        }
+                        RuntimeHelpers.PrepareMethod(hcondel, gparhandles);
+                    }
+                    else
+                    {
+                        RuntimeHelpers.PrepareMethod(hcondel);
+                    }
                     var fncondel = hcondel.GetFunctionPointer();
                     var delcon = (DelegateCtorDel)_DelegateCtorFuncTemplate.Clone();
                     delcon.GetField(fi_methodPtrAux) = fncondel;
@@ -369,13 +394,37 @@ namespace Mod.LowLevel
         {
             return (T)DelegateExImp.CreateDelegateUnsafe(typeof(T), method);
         }
-        public static MethodBase FindMethod(this IEnumerable<MethodBase> methods, Type[] paramTypes, Type returnType = null, bool withThis = false)
+        public static bool IsGenericParameterCompatiable(Type gtype, Type itype)
+        {
+            if ((gtype.GenericParameterAttributes & GenericParameterAttributes.NotNullableValueTypeConstraint) != 0 && !itype.IsValueType)
+            {
+                return false;
+            }
+            if ((gtype.GenericParameterAttributes & GenericParameterAttributes.ReferenceTypeConstraint) != 0 && itype.IsValueType)
+            {
+                return false;
+            }
+            if (gtype.GetGenericParameterConstraints() is Type[] gparents && gparents.Length > 0)
+            {
+                foreach (var gparent in gparents)
+                {
+                    if (!gparent.IsAssignableFrom(itype))
+                    {
+                        return false;
+                    }
+                }
+            }
+            // TODO: recursively check generic parameter if gtype and itype themselves are generics.
+            return true;
+        }
+        public static MethodBase FindOverload(this IEnumerable<MethodBase> methods, Type[] paramTypes, Type returnType = null, bool withThis = false, bool checkGeneric = false)
         {
             List<(MethodBase, Type[])> pendingMethods = new List<(MethodBase, Type[])>();
 
             // 1, strict
             foreach (var m in methods)
             {
+            BeginStrictCheckMethod:
                 var mpars = m.GetParameters();
                 var mparlen = mpars.Length;
                 bool isInstance = !m.IsStatic;
@@ -400,9 +449,19 @@ namespace Mod.LowLevel
                     {
                         continue;
                     }
-                    if (mrtype != returnType && !returnType.IsAssignableFrom(mrtype) && RawSize(returnType) != RawSize(mrtype))
+                    if (checkGeneric && mrtype.IsGenericParameter)
                     {
-                        continue;
+                        if (!IsGenericParameterCompatiable(mrtype, returnType))
+                        {
+                            continue;
+                        }
+                    }
+                    else
+                    {
+                        if (mrtype != returnType && !returnType.IsAssignableFrom(mrtype) && RawSize(returnType) != RawSize(mrtype))
+                        {
+                            continue;
+                        }
                     }
                 }
                 var mparTypes = new Type[mparlen];
@@ -413,14 +472,26 @@ namespace Mod.LowLevel
                     Type mpar;
                     if (i == 0 && isInstance && withThis)
                     {
-                        mpar = m.DeclaringType;
+                        mpar = m.ReflectedType;
                         mparTypes[0] = mpar;
                     }
                     else
                     {
                         var index = i;
                         if (isInstance && withThis) --index;
-                        mpar = mparTypes[index] = mpars[index].ParameterType;
+                        mpar = mparTypes[i] = mpars[index].ParameterType;
+                    }
+                    if (checkGeneric && mpar.IsGenericParameter)
+                    {
+                        if (IsGenericParameterCompatiable(mpar, par))
+                        {
+                            mparTypes[i] = par;
+                            continue;
+                        }
+                        else
+                        {
+                            goto BeginStrictCheckMethod;
+                        }
                     }
                     if (!mpar.IsAssignableFrom(par))
                     {
@@ -439,7 +510,7 @@ namespace Mod.LowLevel
                 if (!m.IsPublic)
                     continue;
                 bool nomatch = false;
-                for (int i = 1; i < paramTypes.Length; ++i)
+                for (int i = 0; i < paramTypes.Length; ++i)
                 {
                     var par = paramTypes[i];
                     var mpar = mpars[i];
@@ -460,7 +531,7 @@ namespace Mod.LowLevel
                 if (m.IsPublic)
                     continue;
                 bool nomatch = false;
-                for (int i = 1; i < paramTypes.Length; ++i)
+                for (int i = 0; i < paramTypes.Length; ++i)
                 {
                     var par = paramTypes[i];
                     var mpar = mpars[i];
