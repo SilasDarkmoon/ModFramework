@@ -1,0 +1,22 @@
+<Directives xmlns="http://schemas.microsoft.com/netfx/2013/01/metadata">
+    <Application>
+        <Assembly Name="ModFramework">
+            <Type Name="TestScript+TestFieldsStruct" Dynamic="Required All">
+                <Method Name="TestGeneric">
+                    <GenericArgument Name="System.IntPtr, System.Private.CoreLib" />
+                </Method>
+            </Type>
+            <Type Name="TestScript+TestFieldsClass" Dynamic="Required All" />
+            <Type Name="TestScript+TestFieldsStruct`1" Dynamic="Required All" />
+            <Type Name="TestScript+TestFieldsClass`1" Dynamic="Required All" />
+            <Type Name="TestScript+TestFieldsStruct`1[[System.Int64, System.Private.CoreLib]]">
+                <Method Name="TestGeneric">
+                    <GenericArgument Name="System.IntPtr, System.Private.CoreLib" />
+                </Method>
+            </Type>
+            <Type Name="TestScript" Dynamic="Required All" />
+            <Type Name="TestScript+TestBaseClass" Dynamic="Required All" />
+            <Type Name="TestScript+TestChildClass" Dynamic="Required All" />
+        </Assembly>
+    </Application>
+</Directives>

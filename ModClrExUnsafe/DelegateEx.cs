@@ -338,17 +338,27 @@ namespace Mod.LowLevel
                     public byte parameters_count;
                     public byte exflags;
                 }
+                [StructLayout(LayoutKind.Sequential)]
+                public struct HybridClrMethodInfo
+                {
+                    public Il2CppMethodInfo il2CppInfo;
+                    public IntPtr interpData;
+                    public IntPtr methodPointerCallByInterp;
+                    public IntPtr virtualMethodPointerCallByInterp;
+                    public bool initInterpCallMethodPointer;
+                    public bool isInterpterImpl;
+                }
 
                 public object CreateDelegate(Type delType, MethodBase method)
                 {
-                    var con = delType.GetConstructor(new[] { typeof(object), typeof(IntPtr) });
-                    RawRef rconnmi = new RawRef() { Address = con.MethodHandle.Value };
-                    if (RuntimeInfo.IsHybridCLREnabled)
-                    { // hybrid clr
-                        return _CreateDelegateInternalFunc(delType, null, method, false);
-                    }
-                    else
+                    //if (RuntimeInfo.IsHybridCLREnabled)
+                    //{ // hybrid clr
+                    //    return _CreateDelegateInternalFunc(delType, null, method, false);
+                    //}
+                    //else
                     {
+                        var con = delType.GetConstructor(new[] { typeof(object), typeof(IntPtr) });
+                        RawRef rconnmi = new RawRef() { Address = con.MethodHandle.Value };
                         var delcon = (DelegateCtorDel)_DelegateCtorFuncTemplate.Clone();
                         delcon.GetField(_FI_Delegate_method_ptr) = rconnmi.GetRef<Il2CppMethodInfo>().methodPointer;
                         delcon.GetField(_FI_Delegate_method) = rconnmi.Address;

@@ -12,19 +12,8 @@ using SpanStubChar = Mod.LowLevel.SpanStubOld<char>;
 using SpanStubChar = Mod.LowLevel.SpanStubModern<char>;
 #endif
 
-#if NET7_0_OR_GREATER
-[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
-#endif
 public static class TestScript
 {
-#if NET7_0_OR_GREATER
-    [DynamicDependency(DynamicallyAccessedMemberTypes.All, type: typeof(TestFieldsClass))]
-    [DynamicDependency(DynamicallyAccessedMemberTypes.All, type: typeof(TestFieldsStruct))]
-    [DynamicDependency(DynamicallyAccessedMemberTypes.All, type: typeof(TestScript))]
-    [DynamicDependency(DynamicallyAccessedMemberTypes.All, type: typeof(TestFieldsClass<>))]
-    [DynamicDependency(DynamicallyAccessedMemberTypes.All, type: typeof(TestFieldsStruct<>))]
-    //[RequiresDynamicCode("Calls System.Reflection.MethodInfo.MakeGenericMethod(params Type[])")]
-#endif
     public static void Test()
     {
 #if NET7_0_OR_GREATER
@@ -56,7 +45,7 @@ public static class TestScript
             TestDelegate11 del = mi.CreateDelegateUnsafe<TestDelegate11>();
             int a = 0;
             var r = RawRef.Of(ref a);
-            Console.WriteLine($"{r.Address} -> {del(ref a)}");
+            Console.WriteLine($"{r.Address:X} -> {del(ref a):X}");
         }
         // Pass2
         { // instance binding
@@ -65,7 +54,16 @@ public static class TestScript
             var del = mi.CreateDelegateUnsafe<TestDelegate21>();
             int a = 0;
             var r = RawRef.Of(ref a);
-            Console.WriteLine($"{r.Address} -> {del("", ref a)}");
+            Console.WriteLine($"{r.Address:X} -> {del("", ref a):X}");
+        }
+        // Pass2.5
+        { // instance binding
+            //var ti = new TestDelegateChildClass(); we want to call to a mismatching target.
+            var mi = typeof(TestChildClass).GetMethods(nameof(TestChildClass.TestMethod)).FindOverload(new[] { typeof(IntPtr) });
+            var del = mi.CreateDelegateUnsafe<TestDelegate21>();
+            int a = 0;
+            var r = RawRef.Of(ref a);
+            Console.WriteLine($"{r.Address:X} -> {del("", ref a):X}");
         }
         // Pass3
         { // generic instance binding
@@ -73,7 +71,7 @@ public static class TestScript
             var del = mi.CreateDelegateUnsafe<TestDelegate21>();
             int a = 0;
             var r = RawRef.Of(ref a);
-            Console.WriteLine($"{r.Address} -> {del("", ref a)}");
+            Console.WriteLine($"{r.Address:X} -> {del("", ref a):X}");
         }
         // Pass4
         { // bind to System.Func
@@ -81,7 +79,7 @@ public static class TestScript
             var del = mi.CreateDelegateUnsafe<Func<object, IntPtr, long>>();
             int a = 0;
             var r = RawRef.Of(ref a);
-            Console.WriteLine($"{r.Address} -> {del("", r.Address)}");
+            Console.WriteLine($"{r.Address:X} -> {del("", r.Address):X}");
         }
         //Console.WriteLine("---------------------------------------------------------------------");
         Console.WriteLine("---------- Test For Constructor ----------");
@@ -107,23 +105,39 @@ public static class TestScript
             var invoker = typeof(TestScript).CreateInvoker<long, IntPtr, IntPtr>(nameof(TestMethod1));
             int a = 0;
             var r = RawRef.Of(ref a);
-            Console.WriteLine($"{r.Address} -> {invoker(r.Address)}");
+            Console.WriteLine($"{r.Address:X} -> {invoker(r.Address):X}");
         }
         // Pass2
         { // instance invoker
             TestChildClass inst = new TestChildClass();
             var invoker = inst.CreateInstanceInvoker<long, object, ByRefParam, object, int>(nameof(inst.TestMethod));
-            int a = 0;
+            int a = 12;
             var r = RawRef.Of(ref a);
-            Console.WriteLine($"{r.Address} -> {invoker(in a)}");
+            Console.WriteLine($"{r.Address:X} -> {invoker(in a):X}");
+        }
+        // Pass2.5
+        { // open instance invoker
+            //TestChildClass inst = new TestChildClass();
+            var invoker = typeof(TestBaseClass).CreateInvoker<long, object, ByRefParam, object, int>(nameof(TestBaseClass.TestMethod));
+            int a = 12;
+            var r = RawRef.Of(ref a);
+            Console.WriteLine($"{r.Address:X} -> {invoker("", in a):X}");
         }
         // Pass3
         { // generic instance invoker
             TestFieldsClass<Guid> inst = new TestFieldsClass<Guid>();
             var invoker = inst.CreateInstanceInvoker<long, object, ByRefParam, object, int>(nameof(inst.TestMethod));
-            int a = 0;
+            int a = 13;
             var r = RawRef.Of(ref a);
-            Console.WriteLine($"{r.Address} -> {invoker(in a)}");
+            Console.WriteLine($"{r.Address:X} -> {invoker(in a):X}");
+        }
+        // Pass3.5
+        { // generic open instance invoker
+            //TestFieldsClass<Guid> inst = new TestFieldsClass<Guid>();
+            var invoker = typeof(TestFieldsClass<Guid>).CreateInvoker<long, object, ByRefParam, object, int>(nameof(TestFieldsClass<Guid>.TestMethod));
+            int a = 13;
+            var r = RawRef.Of(ref a);
+            Console.WriteLine($"{r.Address:X} -> {invoker("", in a):X}");
         }
         // Pass4
         { // ref return
@@ -209,7 +223,7 @@ public static class TestScript
     }
     public static void TestMethod3(ref int r)
     {
-        Console.WriteLine("in TestFunc6");
+        Console.WriteLine($"in {nameof(TestMethod3)}");
         ++r;
     }
 
@@ -223,32 +237,23 @@ public static class TestScript
         return new string(span.ToArray());
     }
 
-#if NET7_0_OR_GREATER
-    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
-#endif
     public class TestBaseClass
     {
         public virtual long TestMethod(IntPtr p)
         {
-            Console.WriteLine("BaseClass.TestMethod");
+            Console.WriteLine($"{nameof(TestBaseClass)}.{nameof(TestMethod)}");
             return p.ToInt64() + 1;
         }
     }
-#if NET7_0_OR_GREATER
-    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
-#endif
     public class TestChildClass : TestBaseClass
     {
         public override long TestMethod(IntPtr p)
         {
-            Console.WriteLine("ChildClass.TestMethod");
+            Console.WriteLine($"{nameof(TestChildClass)}.{nameof(TestMethod)}");
             return p.ToInt64() - 1;
         }
     }
 
-#if NET7_0_OR_GREATER
-    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
-#endif
     class TestFieldsClass
     {
         public int Field0 = 0;
@@ -269,9 +274,6 @@ public static class TestScript
             Field5 = i5;
         }
     }
-#if NET7_0_OR_GREATER
-    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
-#endif
     struct TestFieldsStruct
     {
         public int Field0;
@@ -296,9 +298,6 @@ public static class TestScript
             return t;
         }
     }
-#if NET7_0_OR_GREATER
-    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
-#endif
     class TestFieldsClass<T>
     {
         public T Field0;
@@ -325,9 +324,6 @@ public static class TestScript
             return (long)(rr.Address + 1);
         }
     }
-#if NET7_0_OR_GREATER
-    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
-#endif
     struct TestFieldsStruct<T>
     {
         public T Field0;

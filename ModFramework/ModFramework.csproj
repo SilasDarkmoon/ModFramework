@@ -35,4 +35,7 @@
     </Reference>
   </ItemGroup>
 
+    <ItemGroup>
+        <RdXmlFile Include="Rd.xml" />
+    </ItemGroup>
 </Project>
