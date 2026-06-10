@@ -337,34 +337,69 @@ namespace Mod.LowLevel
                     public ushort slot;
                     public byte parameters_count;
                     public byte exflags;
+
+                    public bool is_generic
+                    {
+                        get => (exflags & 1) != 0;
+                        set => _ = value ? (exflags |= 1) : (exflags &= unchecked((byte)~1));
+                    }
+                    public bool is_inflated
+                    {
+                        get => (exflags & (1 << 1)) != 0;
+                        set => _ = value ? (exflags |= (1 << 1)) : (exflags &= unchecked((byte)~(1 << 1)));
+                    }
+                    public bool wrapper_type
+                    {
+                        get => (exflags & (1 << 2)) != 0;
+                        set => _ = value ? (exflags |= (1 << 2)) : (exflags &= unchecked((byte)~(1 << 2)));
+                    }
+                    public bool has_full_generic_sharing_signature
+                    {
+                        get => (exflags & (1 << 3)) != 0;
+                        set => _ = value ? (exflags |= (1 << 3)) : (exflags &= unchecked((byte)~(1 << 3)));
+                    }
                 }
                 [StructLayout(LayoutKind.Sequential)]
                 public struct HybridClrMethodInfo
                 {
                     public Il2CppMethodInfo il2CppInfo;
+
+                    public bool initInterpCallMethodPointer
+                    {
+                        get => (il2CppInfo.exflags & (1 << 4)) != 0;
+                        set => _ = value ? (il2CppInfo.exflags |= (1 << 4)) : (il2CppInfo.exflags &= unchecked((byte)~(1 << 4)));
+                    }
+                    public bool isInterpterImpl
+                    {
+                        get => (il2CppInfo.exflags & (1 << 5)) != 0;
+                        set => _ = value ? (il2CppInfo.exflags |= (1 << 5)) : (il2CppInfo.exflags &= unchecked((byte)~(1 << 5)));
+                    }
+
                     public IntPtr interpData;
                     public IntPtr methodPointerCallByInterp;
                     public IntPtr virtualMethodPointerCallByInterp;
-                    public bool initInterpCallMethodPointer;
-                    public bool isInterpterImpl;
                 }
 
                 public object CreateDelegate(Type delType, MethodBase method)
                 {
-                    //if (RuntimeInfo.IsHybridCLREnabled)
-                    //{ // hybrid clr
-                    //    return _CreateDelegateInternalFunc(delType, null, method, false);
-                    //}
+                    var con = delType.GetConstructor(new[] { typeof(object), typeof(IntPtr) });
+                    RawRef rconnmi = new RawRef() { Address = con.MethodHandle.Value };
+                    if (RuntimeInfo.IsHybridCLREnabled)
+                    { // hybrid clr
+                        var nconmi = rconnmi.GetRef<HybridClrMethodInfo>();
+                        if (nconmi.il2CppInfo.methodPointer == IntPtr.Zero || nconmi.isInterpterImpl)
+                        {
+                            return _CreateDelegateInternalFunc(delType, null, method, false);
+                        }
+                    }
                     //else
                     {
-                        var con = delType.GetConstructor(new[] { typeof(object), typeof(IntPtr) });
-                        RawRef rconnmi = new RawRef() { Address = con.MethodHandle.Value };
                         var delcon = (DelegateCtorDel)_DelegateCtorFuncTemplate.Clone();
                         delcon.GetField(_FI_Delegate_method_ptr) = rconnmi.GetRef<Il2CppMethodInfo>().methodPointer;
                         delcon.GetField(_FI_Delegate_method) = rconnmi.Address;
                         delcon.GetField(_FI_Delegate_method_code) = delcon;
                         var rvdel = UnsafeEx.GetUninitializedObject(delType);
-                        if (method.IsConstructor)
+                        if (!method.IsStatic && method.ReflectedType.IsValueType)
                         {
                             RawRef rmid = new RawRef() { Address = _MiDummyStatic.MethodHandle.Value };
                             Il2CppMethodInfo cloneddesc = rmid.GetRef<Il2CppMethodInfo>();

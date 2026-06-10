@@ -45,7 +45,7 @@ public static class TestScript
             TestDelegate11 del = mi.CreateDelegateUnsafe<TestDelegate11>();
             int a = 0;
             var r = RawRef.Of(ref a);
-            Console.WriteLine($"{r.Address:X} -> {del(ref a):X}");
+            Console.WriteLine($"{r} -> {del(ref a):X}");
         }
         // Pass2
         { // instance binding
@@ -54,7 +54,7 @@ public static class TestScript
             var del = mi.CreateDelegateUnsafe<TestDelegate21>();
             int a = 0;
             var r = RawRef.Of(ref a);
-            Console.WriteLine($"{r.Address:X} -> {del("", ref a):X}");
+            Console.WriteLine($"{r} -> {del("", ref a):X}");
         }
         // Pass2.5
         { // instance binding
@@ -63,7 +63,7 @@ public static class TestScript
             var del = mi.CreateDelegateUnsafe<TestDelegate21>();
             int a = 0;
             var r = RawRef.Of(ref a);
-            Console.WriteLine($"{r.Address:X} -> {del("", ref a):X}");
+            Console.WriteLine($"{r} -> {del("", ref a):X}");
         }
         // Pass3
         { // generic instance binding
@@ -71,7 +71,7 @@ public static class TestScript
             var del = mi.CreateDelegateUnsafe<TestDelegate21>();
             int a = 0;
             var r = RawRef.Of(ref a);
-            Console.WriteLine($"{r.Address:X} -> {del("", ref a):X}");
+            Console.WriteLine($"{r} -> {del("", ref a):X}");
         }
         // Pass4
         { // bind to System.Func
@@ -79,7 +79,7 @@ public static class TestScript
             var del = mi.CreateDelegateUnsafe<Func<object, IntPtr, long>>();
             int a = 0;
             var r = RawRef.Of(ref a);
-            Console.WriteLine($"{r.Address:X} -> {del("", r.Address):X}");
+            Console.WriteLine($"{r} -> {del("", r.Address):X}");
         }
         //Console.WriteLine("---------------------------------------------------------------------");
         Console.WriteLine("---------- Test For Constructor ----------");
@@ -105,7 +105,7 @@ public static class TestScript
             var invoker = typeof(TestScript).CreateInvoker<long, IntPtr, IntPtr>(nameof(TestMethod1));
             int a = 0;
             var r = RawRef.Of(ref a);
-            Console.WriteLine($"{r.Address:X} -> {invoker(r.Address):X}");
+            Console.WriteLine($"{r} -> {invoker(r.Address):X}");
         }
         // Pass2
         { // instance invoker
@@ -113,7 +113,7 @@ public static class TestScript
             var invoker = inst.CreateInstanceInvoker<long, object, ByRefParam, object, int>(nameof(inst.TestMethod));
             int a = 12;
             var r = RawRef.Of(ref a);
-            Console.WriteLine($"{r.Address:X} -> {invoker(in a):X}");
+            Console.WriteLine($"{r} -> {invoker(in a):X}");
         }
         // Pass2.5
         { // open instance invoker
@@ -121,7 +121,14 @@ public static class TestScript
             var invoker = typeof(TestBaseClass).CreateInvoker<long, object, ByRefParam, object, int>(nameof(TestBaseClass.TestMethod));
             int a = 12;
             var r = RawRef.Of(ref a);
-            Console.WriteLine($"{r.Address:X} -> {invoker("", in a):X}");
+            Console.WriteLine($"{r} -> {invoker("", in a):X}");
+        }
+        // value type open instance invoker
+        {
+            var inst = new TestFieldsStruct(9, 8, 7, 6, 5, 4);
+            var invoker = typeof(TestFieldsStruct).CreateInvoker<VoidReturn, ByRefParam, int, TestFieldsStruct, int>(nameof(TestFieldsStruct.TestValueTypeInstanceMethod));
+            invoker(in inst, 100);
+            Console.WriteLine($"{inst.Field0}, {inst.Field1}, {inst.Field2}, {inst.Field3}, {inst.Field4}, {inst.Field5}");
         }
         // Pass3
         { // generic instance invoker
@@ -129,7 +136,7 @@ public static class TestScript
             var invoker = inst.CreateInstanceInvoker<long, object, ByRefParam, object, int>(nameof(inst.TestMethod));
             int a = 13;
             var r = RawRef.Of(ref a);
-            Console.WriteLine($"{r.Address:X} -> {invoker(in a):X}");
+            Console.WriteLine($"{r} -> {invoker(in a):X}");
         }
         // Pass3.5
         { // generic open instance invoker
@@ -137,7 +144,7 @@ public static class TestScript
             var invoker = typeof(TestFieldsClass<Guid>).CreateInvoker<long, object, ByRefParam, object, int>(nameof(TestFieldsClass<Guid>.TestMethod));
             int a = 13;
             var r = RawRef.Of(ref a);
-            Console.WriteLine($"{r.Address:X} -> {invoker("", in a):X}");
+            Console.WriteLine($"{r} -> {invoker("", in a):X}");
         }
         // Pass4
         { // ref return
@@ -296,6 +303,16 @@ public static class TestScript
         public T TestGeneric<T>(T t)
         {
             return t;
+        }
+
+        public void TestValueTypeInstanceMethod(int v)
+        {
+            Field0 = v;
+            Field1 = v + 1;
+            Field2 = v + 2;
+            Field3 = v + 3;
+            Field4 = v + 4;
+            Field5 = v + 5;
         }
     }
     class TestFieldsClass<T>
