@@ -195,7 +195,7 @@ public static class TestScript
             Console.WriteLine($"{inst10.Field0}, {inst10.Field1}, {inst10.Field2}, {inst10.Field3}, {inst10.Field4}, {inst10.Field5}");
         }
         // Pass11
-        { // generic struct ctor
+        { // generic class ctor
             var ctor = typeof(TestFieldsClass<int>).CreateCustructorInvoker<TestFieldsClass<int>, int, int, int, int, int, int, int, int, int, int, int, int>();
             var inst10 = ctor(4, 4, 4, 4, 4, 4);
             Console.WriteLine($"{inst10.Field0}, {inst10.Field1}, {inst10.Field2}, {inst10.Field3}, {inst10.Field4}, {inst10.Field5}");
