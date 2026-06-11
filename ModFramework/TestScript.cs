@@ -5,11 +5,11 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Text;
 #if UNITY_5_3_OR_NEWER
-using SpanStubChar = Mod.LowLevel.SpanStubModern<char>;
+using SpanStub = Mod.LowLevel.SpanStubModern;
 #elif NETFRAMEWORK
-using SpanStubChar = Mod.LowLevel.SpanStubOld<char>;
+using SpanStub = Mod.LowLevel.SpanStubOld;
 #else
-using SpanStubChar = Mod.LowLevel.SpanStubModern<char>;
+using SpanStub = Mod.LowLevel.SpanStubModern;
 #endif
 
 public static class TestScript
@@ -110,7 +110,7 @@ public static class TestScript
         // Pass2
         { // instance invoker
             TestChildClass inst = new TestChildClass();
-            var invoker = inst.CreateInstanceInvoker<long, object, ByRefParam, object, int>(nameof(inst.TestMethod));
+            var invoker = inst.CreateInstanceInvoker<long, object, ByRefPtr, object, int>(nameof(inst.TestMethod));
             int a = 12;
             var r = RawRef.Of(ref a);
             Console.WriteLine($"{r} -> {invoker(in a):X}");
@@ -118,7 +118,7 @@ public static class TestScript
         // Pass2.5
         { // open instance invoker
             //TestChildClass inst = new TestChildClass();
-            var invoker = typeof(TestBaseClass).CreateInvoker<long, object, ByRefParam, object, int>(nameof(TestBaseClass.TestMethod));
+            var invoker = typeof(TestBaseClass).CreateInvoker<long, object, ByRefPtr, object, int>(nameof(TestBaseClass.TestMethod));
             int a = 12;
             var r = RawRef.Of(ref a);
             Console.WriteLine($"{r} -> {invoker("", in a):X}");
@@ -162,17 +162,17 @@ public static class TestScript
         }
         // Pass6
         { // Span return
-            var invoker = typeof(TestScript).CreateInvoker<SpanStubChar, string, string>(nameof(TestSpan1));
+            var invoker = typeof(TestScript).CreateInvoker<SpanStub, string, string>(nameof(TestSpan1));
             string str = "Hello, World!";
-            var span = invoker.Invoke(str).ConvertToReadOnlySpan();
+            var span = invoker.Invoke(str).ToReadOnlySpan<char>();
             foreach (var ch in span) { Console.Write(ch); }
             Console.WriteLine();
         }
         // Pass7
         { // Span argument
-            var invoker = typeof(TestScript).CreateInvoker<string, SpanStubChar, SpanStubChar>(nameof(TestSpan2));
+            var invoker = typeof(TestScript).CreateInvoker<string, SpanStub, SpanStub>(nameof(TestSpan2));
             Span<char> span = stackalloc char[] { 'H', 'e', 'l', 'l', 'o' };
-            var str = invoker(span);
+            var str = invoker(SpanStub.Of(span));
             Console.WriteLine(str);
         }
         Console.WriteLine("---------- Test For Ctor Invokers ----------");

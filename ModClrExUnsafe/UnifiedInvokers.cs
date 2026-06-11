@@ -29,14 +29,13 @@ namespace Mod.LowLevel
     {
         private static void ConvertParam<U, P>(out U u, in P p)
         {
-            if (typeof(U) == typeof(ByRefParam))
+            RawRef ru = RawRef.Of(ref Ref.IgnoreOut(out u));
+            if (typeof(U) == typeof(ByRefParam) || typeof(U) == typeof(ByRefPtr))
             {
-                RawRef ru = RawRef.Of(ref Ref.IgnoreOut(out u));
                 ru.GetRef<RawRef>().SetRef(ref Ref.Unprotect(in p));
             }
             else
             {
-                RawRef ru = RawRef.Of(ref Ref.IgnoreOut(out u));
                 ru.GetRef<P>() = p;
             }
         }

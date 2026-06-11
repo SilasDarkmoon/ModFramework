@@ -12,7 +12,7 @@ namespace Mod.LowLevel
         private static Type GetRealType<U, P>()
         {
             var ut = typeof(U);
-            if (ut == typeof(ByRefParam))
+            if (ut == typeof(ByRefParam) || ut == typeof(ByRefPtr))
             {
                 return typeof(P).MakeByRefType();
             }
@@ -24,7 +24,7 @@ namespace Mod.LowLevel
         public static UnifiedFunc<R> CreateGenericInvoker<R>(this MethodBase gmethod, Type[] genericTypes = null)
         {
             var rtype = typeof(R);
-            var guessrtype = rtype != typeof(VoidReturn) && rtype != typeof(ByRefParam) ? rtype : null;
+            var guessrtype = rtype != typeof(VoidReturn) && rtype != typeof(ByRefParam) && rtype != typeof(ByRefPtr) ? rtype : null;
             var utypes = Array.Empty<Type>();
             if (genericTypes == null) genericTypes = gmethod.GuessGenericParameters(utypes, returnType: guessrtype, withThis: true);
             var method = gmethod.MakeGenericMethod(genericTypes);
@@ -33,7 +33,7 @@ namespace Mod.LowLevel
         public static UnifiedFunc<R, P1> CreateGenericInvoker<R, U1, P1>(this MethodBase gmethod, Type[] genericTypes = null)
         {
             var rtype = typeof(R);
-            var guessrtype = rtype != typeof(VoidReturn) && rtype != typeof(ByRefParam) ? rtype : null;
+            var guessrtype = rtype != typeof(VoidReturn) && rtype != typeof(ByRefParam) && rtype != typeof(ByRefPtr) ? rtype : null;
             var utypes = new[] { GetRealType<U1, P1>() };
             if (genericTypes == null) genericTypes = gmethod.GuessGenericParameters(utypes, returnType: guessrtype, withThis: true);
             var method = gmethod.MakeGenericMethod(genericTypes);
@@ -42,7 +42,7 @@ namespace Mod.LowLevel
         public static UnifiedFunc<R, P1, P2> CreateGenericInvoker<R, U1, U2, P1, P2>(this MethodBase gmethod, Type[] genericTypes = null)
         {
             var rtype = typeof(R);
-            var guessrtype = rtype != typeof(VoidReturn) && rtype != typeof(ByRefParam) ? rtype : null;
+            var guessrtype = rtype != typeof(VoidReturn) && rtype != typeof(ByRefParam) && rtype != typeof(ByRefPtr) ? rtype : null;
             var utypes = new[] { GetRealType<U1, P1>(), GetRealType<U2, P2>() };
             if (genericTypes == null) genericTypes = gmethod.GuessGenericParameters(utypes, returnType: guessrtype, withThis: true);
             var method = gmethod.MakeGenericMethod(genericTypes);
@@ -51,7 +51,7 @@ namespace Mod.LowLevel
         public static UnifiedFunc<R, P1, P2, P3> CreateGenericInvoker<R, U1, U2, U3, P1, P2, P3>(this MethodBase gmethod, Type[] genericTypes = null)
         {
             var rtype = typeof(R);
-            var guessrtype = rtype != typeof(VoidReturn) && rtype != typeof(ByRefParam) ? rtype : null;
+            var guessrtype = rtype != typeof(VoidReturn) && rtype != typeof(ByRefParam) && rtype != typeof(ByRefPtr) ? rtype : null;
             var utypes = new[] { GetRealType<U1, P1>(), GetRealType<U2, P2>(), GetRealType<U3, P3>() };
             if (genericTypes == null) genericTypes = gmethod.GuessGenericParameters(utypes, returnType: guessrtype, withThis: true);
             var method = gmethod.MakeGenericMethod(genericTypes);
@@ -60,7 +60,7 @@ namespace Mod.LowLevel
         public static UnifiedFunc<R, P1, P2, P3, P4> CreateGenericInvoker<R, U1, U2, U3, U4, P1, P2, P3, P4>(this MethodBase gmethod, Type[] genericTypes = null)
         {
             var rtype = typeof(R);
-            var guessrtype = rtype != typeof(VoidReturn) && rtype != typeof(ByRefParam) ? rtype : null;
+            var guessrtype = rtype != typeof(VoidReturn) && rtype != typeof(ByRefParam) && rtype != typeof(ByRefPtr) ? rtype : null;
             var utypes = new[] { GetRealType<U1, P1>(), GetRealType<U2, P2>(), GetRealType<U3, P3>(), GetRealType<U4, P4>() };
             if (genericTypes == null) genericTypes = gmethod.GuessGenericParameters(utypes, returnType: guessrtype, withThis: true);
             var method = gmethod.MakeGenericMethod(genericTypes);
@@ -69,7 +69,7 @@ namespace Mod.LowLevel
         public static UnifiedFunc<R, P1, P2, P3, P4, P5> CreateGenericInvoker<R, U1, U2, U3, U4, U5, P1, P2, P3, P4, P5>(this MethodBase gmethod, Type[] genericTypes = null)
         {
             var rtype = typeof(R);
-            var guessrtype = rtype != typeof(VoidReturn) && rtype != typeof(ByRefParam) ? rtype : null;
+            var guessrtype = rtype != typeof(VoidReturn) && rtype != typeof(ByRefParam) && rtype != typeof(ByRefPtr) ? rtype : null;
             var utypes = new[] { GetRealType<U1, P1>(), GetRealType<U2, P2>(), GetRealType<U3, P3>(), GetRealType<U4, P4>(), GetRealType<U5, P5>() };
             if (genericTypes == null) genericTypes = gmethod.GuessGenericParameters(utypes, returnType: guessrtype, withThis: true);
             var method = gmethod.MakeGenericMethod(genericTypes);
@@ -78,7 +78,7 @@ namespace Mod.LowLevel
         public static UnifiedFunc<R, P1, P2, P3, P4, P5, P6> CreateGenericInvoker<R, U1, U2, U3, U4, U5, U6, P1, P2, P3, P4, P5, P6>(this MethodBase gmethod, Type[] genericTypes = null)
         {
             var rtype = typeof(R);
-            var guessrtype = rtype != typeof(VoidReturn) && rtype != typeof(ByRefParam) ? rtype : null;
+            var guessrtype = rtype != typeof(VoidReturn) && rtype != typeof(ByRefParam) && rtype != typeof(ByRefPtr) ? rtype : null;
             var utypes = new[] { GetRealType<U1, P1>(), GetRealType<U2, P2>(), GetRealType<U3, P3>(), GetRealType<U4, P4>(), GetRealType<U5, P5>(), GetRealType<U6, P6>() };
             if (genericTypes == null) genericTypes = gmethod.GuessGenericParameters(utypes, returnType: guessrtype, withThis: true);
             var method = gmethod.MakeGenericMethod(genericTypes);
@@ -87,7 +87,7 @@ namespace Mod.LowLevel
         public static UnifiedFunc<R, P1, P2, P3, P4, P5, P6, P7> CreateGenericInvoker<R, U1, U2, U3, U4, U5, U6, U7, P1, P2, P3, P4, P5, P6, P7>(this MethodBase gmethod, Type[] genericTypes = null)
         {
             var rtype = typeof(R);
-            var guessrtype = rtype != typeof(VoidReturn) && rtype != typeof(ByRefParam) ? rtype : null;
+            var guessrtype = rtype != typeof(VoidReturn) && rtype != typeof(ByRefParam) && rtype != typeof(ByRefPtr) ? rtype : null;
             var utypes = new[] { GetRealType<U1, P1>(), GetRealType<U2, P2>(), GetRealType<U3, P3>(), GetRealType<U4, P4>(), GetRealType<U5, P5>(), GetRealType<U6, P6>(), GetRealType<U7, P7>() };
             if (genericTypes == null) genericTypes = gmethod.GuessGenericParameters(utypes, returnType: guessrtype, withThis: true);
             var method = gmethod.MakeGenericMethod(genericTypes);
@@ -96,7 +96,7 @@ namespace Mod.LowLevel
         public static UnifiedFunc<R, P1, P2, P3, P4, P5, P6, P7, P8> CreateGenericInvoker<R, U1, U2, U3, U4, U5, U6, U7, U8, P1, P2, P3, P4, P5, P6, P7, P8>(this MethodBase gmethod, Type[] genericTypes = null)
         {
             var rtype = typeof(R);
-            var guessrtype = rtype != typeof(VoidReturn) && rtype != typeof(ByRefParam) ? rtype : null;
+            var guessrtype = rtype != typeof(VoidReturn) && rtype != typeof(ByRefParam) && rtype != typeof(ByRefPtr) ? rtype : null;
             var utypes = new[] { GetRealType<U1, P1>(), GetRealType<U2, P2>(), GetRealType<U3, P3>(), GetRealType<U4, P4>(), GetRealType<U5, P5>(), GetRealType<U6, P6>(), GetRealType<U7, P7>(), GetRealType<U8, P8>() };
             if (genericTypes == null) genericTypes = gmethod.GuessGenericParameters(utypes, returnType: guessrtype, withThis: true);
             var method = gmethod.MakeGenericMethod(genericTypes);
@@ -105,7 +105,7 @@ namespace Mod.LowLevel
         public static UnifiedFunc<R, P1, P2, P3, P4, P5, P6, P7, P8, P9> CreateGenericInvoker<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, P1, P2, P3, P4, P5, P6, P7, P8, P9>(this MethodBase gmethod, Type[] genericTypes = null)
         {
             var rtype = typeof(R);
-            var guessrtype = rtype != typeof(VoidReturn) && rtype != typeof(ByRefParam) ? rtype : null;
+            var guessrtype = rtype != typeof(VoidReturn) && rtype != typeof(ByRefParam) && rtype != typeof(ByRefPtr) ? rtype : null;
             var utypes = new[] { GetRealType<U1, P1>(), GetRealType<U2, P2>(), GetRealType<U3, P3>(), GetRealType<U4, P4>(), GetRealType<U5, P5>(), GetRealType<U6, P6>(), GetRealType<U7, P7>(), GetRealType<U8, P8>(), GetRealType<U9, P9>() };
             if (genericTypes == null) genericTypes = gmethod.GuessGenericParameters(utypes, returnType: guessrtype, withThis: true);
             var method = gmethod.MakeGenericMethod(genericTypes);
@@ -114,7 +114,7 @@ namespace Mod.LowLevel
         public static UnifiedFunc<R, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10> CreateGenericInvoker<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10>(this MethodBase gmethod, Type[] genericTypes = null)
         {
             var rtype = typeof(R);
-            var guessrtype = rtype != typeof(VoidReturn) && rtype != typeof(ByRefParam) ? rtype : null;
+            var guessrtype = rtype != typeof(VoidReturn) && rtype != typeof(ByRefParam) && rtype != typeof(ByRefPtr) ? rtype : null;
             var utypes = new[] { GetRealType<U1, P1>(), GetRealType<U2, P2>(), GetRealType<U3, P3>(), GetRealType<U4, P4>(), GetRealType<U5, P5>(), GetRealType<U6, P6>(), GetRealType<U7, P7>(), GetRealType<U8, P8>(), GetRealType<U9, P9>(), GetRealType<U10, P10>() };
             if (genericTypes == null) genericTypes = gmethod.GuessGenericParameters(utypes, returnType: guessrtype, withThis: true);
             var method = gmethod.MakeGenericMethod(genericTypes);
@@ -123,7 +123,7 @@ namespace Mod.LowLevel
         public static UnifiedFunc<R, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11> CreateGenericInvoker<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11>(this MethodBase gmethod, Type[] genericTypes = null)
         {
             var rtype = typeof(R);
-            var guessrtype = rtype != typeof(VoidReturn) && rtype != typeof(ByRefParam) ? rtype : null;
+            var guessrtype = rtype != typeof(VoidReturn) && rtype != typeof(ByRefParam) && rtype != typeof(ByRefPtr) ? rtype : null;
             var utypes = new[] { GetRealType<U1, P1>(), GetRealType<U2, P2>(), GetRealType<U3, P3>(), GetRealType<U4, P4>(), GetRealType<U5, P5>(), GetRealType<U6, P6>(), GetRealType<U7, P7>(), GetRealType<U8, P8>(), GetRealType<U9, P9>(), GetRealType<U10, P10>(), GetRealType<U11, P11>() };
             if (genericTypes == null) genericTypes = gmethod.GuessGenericParameters(utypes, returnType: guessrtype, withThis: true);
             var method = gmethod.MakeGenericMethod(genericTypes);
@@ -132,7 +132,7 @@ namespace Mod.LowLevel
         public static UnifiedFunc<R, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12> CreateGenericInvoker<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12>(this MethodBase gmethod, Type[] genericTypes = null)
         {
             var rtype = typeof(R);
-            var guessrtype = rtype != typeof(VoidReturn) && rtype != typeof(ByRefParam) ? rtype : null;
+            var guessrtype = rtype != typeof(VoidReturn) && rtype != typeof(ByRefParam) && rtype != typeof(ByRefPtr) ? rtype : null;
             var utypes = new[] { GetRealType<U1, P1>(), GetRealType<U2, P2>(), GetRealType<U3, P3>(), GetRealType<U4, P4>(), GetRealType<U5, P5>(), GetRealType<U6, P6>(), GetRealType<U7, P7>(), GetRealType<U8, P8>(), GetRealType<U9, P9>(), GetRealType<U10, P10>(), GetRealType<U11, P11>(), GetRealType<U12, P12>() };
             if (genericTypes == null) genericTypes = gmethod.GuessGenericParameters(utypes, returnType: guessrtype, withThis: true);
             var method = gmethod.MakeGenericMethod(genericTypes);
@@ -141,7 +141,7 @@ namespace Mod.LowLevel
         public static UnifiedFunc<R, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13> CreateGenericInvoker<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13>(this MethodBase gmethod, Type[] genericTypes = null)
         {
             var rtype = typeof(R);
-            var guessrtype = rtype != typeof(VoidReturn) && rtype != typeof(ByRefParam) ? rtype : null;
+            var guessrtype = rtype != typeof(VoidReturn) && rtype != typeof(ByRefParam) && rtype != typeof(ByRefPtr) ? rtype : null;
             var utypes = new[] { GetRealType<U1, P1>(), GetRealType<U2, P2>(), GetRealType<U3, P3>(), GetRealType<U4, P4>(), GetRealType<U5, P5>(), GetRealType<U6, P6>(), GetRealType<U7, P7>(), GetRealType<U8, P8>(), GetRealType<U9, P9>(), GetRealType<U10, P10>(), GetRealType<U11, P11>(), GetRealType<U12, P12>(), GetRealType<U13, P13>() };
             if (genericTypes == null) genericTypes = gmethod.GuessGenericParameters(utypes, returnType: guessrtype, withThis: true);
             var method = gmethod.MakeGenericMethod(genericTypes);
@@ -150,7 +150,7 @@ namespace Mod.LowLevel
         public static UnifiedFunc<R, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14> CreateGenericInvoker<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14>(this MethodBase gmethod, Type[] genericTypes = null)
         {
             var rtype = typeof(R);
-            var guessrtype = rtype != typeof(VoidReturn) && rtype != typeof(ByRefParam) ? rtype : null;
+            var guessrtype = rtype != typeof(VoidReturn) && rtype != typeof(ByRefParam) && rtype != typeof(ByRefPtr) ? rtype : null;
             var utypes = new[] { GetRealType<U1, P1>(), GetRealType<U2, P2>(), GetRealType<U3, P3>(), GetRealType<U4, P4>(), GetRealType<U5, P5>(), GetRealType<U6, P6>(), GetRealType<U7, P7>(), GetRealType<U8, P8>(), GetRealType<U9, P9>(), GetRealType<U10, P10>(), GetRealType<U11, P11>(), GetRealType<U12, P12>(), GetRealType<U13, P13>(), GetRealType<U14, P14>() };
             if (genericTypes == null) genericTypes = gmethod.GuessGenericParameters(utypes, returnType: guessrtype, withThis: true);
             var method = gmethod.MakeGenericMethod(genericTypes);
@@ -159,7 +159,7 @@ namespace Mod.LowLevel
         public static UnifiedFunc<R, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15> CreateGenericInvoker<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15>(this MethodBase gmethod, Type[] genericTypes = null)
         {
             var rtype = typeof(R);
-            var guessrtype = rtype != typeof(VoidReturn) && rtype != typeof(ByRefParam) ? rtype : null;
+            var guessrtype = rtype != typeof(VoidReturn) && rtype != typeof(ByRefParam) && rtype != typeof(ByRefPtr) ? rtype : null;
             var utypes = new[] { GetRealType<U1, P1>(), GetRealType<U2, P2>(), GetRealType<U3, P3>(), GetRealType<U4, P4>(), GetRealType<U5, P5>(), GetRealType<U6, P6>(), GetRealType<U7, P7>(), GetRealType<U8, P8>(), GetRealType<U9, P9>(), GetRealType<U10, P10>(), GetRealType<U11, P11>(), GetRealType<U12, P12>(), GetRealType<U13, P13>(), GetRealType<U14, P14>(), GetRealType<U15, P15>() };
             if (genericTypes == null) genericTypes = gmethod.GuessGenericParameters(utypes, returnType: guessrtype, withThis: true);
             var method = gmethod.MakeGenericMethod(genericTypes);
@@ -168,7 +168,7 @@ namespace Mod.LowLevel
         public static UnifiedFunc<R, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15, P16> CreateGenericInvoker<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15, P16>(this MethodBase gmethod, Type[] genericTypes = null)
         {
             var rtype = typeof(R);
-            var guessrtype = rtype != typeof(VoidReturn) && rtype != typeof(ByRefParam) ? rtype : null;
+            var guessrtype = rtype != typeof(VoidReturn) && rtype != typeof(ByRefParam) && rtype != typeof(ByRefPtr) ? rtype : null;
             var utypes = new[] { GetRealType<U1, P1>(), GetRealType<U2, P2>(), GetRealType<U3, P3>(), GetRealType<U4, P4>(), GetRealType<U5, P5>(), GetRealType<U6, P6>(), GetRealType<U7, P7>(), GetRealType<U8, P8>(), GetRealType<U9, P9>(), GetRealType<U10, P10>(), GetRealType<U11, P11>(), GetRealType<U12, P12>(), GetRealType<U13, P13>(), GetRealType<U14, P14>(), GetRealType<U15, P15>(), GetRealType<U16, P16>() };
             if (genericTypes == null) genericTypes = gmethod.GuessGenericParameters(utypes, returnType: guessrtype, withThis: true);
             var method = gmethod.MakeGenericMethod(genericTypes);

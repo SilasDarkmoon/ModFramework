@@ -14,6 +14,7 @@ namespace Mod.LowLevel
         [DynamicDependency(DynamicallyAccessedMemberTypes.All, "System.Reflection.Runtime.FieldInfos.NativeFormat.NativeFormatRuntimeFieldInfo", "System.Private.CoreLib")]
         [DynamicDependency(DynamicallyAccessedMemberTypes.All, "System.Reflection.Runtime.MethodInfos.RuntimeMethodInfo", "System.Private.CoreLib")]
         [DynamicDependency(DynamicallyAccessedMemberTypes.All, "System.Delegate", "System.Private.CoreLib")]
+        [DynamicDependency(DynamicallyAccessedMemberTypes.All, "Mod.LowLevel.ByRefPtr", "PointerDelegate")]
 #endif
         public static void Prepare()
         {
