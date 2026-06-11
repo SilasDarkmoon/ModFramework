@@ -123,7 +123,7 @@ public static class TestScript
             var r = RawRef.Of(ref a);
             Console.WriteLine($"{r} -> {invoker("", in a):X}");
         }
-        // value type open instance invoker
+        // Pass2.8 value type open instance invoker
         {
             var inst = new TestFieldsStruct(9, 8, 7, 6, 5, 4);
             var invoker = typeof(TestFieldsStruct).CreateInvoker<VoidReturn, ByRefParam, int, TestFieldsStruct, int>(nameof(TestFieldsStruct.TestValueTypeInstanceMethod));

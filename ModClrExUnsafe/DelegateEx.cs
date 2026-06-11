@@ -275,7 +275,7 @@ namespace Mod.LowLevel
                 private delegate void DelegateCtorDel(object delObj, object target, IntPtr methodHandle);
                 private static DelegateCtorDel _DelegateCtorFuncTemplate;
 
-                private static MethodInfo _MiDummyStatic;
+                //private static MethodInfo _MiDummyStatic;
 
                 private delegate Delegate CreateDelegateInternalDel(Type type, object target, MethodBase method, bool throwOnError);
                 private static CreateDelegateInternalDel _CreateDelegateInternalFunc;
@@ -309,8 +309,8 @@ namespace Mod.LowLevel
                     var coni = typeof(DelegateCtorDel).GetConstructor(new[] { typeof(object), typeof(IntPtr) });
                     _DelegateCtorFuncTemplate = (DelegateCtorDel)coni.Invoke(new[] { (object)null, (object)coni.MethodHandle.Value });
 
-                    Action actDummy = DummyStatic;
-                    _MiDummyStatic = actDummy.Method;
+                    //Action actDummy = DummyStatic;
+                    //_MiDummyStatic = actDummy.Method;
 
                     var micdi = typeof(Delegate).GetMethod("CreateDelegate_internal", BindingFlags.Static | BindingFlags.NonPublic);
                     _CreateDelegateInternalFunc = (CreateDelegateInternalDel)micdi.Invoke(null, new object[] { typeof(CreateDelegateInternalDel), null, micdi, false });
@@ -379,6 +379,51 @@ namespace Mod.LowLevel
                     public IntPtr methodPointerCallByInterp;
                     public IntPtr virtualMethodPointerCallByInterp;
                 }
+                [StructLayout(LayoutKind.Sequential)]
+                public struct Il2CppObjectHeader
+                {
+                    public IntPtr _Class;
+                    public IntPtr _Lock;
+                }
+                [StructLayout(LayoutKind.Sequential)]
+                public struct Il2CppDelegate
+                {
+                    public Il2CppObjectHeader _Header;
+                    /* The compiled code of the target method */
+                    public IntPtr method_ptr;
+                    /* The invoke code */
+                    public IntPtr invoke_impl;
+                    public IntPtr target;
+                    public IntPtr method;
+
+                    // This is used in PlatformInvoke.cpp to store the native function pointer
+                    // IMPORTANT: It is assumed to NULL otherwise!  See PlatformInvoke::IsFakeDelegateMethodMarshaledFromNativeCode
+                    public IntPtr delegate_trampoline;
+
+                    // Used to store the mulicast_invoke_impl
+                    public IntPtr extraArg;
+
+                    /* MONO:
+                     * If non-NULL, this points to a memory location which stores the address of
+                     * the compiled code of the method, or NULL if it is not yet compiled.
+                     * uint8_t **method_code;
+                     */
+                    // IL2CPP: Points to the "this" method pointer we use when calling invoke_impl
+                    // For closed delegates invoke_impl_this points to target and invoke_impl is method pointer so we just do a single indirect call
+                    // For all other delegates invoke_impl_this is points to it's owning delegate an invoke_impl is a delegate invoke stub
+                    // NOTE: This field is NOT VISIBLE to the GC because its not a managed field in the classlibs
+                    //       Our usages are safe becuase we either pointer to ourself or whats stored in the target field
+                    public IntPtr invoke_impl_this;
+
+                    public IntPtr interp_method;
+                    /* Interp method that is executed when invoking the delegate */
+                    public IntPtr interp_invoke_impl;
+                    public IntPtr method_info;
+                    public IntPtr original_method_info;
+                    public IntPtr data;
+
+                    public bool method_is_virtual;
+                }
 
                 public object CreateDelegate(Type delType, MethodBase method)
                 {
@@ -389,46 +434,87 @@ namespace Mod.LowLevel
                         var nconmi = rconnmi.GetRef<HybridClrMethodInfo>();
                         if (nconmi.il2CppInfo.methodPointer == IntPtr.Zero || nconmi.isInterpterImpl)
                         {
-                            return _CreateDelegateInternalFunc(delType, null, method, false);
+                            var rvdel = _CreateDelegateInternalFunc(delType, null, method, false);
+                            _InterpterDelegates.Add(rvdel, "");
+                            return rvdel;
                         }
                     }
                     //else
                     {
+                        //var delcon = (DelegateCtorDel)_DelegateCtorFuncTemplate.Clone();
+                        //delcon.GetField(_FI_Delegate_method_ptr) = rconnmi.GetRef<Il2CppMethodInfo>().methodPointer;
+                        //delcon.GetField(_FI_Delegate_method) = rconnmi.Address;
+                        //delcon.GetField(_FI_Delegate_method_code) = delcon;
+                        //var rvdel = UnsafeEx.GetUninitializedObject(delType);
+                        //if (!method.IsStatic && method.ReflectedType.IsValueType)
+                        //{
+                        //    RawRef rmid = new RawRef() { Address = _MiDummyStatic.MethodHandle.Value };
+                        //    Il2CppMethodInfo cloneddesc = rmid.GetRef<Il2CppMethodInfo>();
+                        //    rmid.SetRef(ref cloneddesc);
+
+                        //    RawRef rmi = new RawRef() { Address = method.MethodHandle.Value };
+                        //    cloneddesc.parameters_count = (byte)(rmi.GetRef<Il2CppMethodInfo>().parameters_count + 1);
+
+                        //    delcon(rvdel, null, rmid.Address);
+
+                        //    rvdel.GetField(_FI_Delegate_method_ptr) = rmi.GetRef<Il2CppMethodInfo>().methodPointer;
+                        //    rvdel.GetField(_FI_Delegate_method) = rmi.Address;
+                        //    rvdel.GetField(_FI_Delegate_method_code) = rvdel;
+                        //    return rvdel;
+                        //}
+                        //else
+                        //{
+                        //    delcon(rvdel, null, method.MethodHandle.Value);
+                        //}
+                        //return rvdel;
+
                         var delcon = (DelegateCtorDel)_DelegateCtorFuncTemplate.Clone();
                         delcon.GetField(_FI_Delegate_method_ptr) = rconnmi.GetRef<Il2CppMethodInfo>().methodPointer;
                         delcon.GetField(_FI_Delegate_method) = rconnmi.Address;
                         delcon.GetField(_FI_Delegate_method_code) = delcon;
                         var rvdel = UnsafeEx.GetUninitializedObject(delType);
+                        delcon(rvdel, null, method.MethodHandle.Value);
+
+                        ref Il2CppDelegate ndel = ref ConvertPretend<Il2CppDelegate>(rvdel);
+                        ref var nmi = ref RawRef.Of(method.MethodHandle.Value).GetRef<Il2CppMethodInfo>();
                         if (!method.IsStatic && method.ReflectedType.IsValueType)
-                        {
-                            RawRef rmid = new RawRef() { Address = _MiDummyStatic.MethodHandle.Value };
-                            Il2CppMethodInfo cloneddesc = rmid.GetRef<Il2CppMethodInfo>();
-                            rmid.SetRef(ref cloneddesc);
-
-                            RawRef rmi = new RawRef() { Address = method.MethodHandle.Value };
-                            cloneddesc.parameters_count = (byte)(rmi.GetRef<Il2CppMethodInfo>().parameters_count + 1);
-
-                            delcon(rvdel, null, rmid.Address);
-
-                            rvdel.GetField(_FI_Delegate_method_ptr) = rmi.GetRef<Il2CppMethodInfo>().methodPointer;
-                            rvdel.GetField(_FI_Delegate_method) = rmi.Address;
-                            rvdel.GetField(_FI_Delegate_method_code) = rvdel;
-                            return rvdel;
-                        }
-                        else
-                        {
-                            delcon(rvdel, null, method.MethodHandle.Value);
-                        }
+                            ndel.method_ptr = nmi.methodPointer;
                         return rvdel;
                     }
                 }
 
-                private static void DummyStatic() { }
+                //private static void DummyStatic() { }
             }
 
             public static Delegate CreateDelegateUnsafe(Type delType, MethodBase method)
             {
                 return (Delegate)_UnsafeWrapper.CreateDelegate(delType, method);
+            }
+
+            public static bool IsInInterpter(MethodBase method)
+            {
+                switch (RuntimeInfo.Runtime)
+                {
+                    case RuntimeInfo.RuntimeCategory.NetCore:
+                    case RuntimeInfo.RuntimeCategory.NetFramework:
+                    case RuntimeInfo.RuntimeCategory.Mono:
+                    case RuntimeInfo.RuntimeCategory.UnityMono:
+                        return true;
+                    case RuntimeInfo.RuntimeCategory.NativeAOT:
+                        return false;
+                    case RuntimeInfo.RuntimeCategory.UnityIl2Cpp:
+                        {
+                            if (!RuntimeInfo.IsHybridCLREnabled) return false;
+                            return RawRef.Of(method.MethodHandle.Value).GetRef<UnsafeDelegateWrapperIl2Cpp.HybridClrMethodInfo>().isInterpterImpl;
+                        }
+                }
+                return false;
+            }
+
+            private static ConditionalWeakTable<Delegate, string> _InterpterDelegates = new ConditionalWeakTable<Delegate, string>();
+            public static bool IsInterpterDelegate(Delegate del)
+            {
+                return _InterpterDelegates.TryGetValue(del, out _);
             }
         }
         public static Delegate CreateDelegateUnsafe(Type delType, MethodBase method)
@@ -712,6 +798,15 @@ namespace Mod.LowLevel
                     GuessGenericParameters(gparmap, guessed, gpars[i], ipars[i]);
                 }
             }
+        }
+
+        public static bool IsInInterpter(this MethodBase method)
+        {
+            return DelegateExImp.IsInInterpter(method);
+        }
+        public static bool IsInterpterDelegate(this Delegate del)
+        {
+            return DelegateExImp.IsInterpterDelegate(del);
         }
         #endregion
     }
