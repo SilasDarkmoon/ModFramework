@@ -17,6 +17,23 @@
             <Type Name="TestScript" Dynamic="Required All" />
             <Type Name="TestScript+TestBaseClass" Dynamic="Required All" />
             <Type Name="TestScript+TestChildClass" Dynamic="Required All" />
+
+            <Type Name="TestScript_UnsafeInstanceDelegate+TestFieldsStruct" Dynamic="Required All">
+                <Method Name="TestGeneric">
+                    <GenericArgument Name="System.IntPtr, System.Private.CoreLib" />
+                </Method>
+            </Type>
+            <Type Name="TestScript_UnsafeInstanceDelegate+TestFieldsClass" Dynamic="Required All" />
+            <Type Name="TestScript_UnsafeInstanceDelegate+TestFieldsStruct`1" Dynamic="Required All" />
+            <Type Name="TestScript_UnsafeInstanceDelegate+TestFieldsClass`1" Dynamic="Required All" />
+            <Type Name="TestScript_UnsafeInstanceDelegate+TestFieldsStruct`1[[System.Int64, System.Private.CoreLib]]">
+                <Method Name="TestGeneric">
+                    <GenericArgument Name="System.IntPtr, System.Private.CoreLib" />
+                </Method>
+            </Type>
+            <Type Name="TestScript_UnsafeInstanceDelegate" Dynamic="Required All" />
+            <Type Name="TestScript_UnsafeInstanceDelegate+TestBaseClass" Dynamic="Required All" />
+            <Type Name="TestScript_UnsafeInstanceDelegate+TestChildClass" Dynamic="Required All" />
         </Assembly>
     </Application>
 </Directives>

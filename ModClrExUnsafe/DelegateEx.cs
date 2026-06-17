@@ -38,11 +38,13 @@ namespace Mod.LowLevel
             private interface IDelegateWrapper
             {
                 object CreateDelegate(Type delType, MethodBase method);
+                object CreateDelegate(Type delType, object target, MethodBase method);
             }
 
             private abstract class UnsafeDelegateWrapperBase : IDelegateWrapper
             {
                 public abstract object CreateDelegate(Type delType, MethodBase method);
+                public abstract object CreateDelegate(Type delType, object target, MethodBase method);
             }
 
             private class UnsafeDelegateWrapperCore : UnsafeDelegateWrapperBase
@@ -94,6 +96,10 @@ namespace Mod.LowLevel
 
                 public override object CreateDelegate(Type delType, MethodBase method)
                 {
+                    return CreateDelegate(delType, null, method);
+                }
+                public override object CreateDelegate(Type delType, object target, MethodBase method)
+                {
                     try
                     {
                         RuntimeHelpers.PrepareMethod(method.MethodHandle);
@@ -132,13 +138,13 @@ namespace Mod.LowLevel
                     delcon.GetField(fi_target) = delcon;
 
                     var rvdel = (Delegate)UnsafeEx.GetUninitializedObject(delType);
-                    delcon(rvdel, null, fn);
+                    delcon(rvdel, target, fn);
                     rvdel.GetField(fi_methodPtrAux) = fn; // reset the methodPtrAux to avoid virtual searching.
                     return rvdel;
                 }
             }
 
-            private class UnsafeDelegateWrapperNativeAOT : IDelegateWrapper
+            private class UnsafeDelegateWrapperNativeAOT : UnsafeDelegateWrapperBase
             {
                 private delegate Delegate CreateDelegateWithoutSignatureValidationDel(MethodInfo thiz, Type delType, object target, bool isStatic, bool isOpen);
                 private static CreateDelegateWithoutSignatureValidationDel _CreateDelegateWithoutSignatureValidationFunc;
@@ -164,7 +170,7 @@ namespace Mod.LowLevel
                     _UnsafeCreateDelegateFunc = (UnsafeCreateDelegateDel)_CreateDelegateWithoutSignatureValidationFunc(cdmi, typeof(UnsafeCreateDelegateDel), null, true, true);
                 }
 
-                public object CreateDelegate(Type delType, MethodBase method)
+                public override object CreateDelegate(Type delType, MethodBase method)
                 {
                     if (method is MethodInfo mi)
                     {
@@ -196,6 +202,13 @@ namespace Mod.LowLevel
                         var rvdel = _UnsafeCreateDelegateFunc(delType.TypeHandle.Value, fn, null, true, true);
                         return rvdel;
                     }
+                }
+                public override object CreateDelegate(Type delType, object target, MethodBase method)
+                {
+                    RuntimeHelpers.PrepareMethod(method.MethodHandle);
+                    var fn = method.MethodHandle.GetFunctionPointer();
+                    var rvdel = _UnsafeCreateDelegateFunc(delType.TypeHandle.Value, fn, target, false, false);
+                    return rvdel;
                 }
             }
 
@@ -241,28 +254,30 @@ namespace Mod.LowLevel
 
                 public override object CreateDelegate(Type delType, MethodBase method)
                 {
-                    {
-                        RuntimeHelpers.PrepareMethod(method.MethodHandle);
-                        var fn = method.MethodHandle.GetFunctionPointer();
+                    return CreateDelegate(delType, null, method);
+                }
+                public override object CreateDelegate(Type delType, object target, MethodBase method)
+                {
+                    RuntimeHelpers.PrepareMethod(method.MethodHandle);
+                    var fn = method.MethodHandle.GetFunctionPointer();
 
-                        var condeli = delType.GetConstructor(new[] { typeof(object), typeof(IntPtr) });
-                        var hcondel = condeli.MethodHandle;
-                        RuntimeHelpers.PrepareMethod(hcondel);
-                        var fncondel = hcondel.GetFunctionPointer();
-                        var delcon = (DelegateCtorDel)_DelegateCtorFuncTemplate.Clone();
-                        delcon.GetField(FI_Delegate_method_ptr) = fncondel;
+                    var condeli = delType.GetConstructor(new[] { typeof(object), typeof(IntPtr) });
+                    var hcondel = condeli.MethodHandle;
+                    RuntimeHelpers.PrepareMethod(hcondel);
+                    var fncondel = hcondel.GetFunctionPointer();
+                    var delcon = (DelegateCtorDel)_DelegateCtorFuncTemplate.Clone();
+                    delcon.GetField(FI_Delegate_method_ptr) = fncondel;
 
-                        var rvdel = (Delegate)UnsafeEx.GetUninitializedObject(delType);
-                        delcon(rvdel, null, IntPtr.Zero + 1); // use 1 as fn address to force it generate a static call
-                        rvdel.GetField(FI_Delegate_method_ptr) = fn;
-                        rvdel.GetField(FI_Delegate_method) = IntPtr.Zero;
-                        rvdel.GetField(FI_Delegate_method_info) = null;
-                        return rvdel;
-                    }
+                    var rvdel = (Delegate)UnsafeEx.GetUninitializedObject(delType);
+                    delcon(rvdel, target, IntPtr.Zero + 1); // use 1 as fn address to force it generate a static call
+                    rvdel.GetField(FI_Delegate_method_ptr) = fn;
+                    rvdel.GetField(FI_Delegate_method) = IntPtr.Zero;
+                    rvdel.GetField(FI_Delegate_method_info) = null;
+                    return rvdel;
                 }
             }
 
-            private class UnsafeDelegateWrapperIl2Cpp : IDelegateWrapper
+            private class UnsafeDelegateWrapperIl2Cpp : UnsafeDelegateWrapperBase
             {
 #pragma warning disable IDE1006 // 命名样式
                 protected static FieldIndicator<IntPtr> _FI_Delegate_method_ptr;
@@ -333,6 +348,12 @@ namespace Mod.LowLevel
                     public byte parameters_count;
                     public byte exflags;
 
+                    public bool is_static
+                    {
+                        get => (flags & 0x0010) != 0;
+                        set => _ = value ? flags |= 0x0010 : (flags &= unchecked((ushort)~0x0010));
+                    }
+
                     public bool is_generic
                     {
                         get => (exflags & 1) != 0;
@@ -401,7 +422,7 @@ namespace Mod.LowLevel
                     public bool method_is_virtual;
                 }
 
-                public object CreateDelegate(Type delType, MethodBase method)
+                public override object CreateDelegate(Type delType, MethodBase method)
                 {
                     var con = delType.GetConstructor(new[] { typeof(object), typeof(IntPtr) });
                     RawRef rconnmi = new RawRef() { Address = con.MethodHandle.Value };
@@ -433,11 +454,42 @@ namespace Mod.LowLevel
                         return rvdel;
                     }
                 }
+                public override object CreateDelegate(Type delType, object target, MethodBase method)
+                {
+                    var con = delType.GetConstructor(new[] { typeof(object), typeof(IntPtr) });
+                    RawRef rconnmi = new RawRef() { Address = con.MethodHandle.Value };
+                    if (RuntimeInfo.IsHybridCLREnabled)
+                    { // hybrid clr
+                        var nconmi = rconnmi.GetRef<HybridClrMethodInfo>();
+                        if (nconmi.il2CppInfo.methodPointer == IntPtr.Zero || nconmi.isInterpterImpl)
+                        {
+                            var rvdel = _CreateDelegateInternalFunc(delType, null, method, false);
+                            rvdel.GetField(_FI_Delegate_m_target) = target;
+                            rvdel.GetField(_FI_Delegate_method_code) = target;
+                            return rvdel;
+                        }
+                    }
+                    //else
+                    {
+                        var delcon = (DelegateCtorDel)_DelegateCtorFuncTemplate.Clone();
+                        delcon.GetField(_FI_Delegate_method_ptr) = rconnmi.GetRef<Il2CppMethodInfo>().methodPointer;
+                        delcon.GetField(_FI_Delegate_method) = rconnmi.Address;
+                        delcon.GetField(_FI_Delegate_method_code) = delcon;
+
+                        var rvdel = UnsafeEx.GetUninitializedObject(delType);
+                        delcon(rvdel, target, method.MethodHandle.Value);
+                        return rvdel;
+                    }
+                }
             }
 
             public static Delegate CreateDelegateUnsafe(Type delType, MethodBase method)
             {
                 return (Delegate)_UnsafeWrapper.CreateDelegate(delType, method);
+            }
+            public static Delegate CreateDelegateUnsafe(Type delType, object target, MethodBase method)
+            {
+                return (Delegate)_UnsafeWrapper.CreateDelegate(delType, target, method);
             }
 
             public static bool IsInInterpter(MethodBase method)
@@ -467,6 +519,10 @@ namespace Mod.LowLevel
         public static T CreateDelegateUnsafe<T>(this MethodBase method) where T : Delegate
         {
             return (T)DelegateExImp.CreateDelegateUnsafe(typeof(T), method);
+        }
+        public static T CreateDelegateUnsafe<T>(this object target, MethodBase method) where T : Delegate
+        {
+            return (T)DelegateExImp.CreateDelegateUnsafe(typeof(T), target, method);
         }
         public static bool IsGenericParameterCompatiable(Type gtype, Type itype)
         {
