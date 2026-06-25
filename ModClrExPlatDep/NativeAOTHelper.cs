@@ -15,6 +15,22 @@ namespace Mod.LowLevel
         [DynamicDependency(DynamicallyAccessedMemberTypes.All, "System.Reflection.Runtime.MethodInfos.RuntimeMethodInfo", "System.Private.CoreLib")]
         [DynamicDependency(DynamicallyAccessedMemberTypes.All, "System.Delegate", "System.Private.CoreLib")]
         [DynamicDependency(DynamicallyAccessedMemberTypes.All, "Mod.LowLevel.ByRefPtr", "PointerDelegate")]
+        [DynamicDependency(DynamicallyAccessedMemberTypes.All, "Mod.DelegateCurry.CurryWrapper`2", "ModClrEx")]
+        [DynamicDependency(DynamicallyAccessedMemberTypes.All, "Mod.DelegateCurry.CurryWrapper`3", "ModClrEx")]
+        [DynamicDependency(DynamicallyAccessedMemberTypes.All, "Mod.DelegateCurry.CurryWrapper`4", "ModClrEx")]
+        [DynamicDependency(DynamicallyAccessedMemberTypes.All, "Mod.DelegateCurry.CurryWrapper`5", "ModClrEx")]
+        [DynamicDependency(DynamicallyAccessedMemberTypes.All, "Mod.DelegateCurry.CurryWrapper`6", "ModClrEx")]
+        [DynamicDependency(DynamicallyAccessedMemberTypes.All, "Mod.DelegateCurry.CurryWrapper`7", "ModClrEx")]
+        [DynamicDependency(DynamicallyAccessedMemberTypes.All, "Mod.DelegateCurry.CurryWrapper`8", "ModClrEx")]
+        [DynamicDependency(DynamicallyAccessedMemberTypes.All, "Mod.DelegateCurry.CurryWrapper`9", "ModClrEx")]
+        [DynamicDependency(DynamicallyAccessedMemberTypes.All, "Mod.DelegateCurry.CurryWrapper`10", "ModClrEx")]
+        [DynamicDependency(DynamicallyAccessedMemberTypes.All, "Mod.DelegateCurry.CurryWrapper`11", "ModClrEx")]
+        [DynamicDependency(DynamicallyAccessedMemberTypes.All, "Mod.DelegateCurry.CurryWrapper`12", "ModClrEx")]
+        [DynamicDependency(DynamicallyAccessedMemberTypes.All, "Mod.DelegateCurry.CurryWrapper`13", "ModClrEx")]
+        [DynamicDependency(DynamicallyAccessedMemberTypes.All, "Mod.DelegateCurry.CurryWrapper`14", "ModClrEx")]
+        [DynamicDependency(DynamicallyAccessedMemberTypes.All, "Mod.DelegateCurry.CurryWrapper`15", "ModClrEx")]
+        [DynamicDependency(DynamicallyAccessedMemberTypes.All, "Mod.DelegateCurry.CurryWrapper`16", "ModClrEx")]
+        [DynamicDependency(DynamicallyAccessedMemberTypes.All, "Mod.DelegateCurry.CurryWrapper`17", "ModClrEx")]
 #endif
         public static void Prepare()
         {

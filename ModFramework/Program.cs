@@ -22,6 +22,8 @@ class Program
     public static void Main()
     {
         //TestScript.Test();
-        TestScript_UnsafeInstanceDelegate.Test();
+        //TestScript_UnsafeInstanceDelegate.Test();
+        //TestScript_DelegateCurry.Test();
+        TestScript_WeakEvent.Test();
     }
 }

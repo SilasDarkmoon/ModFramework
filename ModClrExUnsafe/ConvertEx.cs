@@ -115,11 +115,43 @@ namespace Mod.LowLevel
             }
         }
 
-        //public static D Overwrite<D, S>(ref D dst, S src)
-        //{
-        //    //ref byte dstRef, srcRef;
-
-        //    return dst;
-        //}
+        public static object ConvertedClone(this object src, Type totype)
+        {
+            if (src == null) return null;
+            object rv = GetUninitializedObject(totype);
+            MemCopy(rv, src);
+            return rv;
+        }
+        public static T ConvertedClone<T>(this object src)
+        {
+            if (src == null) return default(T);
+            T rv = GetUninitialized<T>();
+            MemCopy(ref GetHeadRefCommon(ref rv), 0, ref src.GetHeadRef(), 0, Math.Min(Size<T>(), Size(src)));
+            return rv;
+        }
+        public static T ConvertedClone<S, T>(this S src)
+        {
+            if (!typeof(S).IsValueType)
+            {
+                if (src == null) return default(T);
+            }
+            T rv = GetUninitialized<T>();
+            MemCopy(ref GetHeadRefCommon(ref rv), 0, ref GetHeadRefCommon(ref src), 0, Math.Min(Size<T>(), Size<S>()));
+            return rv;
+        }
+        public static T ConvertedClone<S, T>(this S src, TypeIndicator<T> indicator)
+        {
+            return ConvertedClone<S, T>(src);
+        }
+        public static T ConvertedClone<S, T>(this ref S src) where S : struct
+        {
+            T rv = GetUninitialized<T>();
+            MemCopy(ref GetHeadRefCommon(ref rv), 0, ref src.GetHeadRef(), 0, Math.Min(Size<T>(), Size<S>()));
+            return rv;
+        }
+        public static T ConvertedClone<S, T>(this ref S src, TypeIndicator<T> indicator) where S : struct
+        {
+            return ConvertedClone<S, T>(ref src);
+        }
     }
 }

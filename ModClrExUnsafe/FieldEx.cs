@@ -840,4 +840,13 @@ namespace Mod.LowLevel
             return _Offset.CompareTo(other);
         }
     }
+
+    public static class TypeIndicator
+    {
+        public static TypeIndicator<T> Of<T>()
+        {
+            return new TypeIndicator<T>();
+        }
+    }
+    public struct TypeIndicator<T> { }
 }

@@ -39,12 +39,14 @@ namespace Mod.LowLevel
             {
                 object CreateDelegate(Type delType, MethodBase method);
                 object CreateDelegate(Type delType, object target, MethodBase method);
+                Delegate ChangeTarget(Delegate del, object target);
             }
 
             private abstract class UnsafeDelegateWrapperBase : IDelegateWrapper
             {
                 public abstract object CreateDelegate(Type delType, MethodBase method);
                 public abstract object CreateDelegate(Type delType, object target, MethodBase method);
+                public abstract Delegate ChangeTarget(Delegate del, object target);
             }
 
             private class UnsafeDelegateWrapperCore : UnsafeDelegateWrapperBase
@@ -56,11 +58,20 @@ namespace Mod.LowLevel
                     public IntPtr SyncAddress;
                 }
 
+                //[StructLayout(LayoutKind.Sequential)]
+                //protected class DelegateStub
+                //{
+                //    public object _target;
+                //    public object _methodBase;
+                //    public IntPtr _methodPtr;
+                //    public IntPtr _methodPtrAux;
+                //}
+
 #pragma warning disable IDE1006 // 命名样式
-                protected static FieldIndicator<IntPtr> fi_methodPtr;
-                protected static FieldIndicator<IntPtr> fi_methodPtrAux;
                 protected static FieldIndicator<object> fi_target;
                 protected static FieldIndicator<object> fi_methodBase;
+                protected static FieldIndicator<IntPtr> fi_methodPtr;
+                protected static FieldIndicator<IntPtr> fi_methodPtrAux;
 #pragma warning restore IDE1006 // 命名样式
 
                 static UnsafeDelegateWrapperCore()
@@ -142,6 +153,11 @@ namespace Mod.LowLevel
                     rvdel.GetField(fi_methodPtrAux) = fn; // reset the methodPtrAux to avoid virtual searching.
                     return rvdel;
                 }
+                public override Delegate ChangeTarget(Delegate del, object target)
+                {
+                    del.GetField(fi_target) = target;
+                    return del;
+                }
             }
 
             private class UnsafeDelegateWrapperNativeAOT : UnsafeDelegateWrapperBase
@@ -210,6 +226,20 @@ namespace Mod.LowLevel
                     var rvdel = _UnsafeCreateDelegateFunc(delType.TypeHandle.Value, fn, target, false, false);
                     return rvdel;
                 }
+
+                //[StructLayout(LayoutKind.Sequential)]
+                //protected class DelegateStub
+                //{
+                //    public object _firstParameter;
+                //    public object _helperObject;
+                //    public IntPtr _extraFunctionPointerOrData;
+                //    public IntPtr _functionPointer;
+                //}
+                public override Delegate ChangeTarget(Delegate del, object target)
+                {
+                    del.GetField<object>(0) = target;
+                    return del;
+                }
             }
 
             private class UnsafeDelegateWrapperMono : UnsafeDelegateWrapperBase
@@ -219,6 +249,8 @@ namespace Mod.LowLevel
                 protected static FieldIndicator<IntPtr> FI_Delegate_method;
                 protected static FieldIndicator<IntPtr> FI_Delegate_invoke_impl;
                 protected static FieldIndicator<object> FI_Delegate_method_info;
+                protected static FieldIndicator<object> FI_Delegate_m_target;
+                protected static FieldIndicator<object> FI_Delegate_method_code;
 #pragma warning restore IDE1006 // 命名样式
 
                 static UnsafeDelegateWrapperMono()
@@ -241,6 +273,14 @@ namespace Mod.LowLevel
                         {
                             FI_Delegate_method_info = field.GetFieldOffset();
                         }
+                        else if (field.Name == "m_target")
+                        {
+                            FI_Delegate_m_target = field.GetFieldOffset();
+                        }
+                        else if (field.Name == "method_code")
+                        {
+                            FI_Delegate_method_code = field.GetFieldOffset();
+                        }
                     }
 
                     var coni = typeof(DelegateCtorDel).GetConstructor(new[] { typeof(object), typeof(IntPtr) });
@@ -254,7 +294,22 @@ namespace Mod.LowLevel
 
                 public override object CreateDelegate(Type delType, MethodBase method)
                 {
-                    return CreateDelegate(delType, null, method);
+                    RuntimeHelpers.PrepareMethod(method.MethodHandle);
+                    var fn = method.MethodHandle.GetFunctionPointer();
+
+                    var condeli = delType.GetConstructor(new[] { typeof(object), typeof(IntPtr) });
+                    var hcondel = condeli.MethodHandle;
+                    RuntimeHelpers.PrepareMethod(hcondel);
+                    var fncondel = hcondel.GetFunctionPointer();
+                    var delcon = (DelegateCtorDel)_DelegateCtorFuncTemplate.Clone();
+                    delcon.GetField(FI_Delegate_method_ptr) = fncondel;
+
+                    var rvdel = (Delegate)UnsafeEx.GetUninitializedObject(delType);
+                    delcon(rvdel, null, IntPtr.Zero + 1); // use 1 as fn address to force it generate a static call
+                    rvdel.GetField(FI_Delegate_method_ptr) = fn;
+                    rvdel.GetField(FI_Delegate_method) = IntPtr.Zero;
+                    rvdel.GetField(FI_Delegate_method_info) = null;
+                    return rvdel;
                 }
                 public override object CreateDelegate(Type delType, object target, MethodBase method)
                 {
@@ -269,11 +324,22 @@ namespace Mod.LowLevel
                     delcon.GetField(FI_Delegate_method_ptr) = fncondel;
 
                     var rvdel = (Delegate)UnsafeEx.GetUninitializedObject(delType);
-                    delcon(rvdel, target, IntPtr.Zero + 1); // use 1 as fn address to force it generate a static call
-                    rvdel.GetField(FI_Delegate_method_ptr) = fn;
-                    rvdel.GetField(FI_Delegate_method) = IntPtr.Zero;
-                    rvdel.GetField(FI_Delegate_method_info) = null;
+                    delcon(rvdel, target, fn);
+                    //rvdel.GetField(FI_Delegate_method_ptr) = fn;
+                    //rvdel.GetField(FI_Delegate_method) = IntPtr.Zero;
+                    //rvdel.GetField(FI_Delegate_method_info) = null;
                     return rvdel;
+                }
+                public override Delegate ChangeTarget(Delegate del, object target)
+                {
+                    var oldtarget = del.GetField(FI_Delegate_m_target);
+                    var oldmethodcode = del.GetField(FI_Delegate_method_code);
+                    del.GetField(FI_Delegate_m_target) = target;
+                    if (oldtarget == oldmethodcode)
+                    {
+                        del.GetField(FI_Delegate_method_code) = target;
+                    }
+                    return del;
                 }
             }
 
@@ -481,6 +547,18 @@ namespace Mod.LowLevel
                         return rvdel;
                     }
                 }
+                public override Delegate ChangeTarget(Delegate del, object target)
+                {
+                    var oldtarget = del.GetField(_FI_Delegate_m_target);
+                    var oldmethodcode = del.GetField(_FI_Delegate_method_code);
+                    del.GetField(_FI_Delegate_m_target) = target;
+                    if (oldtarget == oldmethodcode)
+                    {
+                        del.GetField(_FI_Delegate_method_code) = target;
+                    }
+                    return del;
+                }
+
             }
 
             public static Delegate CreateDelegateUnsafe(Type delType, MethodBase method)
@@ -490,6 +568,10 @@ namespace Mod.LowLevel
             public static Delegate CreateDelegateUnsafe(Type delType, object target, MethodBase method)
             {
                 return (Delegate)_UnsafeWrapper.CreateDelegate(delType, target, method);
+            }
+            public static Delegate ChangeTarget(Delegate del, object target)
+            {
+                return _UnsafeWrapper.ChangeTarget(del, target);
             }
 
             public static bool IsInInterpter(MethodBase method)
@@ -516,6 +598,14 @@ namespace Mod.LowLevel
         {
             return DelegateExImp.CreateDelegateUnsafe(delType, method);
         }
+        public static Delegate CreateDelegateUnsafe(Type delType, object target, MethodBase method)
+        {
+            return DelegateExImp.CreateDelegateUnsafe(delType, target, method);
+        }
+        public static Delegate ChangeTarget(Delegate del, object target)
+        {
+            return DelegateExImp.ChangeTarget(del, target);
+        }
         public static T CreateDelegateUnsafe<T>(this MethodBase method) where T : Delegate
         {
             return (T)DelegateExImp.CreateDelegateUnsafe(typeof(T), method);
@@ -524,6 +614,11 @@ namespace Mod.LowLevel
         {
             return (T)DelegateExImp.CreateDelegateUnsafe(typeof(T), target, method);
         }
+        public static T ChangeTarget<T>(this T del, object target) where T : Delegate
+        {
+            return (T)DelegateExImp.ChangeTarget(del, target);
+        }
+
         public static bool IsGenericParameterCompatiable(Type gtype, Type itype)
         {
             if (gtype.IsGenericParameter)

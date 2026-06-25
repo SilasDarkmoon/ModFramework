@@ -75,6 +75,15 @@ public static class TestScript_UnsafeInstanceDelegate
             var del = inst.CreateDelegateUnsafe<Func<int>>(mi);
             Console.WriteLine(del());
         }
+        // Pass7
+        { // change target
+            var mi = typeof(TestFieldsStruct<int>).GetMethod(nameof(TestFieldsStruct<int>.GetField0));
+            var inst = new TestFieldsStruct<int>(4, 5, 6, 7, 8, 9);
+            var del = inst.CreateDelegateUnsafe<Func<int>>(mi);
+            var inst2 = new TestFieldsStruct<int>(40, 50, 60, 70, 80, 90);
+            del.ChangeTarget(inst2);
+            Console.WriteLine(del());
+        }
         Console.WriteLine("---------------------------------------------------------------------");
         #endregion
     }

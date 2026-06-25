@@ -1,0 +1,91 @@
+using Mod;
+using Mod.LowLevel;
+using System;
+using System.Collections.Generic;
+using System.Runtime.CompilerServices;
+using System.Text;
+
+public static class TestScript_WeakEvent
+{
+    public static void Test()
+    {
+#if NET7_0_OR_GREATER
+        if (RuntimeInfo.IsNativeAOT)
+        {
+            NativeAOTHelper.Prepare();
+        }
+#endif
+
+        #region Test For WeakEvent
+        TestEvent += TestMethod;
+        _Instance = new TestClass() { x = 10 };
+        TestEvent += _Instance.TestMethod;
+        var inst = new TestClass() { x = 100 };
+        TestEvent += y => Console.WriteLine($"Lambda => {inst.x - y}");
+        _TestEvent.TrigEvent(6);
+
+        Console.WriteLine("---------------------------------------------------------------------------------------");
+
+        TestEvent -= TestMethod;
+        TestEvent -= _Instance.TestMethod;
+        _TestEvent.TrigEvent(6);
+
+        Console.WriteLine("---------------------------------------------------------------------------------------");
+
+        TestEvent += TestMethod;
+        TestEvent += _Instance.TestMethod;
+        _TestEvent.TrigEvent(6);
+
+        Console.WriteLine("-------------------------------Waiting For GC------------------------------------------");
+        inst = null;
+        _Instance = null;
+        System.Threading.Thread.Sleep(2000);
+        inst = null;
+        _Instance = null;
+        System.Runtime.GCSettings.LargeObjectHeapCompactionMode = System.Runtime.GCLargeObjectHeapCompactionMode.CompactOnce;
+        System.GC.Collect(2, GCCollectionMode.Forced, true, true);
+        System.GC.WaitForFullGCComplete();
+        System.Runtime.GCSettings.LargeObjectHeapCompactionMode = System.Runtime.GCLargeObjectHeapCompactionMode.CompactOnce;
+        System.GC.Collect(2, GCCollectionMode.Forced, true, true);
+        System.GC.WaitForFullGCComplete();
+        System.Runtime.GCSettings.LargeObjectHeapCompactionMode = System.Runtime.GCLargeObjectHeapCompactionMode.CompactOnce;
+        System.GC.Collect(2, GCCollectionMode.Forced, true, true);
+        System.GC.WaitForFullGCComplete();
+        System.Threading.Thread.Sleep(2000);
+        Console.WriteLine("---------------------------------------------------------------------------------------");
+
+        _TestEvent.TrigEvent(6);
+
+        #endregion
+    }
+
+    private static WeakDelegate.WeakEvent<VoidReturn, int> _TestEvent = new WeakDelegate.WeakEvent<VoidReturn, int>();
+    public delegate void TestEventHandler(int x);
+    public static event TestEventHandler TestEvent
+    {
+        add
+        {
+            _TestEvent.AddListener(value);
+        }
+        remove
+        {
+            _TestEvent.RemoveListener(value);
+        }
+    }
+
+    private static TestClass _Instance;
+
+    public static void TestMethod(int y)
+    {
+        Console.WriteLine($"{nameof(TestScript_WeakEvent)}.{nameof(TestMethod)} => {y * y}");
+    }
+
+    public class TestClass
+    {
+        public int x;
+        public void TestMethod(int y)
+        {
+            Console.WriteLine($"{nameof(TestClass)}.{nameof(TestMethod)} => {x * y}");
+        }
+    }
+}

@@ -16,7 +16,12 @@
     <PropertyGroup Condition="'$(TargetFramework)' == 'net48'">
         <PublishAot>false</PublishAot>
     </PropertyGroup>
-  <ItemGroup>
+
+    <PropertyGroup>
+        <ServerGarbageCollection>true</ServerGarbageCollection>
+    </PropertyGroup>
+
+    <ItemGroup>
     <ProjectReference Include="..\ModClrEx\ModClrEx.csproj" />
   </ItemGroup>
 
