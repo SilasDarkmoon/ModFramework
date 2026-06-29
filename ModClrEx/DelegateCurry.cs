@@ -330,11 +330,11 @@ namespace Mod
             {
                 if (typeof(R) == typeof(VoidReturn))
                 {
-                    _InnerAct = del.ConvertedClone<Action<U1>>();
+                    _InnerAct = del.ChangeDelegateType<Action<U1>>();
                 }
                 else
                 {
-                    _InnerFunc = del.ConvertedClone<Func<U1, R>>();
+                    _InnerFunc = del.ChangeDelegateType<Func<U1, R>>();
                 }
             }
             public CurryWrapper() { }
@@ -369,11 +369,11 @@ namespace Mod
             {
                 if (typeof(R) == typeof(VoidReturn))
                 {
-                    _InnerAct = del.ConvertedClone<Action<U1, U2>>();
+                    _InnerAct = del.ChangeDelegateType<Action<U1, U2>>();
                 }
                 else
                 {
-                    _InnerFunc = del.ConvertedClone<Func<U1, U2, R>>();
+                    _InnerFunc = del.ChangeDelegateType<Func<U1, U2, R>>();
                 }
             }
             public CurryWrapper() { }
@@ -408,11 +408,11 @@ namespace Mod
             {
                 if (typeof(R) == typeof(VoidReturn))
                 {
-                    _InnerAct = del.ConvertedClone<Action<U1, U2, U3>>();
+                    _InnerAct = del.ChangeDelegateType<Action<U1, U2, U3>>();
                 }
                 else
                 {
-                    _InnerFunc = del.ConvertedClone<Func<U1, U2, U3, R>>();
+                    _InnerFunc = del.ChangeDelegateType<Func<U1, U2, U3, R>>();
                 }
             }
             public CurryWrapper() { }
@@ -447,11 +447,11 @@ namespace Mod
             {
                 if (typeof(R) == typeof(VoidReturn))
                 {
-                    _InnerAct = del.ConvertedClone<Action<U1, U2, U3, U4>>();
+                    _InnerAct = del.ChangeDelegateType<Action<U1, U2, U3, U4>>();
                 }
                 else
                 {
-                    _InnerFunc = del.ConvertedClone<Func<U1, U2, U3, U4, R>>();
+                    _InnerFunc = del.ChangeDelegateType<Func<U1, U2, U3, U4, R>>();
                 }
             }
             public CurryWrapper() { }
@@ -486,11 +486,11 @@ namespace Mod
             {
                 if (typeof(R) == typeof(VoidReturn))
                 {
-                    _InnerAct = del.ConvertedClone<Action<U1, U2, U3, U4, U5>>();
+                    _InnerAct = del.ChangeDelegateType<Action<U1, U2, U3, U4, U5>>();
                 }
                 else
                 {
-                    _InnerFunc = del.ConvertedClone<Func<U1, U2, U3, U4, U5, R>>();
+                    _InnerFunc = del.ChangeDelegateType<Func<U1, U2, U3, U4, U5, R>>();
                 }
             }
             public CurryWrapper() { }
@@ -525,11 +525,11 @@ namespace Mod
             {
                 if (typeof(R) == typeof(VoidReturn))
                 {
-                    _InnerAct = del.ConvertedClone<Action<U1, U2, U3, U4, U5, U6>>();
+                    _InnerAct = del.ChangeDelegateType<Action<U1, U2, U3, U4, U5, U6>>();
                 }
                 else
                 {
-                    _InnerFunc = del.ConvertedClone<Func<U1, U2, U3, U4, U5, U6, R>>();
+                    _InnerFunc = del.ChangeDelegateType<Func<U1, U2, U3, U4, U5, U6, R>>();
                 }
             }
             public CurryWrapper() { }
@@ -564,11 +564,11 @@ namespace Mod
             {
                 if (typeof(R) == typeof(VoidReturn))
                 {
-                    _InnerAct = del.ConvertedClone<Action<U1, U2, U3, U4, U5, U6, U7>>();
+                    _InnerAct = del.ChangeDelegateType<Action<U1, U2, U3, U4, U5, U6, U7>>();
                 }
                 else
                 {
-                    _InnerFunc = del.ConvertedClone<Func<U1, U2, U3, U4, U5, U6, U7, R>>();
+                    _InnerFunc = del.ChangeDelegateType<Func<U1, U2, U3, U4, U5, U6, U7, R>>();
                 }
             }
             public CurryWrapper() { }
@@ -603,11 +603,11 @@ namespace Mod
             {
                 if (typeof(R) == typeof(VoidReturn))
                 {
-                    _InnerAct = del.ConvertedClone<Action<U1, U2, U3, U4, U5, U6, U7, U8>>();
+                    _InnerAct = del.ChangeDelegateType<Action<U1, U2, U3, U4, U5, U6, U7, U8>>();
                 }
                 else
                 {
-                    _InnerFunc = del.ConvertedClone<Func<U1, U2, U3, U4, U5, U6, U7, U8, R>>();
+                    _InnerFunc = del.ChangeDelegateType<Func<U1, U2, U3, U4, U5, U6, U7, U8, R>>();
                 }
             }
             public CurryWrapper() { }
@@ -642,11 +642,11 @@ namespace Mod
             {
                 if (typeof(R) == typeof(VoidReturn))
                 {
-                    _InnerAct = del.ConvertedClone<Action<U1, U2, U3, U4, U5, U6, U7, U8, U9>>();
+                    _InnerAct = del.ChangeDelegateType<Action<U1, U2, U3, U4, U5, U6, U7, U8, U9>>();
                 }
                 else
                 {
-                    _InnerFunc = del.ConvertedClone<Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, R>>();
+                    _InnerFunc = del.ChangeDelegateType<Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, R>>();
                 }
             }
             public CurryWrapper() { }
@@ -681,11 +681,11 @@ namespace Mod
             {
                 if (typeof(R) == typeof(VoidReturn))
                 {
-                    _InnerAct = del.ConvertedClone<Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10>>();
+                    _InnerAct = del.ChangeDelegateType<Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10>>();
                 }
                 else
                 {
-                    _InnerFunc = del.ConvertedClone<Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, R>>();
+                    _InnerFunc = del.ChangeDelegateType<Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, R>>();
                 }
             }
             public CurryWrapper() { }
@@ -720,11 +720,11 @@ namespace Mod
             {
                 if (typeof(R) == typeof(VoidReturn))
                 {
-                    _InnerAct = del.ConvertedClone<Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11>>();
+                    _InnerAct = del.ChangeDelegateType<Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11>>();
                 }
                 else
                 {
-                    _InnerFunc = del.ConvertedClone<Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, R>>();
+                    _InnerFunc = del.ChangeDelegateType<Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, R>>();
                 }
             }
             public CurryWrapper() { }
@@ -759,11 +759,11 @@ namespace Mod
             {
                 if (typeof(R) == typeof(VoidReturn))
                 {
-                    _InnerAct = del.ConvertedClone<Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12>>();
+                    _InnerAct = del.ChangeDelegateType<Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12>>();
                 }
                 else
                 {
-                    _InnerFunc = del.ConvertedClone<Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, R>>();
+                    _InnerFunc = del.ChangeDelegateType<Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, R>>();
                 }
             }
             public CurryWrapper() { }
@@ -798,11 +798,11 @@ namespace Mod
             {
                 if (typeof(R) == typeof(VoidReturn))
                 {
-                    _InnerAct = del.ConvertedClone<Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13>>();
+                    _InnerAct = del.ChangeDelegateType<Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13>>();
                 }
                 else
                 {
-                    _InnerFunc = del.ConvertedClone<Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, R>>();
+                    _InnerFunc = del.ChangeDelegateType<Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, R>>();
                 }
             }
             public CurryWrapper() { }
@@ -837,11 +837,11 @@ namespace Mod
             {
                 if (typeof(R) == typeof(VoidReturn))
                 {
-                    _InnerAct = del.ConvertedClone<Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14>>();
+                    _InnerAct = del.ChangeDelegateType<Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14>>();
                 }
                 else
                 {
-                    _InnerFunc = del.ConvertedClone<Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, R>>();
+                    _InnerFunc = del.ChangeDelegateType<Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, R>>();
                 }
             }
             public CurryWrapper() { }
@@ -876,11 +876,11 @@ namespace Mod
             {
                 if (typeof(R) == typeof(VoidReturn))
                 {
-                    _InnerAct = del.ConvertedClone<Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15>>();
+                    _InnerAct = del.ChangeDelegateType<Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15>>();
                 }
                 else
                 {
-                    _InnerFunc = del.ConvertedClone<Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, R>>();
+                    _InnerFunc = del.ChangeDelegateType<Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, R>>();
                 }
             }
             public CurryWrapper() { }
@@ -915,11 +915,11 @@ namespace Mod
             {
                 if (typeof(R) == typeof(VoidReturn))
                 {
-                    _InnerAct = del.ConvertedClone<Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16>>();
+                    _InnerAct = del.ChangeDelegateType<Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16>>();
                 }
                 else
                 {
-                    _InnerFunc = del.ConvertedClone<Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16, R>>();
+                    _InnerFunc = del.ChangeDelegateType<Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16, R>>();
                 }
             }
             public CurryWrapper() { }

@@ -17,11 +17,27 @@ public static class TestScript_WeakEvent
 #endif
 
         #region Test For WeakEvent
+        TestSub1();
+        TestSub2();
+        #endregion
+    }
+    private static void TestSub1()
+    {
         TestEvent += TestMethod;
         _Instance = new TestClass() { x = 10 };
         TestEvent += _Instance.TestMethod;
         var inst = new TestClass() { x = 100 };
-        TestEvent += y => Console.WriteLine($"Lambda => {inst.x - y}");
+        if (RuntimeInfo.IsNativeAOT)
+        {
+            var winst = inst.WeakRef();
+            TestEvent += y => { if (winst.Value is var value && value != null) Console.WriteLine($"Lambda => {value.x - y}"); };
+        }
+        else
+        {
+            TestEvent += y => Console.WriteLine($"Lambda => {inst.x - y}");
+        }
+        var inst2 = new TestClass() { x = 200 };
+        TestEvent += y => Console.WriteLine($"Lambda2 => {inst2.x - y}");
         _TestEvent.TrigEvent(6);
 
         Console.WriteLine("---------------------------------------------------------------------------------------");
@@ -40,7 +56,9 @@ public static class TestScript_WeakEvent
         inst = null;
         _Instance = null;
         System.Threading.Thread.Sleep(2000);
-        inst = null;
+    }
+    private static void TestSub2()
+    {
         _Instance = null;
         System.Runtime.GCSettings.LargeObjectHeapCompactionMode = System.Runtime.GCLargeObjectHeapCompactionMode.CompactOnce;
         System.GC.Collect(2, GCCollectionMode.Forced, true, true);
@@ -55,8 +73,6 @@ public static class TestScript_WeakEvent
         Console.WriteLine("---------------------------------------------------------------------------------------");
 
         _TestEvent.TrigEvent(6);
-
-        #endregion
     }
 
     private static WeakDelegate.WeakEvent<VoidReturn, int> _TestEvent = new WeakDelegate.WeakEvent<VoidReturn, int>();

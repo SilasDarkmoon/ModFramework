@@ -31,9 +31,9 @@ public static class TestScript_DelegateCurry
             var inst10 = func(8);
             Console.WriteLine($"{inst10.Field0}, {inst10.Field1}, {inst10.Field2}, {inst10.Field3}, {inst10.Field4}, {inst10.Field5}");
         }
-        { // Pass2: ConvertedClone
+        { // Pass2: ChangeDelegateType
             TestCurryDel odel = (int f0, int f1, int f2, int f3, int f4, int f5) => new TestFieldsStruct<int>(f0, f1, f2, f3, f4, f5);
-            var func = odel.ConvertedClone<Func<int, int, int, int, int, int, TestFieldsStruct>>().Curry(30).Curry(40).Curry(50).Curry(60).Curry(70).ConvertedClone<TestFinalCurriedDel>();
+            var func = odel.ChangeDelegateType<Func<int, int, int, int, int, int, TestFieldsStruct>>().Curry(30).Curry(40).Curry(50).Curry(60).Curry(70).ChangeDelegateType<TestFinalCurriedDel>();
             var inst10 = func(80);
             Console.WriteLine($"{inst10.Field0}, {inst10.Field1}, {inst10.Field2}, {inst10.Field3}, {inst10.Field4}, {inst10.Field5}");
         }
@@ -42,7 +42,7 @@ public static class TestScript_DelegateCurry
             // notice, on NativeAOT we should preserve the explicit curry code some where.
             // and implicit currying is slow!
             TestCurryDel odel = (int f0, int f1, int f2, int f3, int f4, int f5) => new TestFieldsStruct<int>(f0, f1, f2, f3, f4, f5);
-            var func = odel.Curry(9).Curry(8).Curry(7).Curry(6).Curry(5).ConvertedClone<TestFinalCurriedDel>();
+            var func = odel.Curry(9).Curry(8).Curry(7).Curry(6).Curry(5).ChangeDelegateType<TestFinalCurriedDel>();
             var inst10 = func(4);
             Console.WriteLine($"{inst10.Field0}, {inst10.Field1}, {inst10.Field2}, {inst10.Field3}, {inst10.Field4}, {inst10.Field5}");
         }

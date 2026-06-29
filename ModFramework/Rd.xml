@@ -34,6 +34,8 @@
             <Type Name="TestScript_UnsafeInstanceDelegate" Dynamic="Required All" />
             <Type Name="TestScript_UnsafeInstanceDelegate+TestBaseClass" Dynamic="Required All" />
             <Type Name="TestScript_UnsafeInstanceDelegate+TestChildClass" Dynamic="Required All" />
+            
+            <Type Name="TestScript_WeakEvent+&lt;&gt;c__DisplayClass1_0" Dynamic="Required All" />
         </Assembly>
     </Application>
 </Directives>

@@ -16,6 +16,11 @@ namespace Mod
     public interface IWeakRef : IObjectRef
     {
     }
+    public struct StrongRef : IStrongRef
+    {
+        private object _Target;
+        public object Target { get => _Target; set => _Target = value; }
+    }
     public struct StrongRef<T> : IStrongRef where T : class
     {
         private T _Target;
@@ -33,6 +38,42 @@ namespace Mod
         public static implicit operator StrongRef<T>(T value)
         {
             return new StrongRef<T>() { Value = value };
+        }
+    }
+    public struct WeakRef : IWeakRef
+    {
+        private WeakReference<object> _Inner;
+        public object Target
+        {
+            get
+            {
+                if (_Inner == null) return null;
+                _Inner.TryGetTarget(out object result);
+                return result;
+            }
+            set
+            {
+                if (_Inner == null)
+                {
+                    _Inner = new WeakReference<object>(value);
+                }
+                else
+                {
+                    _Inner.SetTarget(value);
+                }
+            }
+        }
+        public bool HasValue
+        {
+            get => _Inner != null;
+        }
+        public bool IsAlive
+        {
+            get => !HasValue || Target != null;
+        }
+        internal void Clear()
+        {
+            _Inner = null;
         }
     }
     public struct WeakRef<T> : IWeakRef where T : class
@@ -72,6 +113,10 @@ namespace Mod
         {
             get => _Inner != null;
         }
+        public bool IsAlive
+        {
+            get => !HasValue || Value != null;
+        }
         internal void Clear()
         {
             _Inner = null;
@@ -100,6 +145,13 @@ namespace Mod
             public virtual void SetDelegate(Delegate del)
             {
                 var target = del.Target;
+                if (RuntimeInfo.IsNativeAOT)
+                {
+                    if (target == (object)del)
+                    {
+                        target = null;
+                    }
+                }
                 if (_IsObjectInstanceDelegate = (target != null && !target.GetType().IsValueType))
                 {
                     if (target.GetType().Name.StartsWith("<>"))
@@ -234,6 +286,13 @@ namespace Mod
                 else
                 {
                     otar = _InnerDelegate.Target;
+                    if (RuntimeInfo.IsNativeAOT)
+                    {
+                        if (otar == (object)_InnerDelegate)
+                        {
+                            otar = null;
+                        }
+                    }
                 }
                 return (IsAlive, otar, omethod);
             }
@@ -245,11 +304,11 @@ namespace Mod
                 base.SetDelegate(del);
                 if (typeof(R) == typeof(VoidReturn))
                 {
-                    _InnerDelegate = del.ConvertedClone<Action>();
+                    _InnerDelegate = del.ChangeDelegateType<Action>();
                 }
                 else
                 {
-                    _InnerDelegate = del.ConvertedClone<Func<R>>();
+                    _InnerDelegate = del.ChangeDelegateType<Func<R>>();
                 }
                 if (_IsObjectInstanceDelegate)
                 {
@@ -299,11 +358,11 @@ namespace Mod
                 base.SetDelegate(del);
                 if (typeof(R) == typeof(VoidReturn))
                 {
-                    _InnerDelegate = del.ConvertedClone<Action<U1>>();
+                    _InnerDelegate = del.ChangeDelegateType<Action<U1>>();
                 }
                 else
                 {
-                    _InnerDelegate = del.ConvertedClone<Func<U1, R>>();
+                    _InnerDelegate = del.ChangeDelegateType<Func<U1, R>>();
                 }
                 if (_IsObjectInstanceDelegate)
                 {
@@ -353,11 +412,11 @@ namespace Mod
                 base.SetDelegate(del);
                 if (typeof(R) == typeof(VoidReturn))
                 {
-                    _InnerDelegate = del.ConvertedClone<Action<U1, U2>>();
+                    _InnerDelegate = del.ChangeDelegateType<Action<U1, U2>>();
                 }
                 else
                 {
-                    _InnerDelegate = del.ConvertedClone<Func<U1, U2, R>>();
+                    _InnerDelegate = del.ChangeDelegateType<Func<U1, U2, R>>();
                 }
                 if (_IsObjectInstanceDelegate)
                 {
@@ -407,11 +466,11 @@ namespace Mod
                 base.SetDelegate(del);
                 if (typeof(R) == typeof(VoidReturn))
                 {
-                    _InnerDelegate = del.ConvertedClone<Action<U1, U2, U3>>();
+                    _InnerDelegate = del.ChangeDelegateType<Action<U1, U2, U3>>();
                 }
                 else
                 {
-                    _InnerDelegate = del.ConvertedClone<Func<U1, U2, U3, R>>();
+                    _InnerDelegate = del.ChangeDelegateType<Func<U1, U2, U3, R>>();
                 }
                 if (_IsObjectInstanceDelegate)
                 {
@@ -461,11 +520,11 @@ namespace Mod
                 base.SetDelegate(del);
                 if (typeof(R) == typeof(VoidReturn))
                 {
-                    _InnerDelegate = del.ConvertedClone<Action<U1, U2, U3, U4>>();
+                    _InnerDelegate = del.ChangeDelegateType<Action<U1, U2, U3, U4>>();
                 }
                 else
                 {
-                    _InnerDelegate = del.ConvertedClone<Func<U1, U2, U3, U4, R>>();
+                    _InnerDelegate = del.ChangeDelegateType<Func<U1, U2, U3, U4, R>>();
                 }
                 if (_IsObjectInstanceDelegate)
                 {
@@ -515,11 +574,11 @@ namespace Mod
                 base.SetDelegate(del);
                 if (typeof(R) == typeof(VoidReturn))
                 {
-                    _InnerDelegate = del.ConvertedClone<Action<U1, U2, U3, U4, U5>>();
+                    _InnerDelegate = del.ChangeDelegateType<Action<U1, U2, U3, U4, U5>>();
                 }
                 else
                 {
-                    _InnerDelegate = del.ConvertedClone<Func<U1, U2, U3, U4, U5, R>>();
+                    _InnerDelegate = del.ChangeDelegateType<Func<U1, U2, U3, U4, U5, R>>();
                 }
                 if (_IsObjectInstanceDelegate)
                 {
@@ -569,11 +628,11 @@ namespace Mod
                 base.SetDelegate(del);
                 if (typeof(R) == typeof(VoidReturn))
                 {
-                    _InnerDelegate = del.ConvertedClone<Action<U1, U2, U3, U4, U5, U6>>();
+                    _InnerDelegate = del.ChangeDelegateType<Action<U1, U2, U3, U4, U5, U6>>();
                 }
                 else
                 {
-                    _InnerDelegate = del.ConvertedClone<Func<U1, U2, U3, U4, U5, U6, R>>();
+                    _InnerDelegate = del.ChangeDelegateType<Func<U1, U2, U3, U4, U5, U6, R>>();
                 }
                 if (_IsObjectInstanceDelegate)
                 {
@@ -623,11 +682,11 @@ namespace Mod
                 base.SetDelegate(del);
                 if (typeof(R) == typeof(VoidReturn))
                 {
-                    _InnerDelegate = del.ConvertedClone<Action<U1, U2, U3, U4, U5, U6, U7>>();
+                    _InnerDelegate = del.ChangeDelegateType<Action<U1, U2, U3, U4, U5, U6, U7>>();
                 }
                 else
                 {
-                    _InnerDelegate = del.ConvertedClone<Func<U1, U2, U3, U4, U5, U6, U7, R>>();
+                    _InnerDelegate = del.ChangeDelegateType<Func<U1, U2, U3, U4, U5, U6, U7, R>>();
                 }
                 if (_IsObjectInstanceDelegate)
                 {
@@ -677,11 +736,11 @@ namespace Mod
                 base.SetDelegate(del);
                 if (typeof(R) == typeof(VoidReturn))
                 {
-                    _InnerDelegate = del.ConvertedClone<Action<U1, U2, U3, U4, U5, U6, U7, U8>>();
+                    _InnerDelegate = del.ChangeDelegateType<Action<U1, U2, U3, U4, U5, U6, U7, U8>>();
                 }
                 else
                 {
-                    _InnerDelegate = del.ConvertedClone<Func<U1, U2, U3, U4, U5, U6, U7, U8, R>>();
+                    _InnerDelegate = del.ChangeDelegateType<Func<U1, U2, U3, U4, U5, U6, U7, U8, R>>();
                 }
                 if (_IsObjectInstanceDelegate)
                 {
@@ -731,11 +790,11 @@ namespace Mod
                 base.SetDelegate(del);
                 if (typeof(R) == typeof(VoidReturn))
                 {
-                    _InnerDelegate = del.ConvertedClone<Action<U1, U2, U3, U4, U5, U6, U7, U8, U9>>();
+                    _InnerDelegate = del.ChangeDelegateType<Action<U1, U2, U3, U4, U5, U6, U7, U8, U9>>();
                 }
                 else
                 {
-                    _InnerDelegate = del.ConvertedClone<Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, R>>();
+                    _InnerDelegate = del.ChangeDelegateType<Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, R>>();
                 }
                 if (_IsObjectInstanceDelegate)
                 {
@@ -785,11 +844,11 @@ namespace Mod
                 base.SetDelegate(del);
                 if (typeof(R) == typeof(VoidReturn))
                 {
-                    _InnerDelegate = del.ConvertedClone<Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10>>();
+                    _InnerDelegate = del.ChangeDelegateType<Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10>>();
                 }
                 else
                 {
-                    _InnerDelegate = del.ConvertedClone<Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, R>>();
+                    _InnerDelegate = del.ChangeDelegateType<Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, R>>();
                 }
                 if (_IsObjectInstanceDelegate)
                 {
@@ -839,11 +898,11 @@ namespace Mod
                 base.SetDelegate(del);
                 if (typeof(R) == typeof(VoidReturn))
                 {
-                    _InnerDelegate = del.ConvertedClone<Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11>>();
+                    _InnerDelegate = del.ChangeDelegateType<Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11>>();
                 }
                 else
                 {
-                    _InnerDelegate = del.ConvertedClone<Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, R>>();
+                    _InnerDelegate = del.ChangeDelegateType<Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, R>>();
                 }
                 if (_IsObjectInstanceDelegate)
                 {
@@ -893,11 +952,11 @@ namespace Mod
                 base.SetDelegate(del);
                 if (typeof(R) == typeof(VoidReturn))
                 {
-                    _InnerDelegate = del.ConvertedClone<Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12>>();
+                    _InnerDelegate = del.ChangeDelegateType<Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12>>();
                 }
                 else
                 {
-                    _InnerDelegate = del.ConvertedClone<Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, R>>();
+                    _InnerDelegate = del.ChangeDelegateType<Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, R>>();
                 }
                 if (_IsObjectInstanceDelegate)
                 {
@@ -947,11 +1006,11 @@ namespace Mod
                 base.SetDelegate(del);
                 if (typeof(R) == typeof(VoidReturn))
                 {
-                    _InnerDelegate = del.ConvertedClone<Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13>>();
+                    _InnerDelegate = del.ChangeDelegateType<Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13>>();
                 }
                 else
                 {
-                    _InnerDelegate = del.ConvertedClone<Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, R>>();
+                    _InnerDelegate = del.ChangeDelegateType<Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, R>>();
                 }
                 if (_IsObjectInstanceDelegate)
                 {
@@ -1001,11 +1060,11 @@ namespace Mod
                 base.SetDelegate(del);
                 if (typeof(R) == typeof(VoidReturn))
                 {
-                    _InnerDelegate = del.ConvertedClone<Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14>>();
+                    _InnerDelegate = del.ChangeDelegateType<Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14>>();
                 }
                 else
                 {
-                    _InnerDelegate = del.ConvertedClone<Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, R>>();
+                    _InnerDelegate = del.ChangeDelegateType<Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, R>>();
                 }
                 if (_IsObjectInstanceDelegate)
                 {
@@ -1055,11 +1114,11 @@ namespace Mod
                 base.SetDelegate(del);
                 if (typeof(R) == typeof(VoidReturn))
                 {
-                    _InnerDelegate = del.ConvertedClone<Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15>>();
+                    _InnerDelegate = del.ChangeDelegateType<Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15>>();
                 }
                 else
                 {
-                    _InnerDelegate = del.ConvertedClone<Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, R>>();
+                    _InnerDelegate = del.ChangeDelegateType<Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, R>>();
                 }
                 if (_IsObjectInstanceDelegate)
                 {
@@ -1109,11 +1168,11 @@ namespace Mod
                 base.SetDelegate(del);
                 if (typeof(R) == typeof(VoidReturn))
                 {
-                    _InnerDelegate = del.ConvertedClone<Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16>>();
+                    _InnerDelegate = del.ChangeDelegateType<Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16>>();
                 }
                 else
                 {
-                    _InnerDelegate = del.ConvertedClone<Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16, R>>();
+                    _InnerDelegate = del.ChangeDelegateType<Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16, R>>();
                 }
                 if (_IsObjectInstanceDelegate)
                 {
@@ -1375,6 +1434,13 @@ namespace Mod
             public void RemoveListener(Delegate handler)
             {
                 var tar = handler.Target;
+                if (RuntimeInfo.IsNativeAOT)
+                {
+                    if (tar == (object)handler)
+                    {
+                        tar = null;
+                    }
+                }
                 MethodBase method = handler.Method;
                 if (tar is WeakWrapper wrapper)
                 {

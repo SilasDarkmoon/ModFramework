@@ -39,6 +39,7 @@ namespace Mod.LowLevel
             {
                 object CreateDelegate(Type delType, MethodBase method);
                 object CreateDelegate(Type delType, object target, MethodBase method);
+                ref object GetTargetRef(Delegate del);
                 Delegate ChangeTarget(Delegate del, object target);
             }
 
@@ -46,6 +47,7 @@ namespace Mod.LowLevel
             {
                 public abstract object CreateDelegate(Type delType, MethodBase method);
                 public abstract object CreateDelegate(Type delType, object target, MethodBase method);
+                public abstract ref object GetTargetRef(Delegate del);
                 public abstract Delegate ChangeTarget(Delegate del, object target);
             }
 
@@ -153,6 +155,10 @@ namespace Mod.LowLevel
                     rvdel.GetField(fi_methodPtrAux) = fn; // reset the methodPtrAux to avoid virtual searching.
                     return rvdel;
                 }
+                public override ref object GetTargetRef(Delegate del)
+                {
+                    return ref del.GetField(fi_target);
+                }
                 public override Delegate ChangeTarget(Delegate del, object target)
                 {
                     del.GetField(fi_target) = target;
@@ -235,6 +241,10 @@ namespace Mod.LowLevel
                 //    public IntPtr _extraFunctionPointerOrData;
                 //    public IntPtr _functionPointer;
                 //}
+                public override ref object GetTargetRef(Delegate del)
+                {
+                    return ref del.GetField<object>(0);
+                }
                 public override Delegate ChangeTarget(Delegate del, object target)
                 {
                     del.GetField<object>(0) = target;
@@ -329,6 +339,10 @@ namespace Mod.LowLevel
                     //rvdel.GetField(FI_Delegate_method) = IntPtr.Zero;
                     //rvdel.GetField(FI_Delegate_method_info) = null;
                     return rvdel;
+                }
+                public override ref object GetTargetRef(Delegate del)
+                {
+                    return ref del.GetField(FI_Delegate_m_target);
                 }
                 public override Delegate ChangeTarget(Delegate del, object target)
                 {
@@ -547,6 +561,10 @@ namespace Mod.LowLevel
                         return rvdel;
                     }
                 }
+                public override ref object GetTargetRef(Delegate del)
+                {
+                    return ref del.GetField(_FI_Delegate_m_target);
+                }
                 public override Delegate ChangeTarget(Delegate del, object target)
                 {
                     var oldtarget = del.GetField(_FI_Delegate_m_target);
@@ -568,6 +586,10 @@ namespace Mod.LowLevel
             public static Delegate CreateDelegateUnsafe(Type delType, object target, MethodBase method)
             {
                 return (Delegate)_UnsafeWrapper.CreateDelegate(delType, target, method);
+            }
+            public static ref object GetTargetRef(Delegate del)
+            {
+                return ref _UnsafeWrapper.GetTargetRef(del);
             }
             public static Delegate ChangeTarget(Delegate del, object target)
             {
@@ -606,6 +628,15 @@ namespace Mod.LowLevel
         {
             return DelegateExImp.ChangeTarget(del, target);
         }
+        public static Delegate ChangeDelegateType(Delegate del, Type todeltype)
+        {
+            var cloned = (Delegate)del.ConvertedClone(todeltype);
+            if (del.GetTargetRef() == (object)del)
+            {
+                cloned.ChangeTarget(cloned);
+            }
+            return cloned;
+        }
         public static T CreateDelegateUnsafe<T>(this MethodBase method) where T : Delegate
         {
             return (T)DelegateExImp.CreateDelegateUnsafe(typeof(T), method);
@@ -617,6 +648,14 @@ namespace Mod.LowLevel
         public static T ChangeTarget<T>(this T del, object target) where T : Delegate
         {
             return (T)DelegateExImp.ChangeTarget(del, target);
+        }
+        public static ref object GetTargetRef(this Delegate del)
+        {
+            return ref DelegateExImp.GetTargetRef(del);
+        }
+        public static T ChangeDelegateType<T>(this Delegate del) where T : Delegate
+        {
+            return (T)ChangeDelegateType(del, typeof(T));
         }
 
         public static bool IsGenericParameterCompatiable(Type gtype, Type itype)
