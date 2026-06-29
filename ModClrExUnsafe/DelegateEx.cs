@@ -41,6 +41,7 @@ namespace Mod.LowLevel
                 object CreateDelegate(Type delType, object target, MethodBase method);
                 ref object GetTargetRef(Delegate del);
                 Delegate ChangeTarget(Delegate del, object target);
+                Delegate ChangeDelegateType(Delegate del, Type todeltype);
             }
 
             private abstract class UnsafeDelegateWrapperBase : IDelegateWrapper
@@ -49,6 +50,15 @@ namespace Mod.LowLevel
                 public abstract object CreateDelegate(Type delType, object target, MethodBase method);
                 public abstract ref object GetTargetRef(Delegate del);
                 public abstract Delegate ChangeTarget(Delegate del, object target);
+                public virtual Delegate ChangeDelegateType(Delegate del, Type todeltype)
+                {
+                    var cloned = (Delegate)del.ConvertedClone(todeltype);
+                    if (del.GetTargetRef() == (object)del)
+                    {
+                        cloned.ChangeTarget(cloned);
+                    }
+                    return cloned;
+                }
             }
 
             private class UnsafeDelegateWrapperCore : UnsafeDelegateWrapperBase
@@ -576,7 +586,35 @@ namespace Mod.LowLevel
                     }
                     return del;
                 }
-
+                public override Delegate ChangeDelegateType(Delegate del, Type todeltype)
+                {
+                    if (RuntimeInfo.IsHybridCLREnabled)
+                    {
+                        var target = del.Target;
+                        var method = del.Method;
+                        if (method == null)
+                        {
+                            var invoke = del.GetType().GetMethod("Invoke", BindingFlags.Instance | BindingFlags.Public);
+                            return CreateDelegateUnsafe(todeltype, del, invoke);
+                            //return base.ChangeDelegateType(del, todeltype);
+                        }
+                        else
+                        {
+                            if (target == null)
+                            {
+                                return CreateDelegateUnsafe(todeltype, method);
+                            }
+                            else
+                            {
+                                return CreateDelegateUnsafe(todeltype, target, method);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        return base.ChangeDelegateType(del, todeltype);
+                    }
+                }
             }
 
             public static Delegate CreateDelegateUnsafe(Type delType, MethodBase method)
@@ -594,6 +632,10 @@ namespace Mod.LowLevel
             public static Delegate ChangeTarget(Delegate del, object target)
             {
                 return _UnsafeWrapper.ChangeTarget(del, target);
+            }
+            public static Delegate ChangeDelegateType(Delegate del, Type todeltype)
+            {
+                return _UnsafeWrapper.ChangeDelegateType(del, todeltype);
             }
 
             public static bool IsInInterpter(MethodBase method)
@@ -630,12 +672,7 @@ namespace Mod.LowLevel
         }
         public static Delegate ChangeDelegateType(Delegate del, Type todeltype)
         {
-            var cloned = (Delegate)del.ConvertedClone(todeltype);
-            if (del.GetTargetRef() == (object)del)
-            {
-                cloned.ChangeTarget(cloned);
-            }
-            return cloned;
+            return DelegateExImp.ChangeDelegateType(del, todeltype);
         }
         public static T CreateDelegateUnsafe<T>(this MethodBase method) where T : Delegate
         {
