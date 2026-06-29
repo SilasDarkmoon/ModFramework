@@ -28,16 +28,16 @@ public static class TestScript_WeakEvent
         TestEvent += _Instance.TestMethod;
         var inst = new TestClass() { x = 100 };
         if (RuntimeInfo.IsNativeAOT)
-        {
+        { // on NativeAOT, it is recommanded to explicitly use WeakRef.
             var winst = inst.WeakRef();
-            TestEvent += y => { if (winst.Value is var value && value != null) Console.WriteLine($"Lambda => {value.x - y}"); };
+            TestEvent += y => { if (winst.Value is TestClass value) Console.WriteLine($"Lambda => {value.x - y}"); };
         }
         else
         {
             TestEvent += y => Console.WriteLine($"Lambda => {inst.x - y}");
         }
         var inst2 = new TestClass() { x = 200 };
-        TestEvent += y => Console.WriteLine($"Lambda2 => {inst2.x - y}");
+        TestEvent += y => Console.WriteLine($"Lambda2 => {inst2.x - y}"); // When use lambda on NativeAOT, we should add closure-target's type to RD.xml (TestScript_WeakEvent+&lt;&gt;c__DisplayClass1_0)
         _TestEvent.TrigEvent(6);
 
         Console.WriteLine("---------------------------------------------------------------------------------------");
