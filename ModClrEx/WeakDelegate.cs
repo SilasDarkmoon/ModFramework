@@ -200,6 +200,7 @@ namespace Mod
             protected WeakRef<object> _WeakTarget;
             protected bool _IsObjectInstanceDelegate;
             protected Delegate _InnerDelegate;
+            protected internal bool _RethrowWeakRefDeadException;
 
             public virtual void SetDelegate(Delegate del)
             {
@@ -392,15 +393,35 @@ namespace Mod
             {
                 (var target, var alive) = PrepareTarget();
                 if (!alive) return;
-                ((Action)_InnerDelegate)();
-                ApplyChangesToTarget();
+                try
+                {
+                    ((Action)_InnerDelegate)();
+                }
+                catch (WeakRefDeadException)
+                {
+                    if (_RethrowWeakRefDeadException) throw;
+                }
+                finally
+                {
+                    ApplyChangesToTarget();
+                }
             }
             internal bool TryInvoke(ref R result)
             {
                 (var target, var alive) = PrepareTarget();
                 if (!alive) return false;
-                result = ((Func<R>)_InnerDelegate)();
-                ApplyChangesToTarget();
+                try
+                {
+                    result = ((Func<R>)_InnerDelegate)();
+                }
+                catch (WeakRefDeadException)
+                {
+                    if (_RethrowWeakRefDeadException) throw;
+                }
+                finally
+                {
+                    ApplyChangesToTarget();
+                }
                 return true;
             }
             public R Invoke()
@@ -446,15 +467,35 @@ namespace Mod
             {
                 (var target, var alive) = PrepareTarget();
                 if (!alive) return;
-                ((Action<U1>)_InnerDelegate)(u1);
-                ApplyChangesToTarget();
+                try
+                {
+                    ((Action<U1>)_InnerDelegate)(u1);
+                }
+                catch (WeakRefDeadException)
+                {
+                    if (_RethrowWeakRefDeadException) throw;
+                }
+                finally
+                {
+                    ApplyChangesToTarget();
+                }
             }
             internal bool TryInvoke(ref R result, U1 u1)
             {
                 (var target, var alive) = PrepareTarget();
                 if (!alive) return false;
-                result = ((Func<U1, R>)_InnerDelegate)(u1);
-                ApplyChangesToTarget();
+                try
+                {
+                    result = ((Func<U1, R>)_InnerDelegate)(u1);
+                }
+                catch (WeakRefDeadException)
+                {
+                    if (_RethrowWeakRefDeadException) throw;
+                }
+                finally
+                {
+                    ApplyChangesToTarget();
+                }
                 return true;
             }
             public R Invoke(U1 u1)
@@ -500,15 +541,35 @@ namespace Mod
             {
                 (var target, var alive) = PrepareTarget();
                 if (!alive) return;
-                ((Action<U1, U2>)_InnerDelegate)(u1, u2);
-                ApplyChangesToTarget();
+                try
+                {
+                    ((Action<U1, U2>)_InnerDelegate)(u1, u2);
+                }
+                catch (WeakRefDeadException)
+                {
+                    if (_RethrowWeakRefDeadException) throw;
+                }
+                finally
+                {
+                    ApplyChangesToTarget();
+                }
             }
             internal bool TryInvoke(ref R result, U1 u1, U2 u2)
             {
                 (var target, var alive) = PrepareTarget();
                 if (!alive) return false;
-                result = ((Func<U1, U2, R>)_InnerDelegate)(u1, u2);
-                ApplyChangesToTarget();
+                try
+                {
+                    result = ((Func<U1, U2, R>)_InnerDelegate)(u1, u2);
+                }
+                catch (WeakRefDeadException)
+                {
+                    if (_RethrowWeakRefDeadException) throw;
+                }
+                finally
+                {
+                    ApplyChangesToTarget();
+                }
                 return true;
             }
             public R Invoke(U1 u1, U2 u2)
@@ -554,15 +615,35 @@ namespace Mod
             {
                 (var target, var alive) = PrepareTarget();
                 if (!alive) return;
-                ((Action<U1, U2, U3>)_InnerDelegate)(u1, u2, u3);
-                ApplyChangesToTarget();
+                try
+                {
+                    ((Action<U1, U2, U3>)_InnerDelegate)(u1, u2, u3);
+                }
+                catch (WeakRefDeadException)
+                {
+                    if (_RethrowWeakRefDeadException) throw;
+                }
+                finally
+                {
+                    ApplyChangesToTarget();
+                }
             }
             internal bool TryInvoke(ref R result, U1 u1, U2 u2, U3 u3)
             {
                 (var target, var alive) = PrepareTarget();
                 if (!alive) return false;
-                result = ((Func<U1, U2, U3, R>)_InnerDelegate)(u1, u2, u3);
-                ApplyChangesToTarget();
+                try
+                {
+                    result = ((Func<U1, U2, U3, R>)_InnerDelegate)(u1, u2, u3);
+                }
+                catch (WeakRefDeadException)
+                {
+                    if (_RethrowWeakRefDeadException) throw;
+                }
+                finally
+                {
+                    ApplyChangesToTarget();
+                }
                 return true;
             }
             public R Invoke(U1 u1, U2 u2, U3 u3)
@@ -608,15 +689,35 @@ namespace Mod
             {
                 (var target, var alive) = PrepareTarget();
                 if (!alive) return;
-                ((Action<U1, U2, U3, U4>)_InnerDelegate)(u1, u2, u3, u4);
-                ApplyChangesToTarget();
+                try
+                {
+                    ((Action<U1, U2, U3, U4>)_InnerDelegate)(u1, u2, u3, u4);
+                }
+                catch (WeakRefDeadException)
+                {
+                    if (_RethrowWeakRefDeadException) throw;
+                }
+                finally
+                {
+                    ApplyChangesToTarget();
+                }
             }
             internal bool TryInvoke(ref R result, U1 u1, U2 u2, U3 u3, U4 u4)
             {
                 (var target, var alive) = PrepareTarget();
                 if (!alive) return false;
-                result = ((Func<U1, U2, U3, U4, R>)_InnerDelegate)(u1, u2, u3, u4);
-                ApplyChangesToTarget();
+                try
+                {
+                    result = ((Func<U1, U2, U3, U4, R>)_InnerDelegate)(u1, u2, u3, u4);
+                }
+                catch (WeakRefDeadException)
+                {
+                    if (_RethrowWeakRefDeadException) throw;
+                }
+                finally
+                {
+                    ApplyChangesToTarget();
+                }
                 return true;
             }
             public R Invoke(U1 u1, U2 u2, U3 u3, U4 u4)
@@ -662,15 +763,35 @@ namespace Mod
             {
                 (var target, var alive) = PrepareTarget();
                 if (!alive) return;
-                ((Action<U1, U2, U3, U4, U5>)_InnerDelegate)(u1, u2, u3, u4, u5);
-                ApplyChangesToTarget();
+                try
+                {
+                    ((Action<U1, U2, U3, U4, U5>)_InnerDelegate)(u1, u2, u3, u4, u5);
+                }
+                catch (WeakRefDeadException)
+                {
+                    if (_RethrowWeakRefDeadException) throw;
+                }
+                finally
+                {
+                    ApplyChangesToTarget();
+                }
             }
             internal bool TryInvoke(ref R result, U1 u1, U2 u2, U3 u3, U4 u4, U5 u5)
             {
                 (var target, var alive) = PrepareTarget();
                 if (!alive) return false;
-                result = ((Func<U1, U2, U3, U4, U5, R>)_InnerDelegate)(u1, u2, u3, u4, u5);
-                ApplyChangesToTarget();
+                try
+                {
+                    result = ((Func<U1, U2, U3, U4, U5, R>)_InnerDelegate)(u1, u2, u3, u4, u5);
+                }
+                catch (WeakRefDeadException)
+                {
+                    if (_RethrowWeakRefDeadException) throw;
+                }
+                finally
+                {
+                    ApplyChangesToTarget();
+                }
                 return true;
             }
             public R Invoke(U1 u1, U2 u2, U3 u3, U4 u4, U5 u5)
@@ -716,15 +837,35 @@ namespace Mod
             {
                 (var target, var alive) = PrepareTarget();
                 if (!alive) return;
-                ((Action<U1, U2, U3, U4, U5, U6>)_InnerDelegate)(u1, u2, u3, u4, u5, u6);
-                ApplyChangesToTarget();
+                try
+                {
+                    ((Action<U1, U2, U3, U4, U5, U6>)_InnerDelegate)(u1, u2, u3, u4, u5, u6);
+                }
+                catch (WeakRefDeadException)
+                {
+                    if (_RethrowWeakRefDeadException) throw;
+                }
+                finally
+                {
+                    ApplyChangesToTarget();
+                }
             }
             internal bool TryInvoke(ref R result, U1 u1, U2 u2, U3 u3, U4 u4, U5 u5, U6 u6)
             {
                 (var target, var alive) = PrepareTarget();
                 if (!alive) return false;
-                result = ((Func<U1, U2, U3, U4, U5, U6, R>)_InnerDelegate)(u1, u2, u3, u4, u5, u6);
-                ApplyChangesToTarget();
+                try
+                {
+                    result = ((Func<U1, U2, U3, U4, U5, U6, R>)_InnerDelegate)(u1, u2, u3, u4, u5, u6);
+                }
+                catch (WeakRefDeadException)
+                {
+                    if (_RethrowWeakRefDeadException) throw;
+                }
+                finally
+                {
+                    ApplyChangesToTarget();
+                }
                 return true;
             }
             public R Invoke(U1 u1, U2 u2, U3 u3, U4 u4, U5 u5, U6 u6)
@@ -770,15 +911,35 @@ namespace Mod
             {
                 (var target, var alive) = PrepareTarget();
                 if (!alive) return;
-                ((Action<U1, U2, U3, U4, U5, U6, U7>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7);
-                ApplyChangesToTarget();
+                try
+                {
+                    ((Action<U1, U2, U3, U4, U5, U6, U7>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7);
+                }
+                catch (WeakRefDeadException)
+                {
+                    if (_RethrowWeakRefDeadException) throw;
+                }
+                finally
+                {
+                    ApplyChangesToTarget();
+                }
             }
             internal bool TryInvoke(ref R result, U1 u1, U2 u2, U3 u3, U4 u4, U5 u5, U6 u6, U7 u7)
             {
                 (var target, var alive) = PrepareTarget();
                 if (!alive) return false;
-                result = ((Func<U1, U2, U3, U4, U5, U6, U7, R>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7);
-                ApplyChangesToTarget();
+                try
+                {
+                    result = ((Func<U1, U2, U3, U4, U5, U6, U7, R>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7);
+                }
+                catch (WeakRefDeadException)
+                {
+                    if (_RethrowWeakRefDeadException) throw;
+                }
+                finally
+                {
+                    ApplyChangesToTarget();
+                }
                 return true;
             }
             public R Invoke(U1 u1, U2 u2, U3 u3, U4 u4, U5 u5, U6 u6, U7 u7)
@@ -824,15 +985,35 @@ namespace Mod
             {
                 (var target, var alive) = PrepareTarget();
                 if (!alive) return;
-                ((Action<U1, U2, U3, U4, U5, U6, U7, U8>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7, u8);
-                ApplyChangesToTarget();
+                try
+                {
+                    ((Action<U1, U2, U3, U4, U5, U6, U7, U8>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7, u8);
+                }
+                catch (WeakRefDeadException)
+                {
+                    if (_RethrowWeakRefDeadException) throw;
+                }
+                finally
+                {
+                    ApplyChangesToTarget();
+                }
             }
             internal bool TryInvoke(ref R result, U1 u1, U2 u2, U3 u3, U4 u4, U5 u5, U6 u6, U7 u7, U8 u8)
             {
                 (var target, var alive) = PrepareTarget();
                 if (!alive) return false;
-                result = ((Func<U1, U2, U3, U4, U5, U6, U7, U8, R>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7, u8);
-                ApplyChangesToTarget();
+                try
+                {
+                    result = ((Func<U1, U2, U3, U4, U5, U6, U7, U8, R>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7, u8);
+                }
+                catch (WeakRefDeadException)
+                {
+                    if (_RethrowWeakRefDeadException) throw;
+                }
+                finally
+                {
+                    ApplyChangesToTarget();
+                }
                 return true;
             }
             public R Invoke(U1 u1, U2 u2, U3 u3, U4 u4, U5 u5, U6 u6, U7 u7, U8 u8)
@@ -878,15 +1059,35 @@ namespace Mod
             {
                 (var target, var alive) = PrepareTarget();
                 if (!alive) return;
-                ((Action<U1, U2, U3, U4, U5, U6, U7, U8, U9>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7, u8, u9);
-                ApplyChangesToTarget();
+                try
+                {
+                    ((Action<U1, U2, U3, U4, U5, U6, U7, U8, U9>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7, u8, u9);
+                }
+                catch (WeakRefDeadException)
+                {
+                    if (_RethrowWeakRefDeadException) throw;
+                }
+                finally
+                {
+                    ApplyChangesToTarget();
+                }
             }
             internal bool TryInvoke(ref R result, U1 u1, U2 u2, U3 u3, U4 u4, U5 u5, U6 u6, U7 u7, U8 u8, U9 u9)
             {
                 (var target, var alive) = PrepareTarget();
                 if (!alive) return false;
-                result = ((Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, R>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7, u8, u9);
-                ApplyChangesToTarget();
+                try
+                {
+                    result = ((Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, R>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7, u8, u9);
+                }
+                catch (WeakRefDeadException)
+                {
+                    if (_RethrowWeakRefDeadException) throw;
+                }
+                finally
+                {
+                    ApplyChangesToTarget();
+                }
                 return true;
             }
             public R Invoke(U1 u1, U2 u2, U3 u3, U4 u4, U5 u5, U6 u6, U7 u7, U8 u8, U9 u9)
@@ -932,15 +1133,35 @@ namespace Mod
             {
                 (var target, var alive) = PrepareTarget();
                 if (!alive) return;
-                ((Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10);
-                ApplyChangesToTarget();
+                try
+                {
+                    ((Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10);
+                }
+                catch (WeakRefDeadException)
+                {
+                    if (_RethrowWeakRefDeadException) throw;
+                }
+                finally
+                {
+                    ApplyChangesToTarget();
+                }
             }
             internal bool TryInvoke(ref R result, U1 u1, U2 u2, U3 u3, U4 u4, U5 u5, U6 u6, U7 u7, U8 u8, U9 u9, U10 u10)
             {
                 (var target, var alive) = PrepareTarget();
                 if (!alive) return false;
-                result = ((Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, R>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10);
-                ApplyChangesToTarget();
+                try
+                {
+                    result = ((Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, R>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10);
+                }
+                catch (WeakRefDeadException)
+                {
+                    if (_RethrowWeakRefDeadException) throw;
+                }
+                finally
+                {
+                    ApplyChangesToTarget();
+                }
                 return true;
             }
             public R Invoke(U1 u1, U2 u2, U3 u3, U4 u4, U5 u5, U6 u6, U7 u7, U8 u8, U9 u9, U10 u10)
@@ -986,15 +1207,35 @@ namespace Mod
             {
                 (var target, var alive) = PrepareTarget();
                 if (!alive) return;
-                ((Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11);
-                ApplyChangesToTarget();
+                try
+                {
+                    ((Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11);
+                }
+                catch (WeakRefDeadException)
+                {
+                    if (_RethrowWeakRefDeadException) throw;
+                }
+                finally
+                {
+                    ApplyChangesToTarget();
+                }
             }
             internal bool TryInvoke(ref R result, U1 u1, U2 u2, U3 u3, U4 u4, U5 u5, U6 u6, U7 u7, U8 u8, U9 u9, U10 u10, U11 u11)
             {
                 (var target, var alive) = PrepareTarget();
                 if (!alive) return false;
-                result = ((Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, R>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11);
-                ApplyChangesToTarget();
+                try
+                {
+                    result = ((Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, R>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11);
+                }
+                catch (WeakRefDeadException)
+                {
+                    if (_RethrowWeakRefDeadException) throw;
+                }
+                finally
+                {
+                    ApplyChangesToTarget();
+                }
                 return true;
             }
             public R Invoke(U1 u1, U2 u2, U3 u3, U4 u4, U5 u5, U6 u6, U7 u7, U8 u8, U9 u9, U10 u10, U11 u11)
@@ -1040,15 +1281,35 @@ namespace Mod
             {
                 (var target, var alive) = PrepareTarget();
                 if (!alive) return;
-                ((Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12);
-                ApplyChangesToTarget();
+                try
+                {
+                    ((Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12);
+                }
+                catch (WeakRefDeadException)
+                {
+                    if (_RethrowWeakRefDeadException) throw;
+                }
+                finally
+                {
+                    ApplyChangesToTarget();
+                }
             }
             internal bool TryInvoke(ref R result, U1 u1, U2 u2, U3 u3, U4 u4, U5 u5, U6 u6, U7 u7, U8 u8, U9 u9, U10 u10, U11 u11, U12 u12)
             {
                 (var target, var alive) = PrepareTarget();
                 if (!alive) return false;
-                result = ((Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, R>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12);
-                ApplyChangesToTarget();
+                try
+                {
+                    result = ((Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, R>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12);
+                }
+                catch (WeakRefDeadException)
+                {
+                    if (_RethrowWeakRefDeadException) throw;
+                }
+                finally
+                {
+                    ApplyChangesToTarget();
+                }
                 return true;
             }
             public R Invoke(U1 u1, U2 u2, U3 u3, U4 u4, U5 u5, U6 u6, U7 u7, U8 u8, U9 u9, U10 u10, U11 u11, U12 u12)
@@ -1094,15 +1355,35 @@ namespace Mod
             {
                 (var target, var alive) = PrepareTarget();
                 if (!alive) return;
-                ((Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13);
-                ApplyChangesToTarget();
+                try
+                {
+                    ((Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13);
+                }
+                catch (WeakRefDeadException)
+                {
+                    if (_RethrowWeakRefDeadException) throw;
+                }
+                finally
+                {
+                    ApplyChangesToTarget();
+                }
             }
             internal bool TryInvoke(ref R result, U1 u1, U2 u2, U3 u3, U4 u4, U5 u5, U6 u6, U7 u7, U8 u8, U9 u9, U10 u10, U11 u11, U12 u12, U13 u13)
             {
                 (var target, var alive) = PrepareTarget();
                 if (!alive) return false;
-                result = ((Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, R>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13);
-                ApplyChangesToTarget();
+                try
+                {
+                    result = ((Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, R>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13);
+                }
+                catch (WeakRefDeadException)
+                {
+                    if (_RethrowWeakRefDeadException) throw;
+                }
+                finally
+                {
+                    ApplyChangesToTarget();
+                }
                 return true;
             }
             public R Invoke(U1 u1, U2 u2, U3 u3, U4 u4, U5 u5, U6 u6, U7 u7, U8 u8, U9 u9, U10 u10, U11 u11, U12 u12, U13 u13)
@@ -1148,15 +1429,35 @@ namespace Mod
             {
                 (var target, var alive) = PrepareTarget();
                 if (!alive) return;
-                ((Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13, u14);
-                ApplyChangesToTarget();
+                try
+                {
+                    ((Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13, u14);
+                }
+                catch (WeakRefDeadException)
+                {
+                    if (_RethrowWeakRefDeadException) throw;
+                }
+                finally
+                {
+                    ApplyChangesToTarget();
+                }
             }
             internal bool TryInvoke(ref R result, U1 u1, U2 u2, U3 u3, U4 u4, U5 u5, U6 u6, U7 u7, U8 u8, U9 u9, U10 u10, U11 u11, U12 u12, U13 u13, U14 u14)
             {
                 (var target, var alive) = PrepareTarget();
                 if (!alive) return false;
-                result = ((Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, R>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13, u14);
-                ApplyChangesToTarget();
+                try
+                {
+                    result = ((Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, R>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13, u14);
+                }
+                catch (WeakRefDeadException)
+                {
+                    if (_RethrowWeakRefDeadException) throw;
+                }
+                finally
+                {
+                    ApplyChangesToTarget();
+                }
                 return true;
             }
             public R Invoke(U1 u1, U2 u2, U3 u3, U4 u4, U5 u5, U6 u6, U7 u7, U8 u8, U9 u9, U10 u10, U11 u11, U12 u12, U13 u13, U14 u14)
@@ -1202,15 +1503,35 @@ namespace Mod
             {
                 (var target, var alive) = PrepareTarget();
                 if (!alive) return;
-                ((Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13, u14, u15);
-                ApplyChangesToTarget();
+                try
+                {
+                    ((Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13, u14, u15);
+                }
+                catch (WeakRefDeadException)
+                {
+                    if (_RethrowWeakRefDeadException) throw;
+                }
+                finally
+                {
+                    ApplyChangesToTarget();
+                }
             }
             internal bool TryInvoke(ref R result, U1 u1, U2 u2, U3 u3, U4 u4, U5 u5, U6 u6, U7 u7, U8 u8, U9 u9, U10 u10, U11 u11, U12 u12, U13 u13, U14 u14, U15 u15)
             {
                 (var target, var alive) = PrepareTarget();
                 if (!alive) return false;
-                result = ((Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, R>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13, u14, u15);
-                ApplyChangesToTarget();
+                try
+                {
+                    result = ((Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, R>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13, u14, u15);
+                }
+                catch (WeakRefDeadException)
+                {
+                    if (_RethrowWeakRefDeadException) throw;
+                }
+                finally
+                {
+                    ApplyChangesToTarget();
+                }
                 return true;
             }
             public R Invoke(U1 u1, U2 u2, U3 u3, U4 u4, U5 u5, U6 u6, U7 u7, U8 u8, U9 u9, U10 u10, U11 u11, U12 u12, U13 u13, U14 u14, U15 u15)
@@ -1256,15 +1577,35 @@ namespace Mod
             {
                 (var target, var alive) = PrepareTarget();
                 if (!alive) return;
-                ((Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13, u14, u15, u16);
-                ApplyChangesToTarget();
+                try
+                {
+                    ((Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13, u14, u15, u16);
+                }
+                catch (WeakRefDeadException)
+                {
+                    if (_RethrowWeakRefDeadException) throw;
+                }
+                finally
+                {
+                    ApplyChangesToTarget();
+                }
             }
             internal bool TryInvoke(ref R result, U1 u1, U2 u2, U3 u3, U4 u4, U5 u5, U6 u6, U7 u7, U8 u8, U9 u9, U10 u10, U11 u11, U12 u12, U13 u13, U14 u14, U15 u15, U16 u16)
             {
                 (var target, var alive) = PrepareTarget();
                 if (!alive) return false;
-                result = ((Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16, R>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13, u14, u15, u16);
-                ApplyChangesToTarget();
+                try
+                {
+                    result = ((Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16, R>)_InnerDelegate)(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13, u14, u15, u16);
+                }
+                catch (WeakRefDeadException)
+                {
+                    if (_RethrowWeakRefDeadException) throw;
+                }
+                finally
+                {
+                    ApplyChangesToTarget();
+                }
                 return true;
             }
             public R Invoke(U1 u1, U2 u2, U3 u3, U4 u4, U5 u5, U6 u6, U7 u7, U8 u8, U9 u9, U10 u10, U11 u11, U12 u12, U13 u13, U14 u14, U15 u15, U16 u16)
@@ -1502,14 +1843,17 @@ namespace Mod
                     newlist = new List<WeakWrapper>(_Listeners.Capacity);
                     newlist.AddRange(_Listeners);
                 }
+
                 if (handler.Target is WeakWrapper wrapper)
                 {
-                    newlist.Add(wrapper);
                 }
                 else
                 {
-                    newlist.Add(Wrap(handler));
+                    wrapper = Wrap(handler);
                 }
+                wrapper._RethrowWeakRefDeadException = true;
+                newlist.Add(wrapper);
+
                 if (oldlist == _Listeners)
                 {
                     _Listeners = newlist;
