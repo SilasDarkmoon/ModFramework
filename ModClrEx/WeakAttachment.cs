@@ -50,6 +50,11 @@ namespace Mod
             public static implicit operator Key(string str) => new Key(str);
         }
 
+        public static Key WeakAttachmentKey(this string str)
+        {
+            return new Key(str);
+        }
+
         private class WeakAttachmentStorage
         {
             private readonly object[] _KnownAttachments;
