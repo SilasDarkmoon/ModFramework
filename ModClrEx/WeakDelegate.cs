@@ -40,10 +40,14 @@ namespace Mod
             return new StrongRef<T>() { Value = value };
         }
     }
+    public class WeakRefDeadException : Exception
+    {
+        public override string Message => "WeakRef is dead!";
+    }
     public struct WeakRef : IWeakRef
     {
         private WeakReference<object> _Inner;
-        public object Target
+        internal object UncheckedTarget
         {
             get
             {
@@ -53,14 +57,46 @@ namespace Mod
             }
             set
             {
-                if (_Inner == null)
+                if (value == null)
                 {
-                    _Inner = new WeakReference<object>(value);
+                    _Inner = null;
                 }
                 else
                 {
-                    _Inner.SetTarget(value);
+                    if (_Inner == null)
+                    {
+                        _Inner = new WeakReference<object>(value);
+                    }
+                    else
+                    {
+                        _Inner.SetTarget(value);
+                    }
                 }
+            }
+        }
+        public object Target
+        {
+            get
+            {
+                if (_Inner == null) return null;
+                if (_Inner.TryGetTarget(out object result))
+                {
+                    return result;
+                }
+                throw new WeakRefDeadException();
+            }
+            set => UncheckedTarget = value;
+        }
+        public bool TryGetTarget(out object target)
+        {
+            if (_Inner == null)
+            {
+                target = null;
+                return true;
+            }
+            else
+            {
+                return _Inner.TryGetTarget(out target);
             }
         }
         public bool HasValue
@@ -69,18 +105,14 @@ namespace Mod
         }
         public bool IsAlive
         {
-            get => !HasValue || Target != null;
-        }
-        internal void Clear()
-        {
-            _Inner = null;
+            get => !HasValue || UncheckedTarget != null;
         }
     }
     public struct WeakRef<T> : IWeakRef where T : class
     {
         private WeakReference<T> _Inner;
-        object IObjectRef.Target { get => Value; set => Value = (T)value; }
-        public T Value
+        object IObjectRef.Target { get => Target; set => Target = (T)value; }
+        internal T UncheckedTarget
         {
             get
             {
@@ -90,24 +122,55 @@ namespace Mod
             }
             set
             {
-                if (_Inner == null)
+                if (value == null)
                 {
-                    _Inner = new WeakReference<T>(value);
+                    _Inner = null;
                 }
                 else
                 {
-                    _Inner.SetTarget(value);
+                    if (_Inner == null)
+                    {
+                        _Inner = new WeakReference<T>(value);
+                    }
+                    else
+                    {
+                        _Inner.SetTarget(value);
+                    }
                 }
             }
         }
-
+        public T Target
+        {
+            get
+            {
+                if (_Inner == null) return null;
+                if (_Inner.TryGetTarget(out T result))
+                {
+                    return result;
+                }
+                throw new WeakRefDeadException();
+            }
+            set => UncheckedTarget = value;
+        }
+        public bool TryGetTarget(out T target)
+        {
+            if (_Inner == null)
+            {
+                target = null;
+                return true;
+            }
+            else
+            {
+                return _Inner.TryGetTarget(out target);
+            }
+        }
         public static implicit operator T(WeakRef<T> r)
         {
-            return r.Value;
+            return r.Target;
         }
         public static implicit operator WeakRef<T>(T value)
         {
-            return new WeakRef<T>() { Value = value };
+            return new WeakRef<T>() { Target = value };
         }
         public bool HasValue
         {
@@ -115,11 +178,7 @@ namespace Mod
         }
         public bool IsAlive
         {
-            get => !HasValue || Value != null;
-        }
-        internal void Clear()
-        {
-            _Inner = null;
+            get => !HasValue || UncheckedTarget != null;
         }
     }
 
@@ -157,7 +216,7 @@ namespace Mod
                     if (target.GetType().Name.StartsWith("<>"))
                     { // Lambda
                         var ct = _ClonedTarget = target.MemberwiseClone();
-                        _WeakTarget = new WeakRef<object>() { Value = target };
+                        _WeakTarget = new WeakRef<object>() { UncheckedTarget = target };
                         List<(int offset, WeakRef<object> wref)> parsed = new List<(int offset, WeakRef<object> wref)>();
                         foreach (var field in ct.GetType().GetAllFields())
                         {
@@ -167,7 +226,7 @@ namespace Mod
                                 ref var fval = ref ct.GetField<object>(offset);
                                 if (fval != null)
                                 {
-                                    parsed.Add((offset, new WeakRef<object>() { Value = fval }));
+                                    parsed.Add((offset, new WeakRef<object>() { UncheckedTarget = fval }));
                                 }
                                 else
                                 {
@@ -180,7 +239,7 @@ namespace Mod
                     }
                     else
                     { // instance delegate
-                        _WeakTarget = new WeakRef<object>() { Value = target };
+                        _WeakTarget = new WeakRef<object>() { UncheckedTarget = target };
                     }
                 }
             }
@@ -194,14 +253,14 @@ namespace Mod
                         bool alive = true;
                         foreach ((var offset, var wref) in _ParsedRef)
                         {
-                            var fval = _ClonedTarget.GetField<object>(offset) = wref.Value;
+                            var fval = _ClonedTarget.GetField<object>(offset) = wref.UncheckedTarget;
                             alive &= !wref.HasValue || fval != null;
                         }
                         return (_ClonedTarget, alive);
                     }
                     else
                     {
-                        var target = _WeakTarget.Value;
+                        var target = _WeakTarget.UncheckedTarget;
                         _InnerDelegate.ChangeTarget(target);
                         return (target, target != null);
                     }
@@ -217,7 +276,7 @@ namespace Mod
                 {
                     if (_ParsedRef != null && _ClonedTarget != null)
                     {
-                        var target = _WeakTarget.Value;
+                        var target = _WeakTarget.UncheckedTarget;
                         if (target != null)
                         {
                             UnsafeEx.MemCopy(target, _ClonedTarget);
@@ -226,15 +285,15 @@ namespace Mod
                         {
                             (var offset, var wref) = _ParsedRef[i];
                             ref var newfval = ref _ClonedTarget.GetField<object>(offset);
-                            if (newfval != wref.Value)
+                            if (newfval != wref.UncheckedTarget)
                             {
                                 if (newfval == null)
                                 {
-                                    wref.Clear();
+                                    wref.UncheckedTarget = null;
                                 }
                                 else
                                 {
-                                    wref.Value = newfval;
+                                    wref.UncheckedTarget = newfval;
                                 }
                                 _ParsedRef[i] = (offset, wref);
                             }
@@ -257,7 +316,7 @@ namespace Mod
                         {
                             foreach ((var offset, var wref) in _ParsedRef)
                             {
-                                if (wref.HasValue && wref.Value == null)
+                                if (wref.HasValue && wref.UncheckedTarget == null)
                                 {
                                     return false;
                                 }
@@ -266,7 +325,7 @@ namespace Mod
                         }
                         else
                         {
-                            return !_WeakTarget.HasValue || _WeakTarget.Value != null;
+                            return !_WeakTarget.HasValue || _WeakTarget.UncheckedTarget != null;
                         }
                     }
                     else
@@ -281,7 +340,7 @@ namespace Mod
                 MethodBase omethod = _InnerDelegate.Method;
                 if (_IsObjectInstanceDelegate)
                 {
-                    otar = _WeakTarget.Value;
+                    otar = _WeakTarget.UncheckedTarget;
                 }
                 else
                 {
@@ -1409,26 +1468,51 @@ namespace Mod
 
             public void RemoveDead()
             {
+                RemoveDead(false);
+            }
+            protected void RemoveDead(bool inplace)
+            {
+                List<WeakWrapper> newlist = inplace ? _Listeners : null;
                 for (int i = _Listeners.Count - 1; i >= 0; --i)
                 {
                     var wrapper = _Listeners[i];
                     if (!wrapper.IsAlive)
                     {
-                        _Listeners.RemoveAt(i);
+                        if (newlist == null)
+                        {
+                            newlist = new List<WeakWrapper>(_Listeners.Capacity);
+                            newlist.AddRange(_Listeners);
+                        }
+                        newlist.RemoveAt(i);
                     }
+                }
+                if (newlist != null)
+                {
+                    _Listeners = newlist;
                 }
             }
 
             public void AddListener(Delegate handler)
             {
+                var oldlist = _Listeners;
                 RemoveDead();
+                List<WeakWrapper> newlist = _Listeners;
+                if (oldlist == _Listeners)
+                {
+                    newlist = new List<WeakWrapper>(_Listeners.Capacity);
+                    newlist.AddRange(_Listeners);
+                }
                 if (handler.Target is WeakWrapper wrapper)
                 {
-                    _Listeners.Add(wrapper);
+                    newlist.Add(wrapper);
                 }
                 else
                 {
-                    _Listeners.Add(Wrap(handler));
+                    newlist.Add(Wrap(handler));
+                }
+                if (oldlist == _Listeners)
+                {
+                    _Listeners = newlist;
                 }
             }
             public void RemoveListener(Delegate handler)
@@ -1446,22 +1530,60 @@ namespace Mod
                 {
                     (_, tar, method) = wrapper.GetDelegateInfo();
                 }
+                List<WeakWrapper> newlist = null;
+                int removedcnt = 0;
                 for (int i = 0; i < _Listeners.Count; ++i)
                 {
                     (var alive, var otar, var omethod) = _Listeners[i].GetDelegateInfo();
                     if (!alive)
                     {
-                        _Listeners.RemoveAt(i);
-                        --i;
+                        if (newlist == null)
+                        {
+                            newlist = new List<WeakWrapper>(_Listeners.Capacity);
+                            newlist.AddRange(_Listeners);
+                        }
+                        newlist.RemoveAt(i - removedcnt);
+                        ++removedcnt;
                         continue;
                     }
                     else if (otar == tar && omethod == method)
                     {
-                        _Listeners.RemoveAt(i);
+                        if (newlist == null)
+                        {
+                            newlist = new List<WeakWrapper>(_Listeners.Capacity);
+                            newlist.AddRange(_Listeners);
+                        }
+                        newlist.RemoveAt(i - removedcnt);
                         break;
                     }
                 }
-                RemoveDead();
+                if (newlist != null)
+                {
+                    _Listeners = newlist;
+                }
+                RemoveDead(newlist != null);
+            }
+            internal void RemoveListener(WeakWrapper wrapper)
+            {
+                List<WeakWrapper> newlist = null;
+                for (int i = 0; i < _Listeners.Count; ++i)
+                {
+                    if (_Listeners[i] == wrapper)
+                    {
+                        //if (newlist == null)
+                        {
+                            newlist = new List<WeakWrapper>(_Listeners.Capacity);
+                            newlist.AddRange(_Listeners);
+                        }
+                        newlist.RemoveAt(i);
+                        break;
+                    }
+                }
+                if (newlist != null)
+                {
+                    _Listeners = newlist;
+                }
+                RemoveDead(newlist != null);
             }
         }
         public class WeakEvent<R> : WeakEvent
@@ -1483,18 +1605,26 @@ namespace Mod
             {
                 RemoveDead();
                 R rv = default(R);
-                for (int i = 0; i < _Listeners.Count; ++i)
+                var listeners = _Listeners;
+                for (int i = 0; i < listeners.Count; ++i)
                 {
-                    WeakWrapper<R> wrapper = _Listeners[i] as WeakWrapper<R>;
+                    WeakWrapper<R> wrapper = listeners[i] as WeakWrapper<R>;
                     if (wrapper != null)
                     {
-                        if (_ShouldReturn)
+                        try
                         {
-                            wrapper.TryInvoke(ref rv);
+                            if (_ShouldReturn)
+                            {
+                                wrapper.TryInvoke(ref rv);
+                            }
+                            else
+                            {
+                                wrapper.InvokeNoReturn();
+                            }
                         }
-                        else
+                        catch (WeakRefDeadException)
                         {
-                            wrapper.InvokeNoReturn();
+                            RemoveListener(wrapper);
                         }
                     }
                 }
@@ -1520,18 +1650,26 @@ namespace Mod
             {
                 RemoveDead();
                 R rv = default(R);
-                for (int i = 0; i < _Listeners.Count; ++i)
+                var listeners = _Listeners;
+                for (int i = 0; i < listeners.Count; ++i)
                 {
-                    WeakWrapper<R, U1> wrapper = _Listeners[i] as WeakWrapper<R, U1>;
+                    WeakWrapper<R, U1> wrapper = listeners[i] as WeakWrapper<R, U1>;
                     if (wrapper != null)
                     {
-                        if (_ShouldReturn)
+                        try
                         {
-                            wrapper.TryInvoke(ref rv, u1);
+                            if (_ShouldReturn)
+                            {
+                                wrapper.TryInvoke(ref rv, u1);
+                            }
+                            else
+                            {
+                                wrapper.InvokeNoReturn(u1);
+                            }
                         }
-                        else
+                        catch (WeakRefDeadException)
                         {
-                            wrapper.InvokeNoReturn(u1);
+                            RemoveListener(wrapper);
                         }
                     }
                 }
@@ -1557,18 +1695,26 @@ namespace Mod
             {
                 RemoveDead();
                 R rv = default(R);
-                for (int i = 0; i < _Listeners.Count; ++i)
+                var listeners = _Listeners;
+                for (int i = 0; i < listeners.Count; ++i)
                 {
-                    WeakWrapper<R, U1, U2> wrapper = _Listeners[i] as WeakWrapper<R, U1, U2>;
+                    WeakWrapper<R, U1, U2> wrapper = listeners[i] as WeakWrapper<R, U1, U2>;
                     if (wrapper != null)
                     {
-                        if (_ShouldReturn)
+                        try
                         {
-                            wrapper.TryInvoke(ref rv, u1, u2);
+                            if (_ShouldReturn)
+                            {
+                                wrapper.TryInvoke(ref rv, u1, u2);
+                            }
+                            else
+                            {
+                                wrapper.InvokeNoReturn(u1, u2);
+                            }
                         }
-                        else
+                        catch (WeakRefDeadException)
                         {
-                            wrapper.InvokeNoReturn(u1, u2);
+                            RemoveListener(wrapper);
                         }
                     }
                 }
@@ -1594,18 +1740,26 @@ namespace Mod
             {
                 RemoveDead();
                 R rv = default(R);
-                for (int i = 0; i < _Listeners.Count; ++i)
+                var listeners = _Listeners;
+                for (int i = 0; i < listeners.Count; ++i)
                 {
-                    WeakWrapper<R, U1, U2, U3> wrapper = _Listeners[i] as WeakWrapper<R, U1, U2, U3>;
+                    WeakWrapper<R, U1, U2, U3> wrapper = listeners[i] as WeakWrapper<R, U1, U2, U3>;
                     if (wrapper != null)
                     {
-                        if (_ShouldReturn)
+                        try
                         {
-                            wrapper.TryInvoke(ref rv, u1, u2, u3);
+                            if (_ShouldReturn)
+                            {
+                                wrapper.TryInvoke(ref rv, u1, u2, u3);
+                            }
+                            else
+                            {
+                                wrapper.InvokeNoReturn(u1, u2, u3);
+                            }
                         }
-                        else
+                        catch (WeakRefDeadException)
                         {
-                            wrapper.InvokeNoReturn(u1, u2, u3);
+                            RemoveListener(wrapper);
                         }
                     }
                 }
@@ -1631,18 +1785,26 @@ namespace Mod
             {
                 RemoveDead();
                 R rv = default(R);
-                for (int i = 0; i < _Listeners.Count; ++i)
+                var listeners = _Listeners;
+                for (int i = 0; i < listeners.Count; ++i)
                 {
-                    WeakWrapper<R, U1, U2, U3, U4> wrapper = _Listeners[i] as WeakWrapper<R, U1, U2, U3, U4>;
+                    WeakWrapper<R, U1, U2, U3, U4> wrapper = listeners[i] as WeakWrapper<R, U1, U2, U3, U4>;
                     if (wrapper != null)
                     {
-                        if (_ShouldReturn)
+                        try
                         {
-                            wrapper.TryInvoke(ref rv, u1, u2, u3, u4);
+                            if (_ShouldReturn)
+                            {
+                                wrapper.TryInvoke(ref rv, u1, u2, u3, u4);
+                            }
+                            else
+                            {
+                                wrapper.InvokeNoReturn(u1, u2, u3, u4);
+                            }
                         }
-                        else
+                        catch (WeakRefDeadException)
                         {
-                            wrapper.InvokeNoReturn(u1, u2, u3, u4);
+                            RemoveListener(wrapper);
                         }
                     }
                 }
@@ -1668,18 +1830,26 @@ namespace Mod
             {
                 RemoveDead();
                 R rv = default(R);
-                for (int i = 0; i < _Listeners.Count; ++i)
+                var listeners = _Listeners;
+                for (int i = 0; i < listeners.Count; ++i)
                 {
-                    WeakWrapper<R, U1, U2, U3, U4, U5> wrapper = _Listeners[i] as WeakWrapper<R, U1, U2, U3, U4, U5>;
+                    WeakWrapper<R, U1, U2, U3, U4, U5> wrapper = listeners[i] as WeakWrapper<R, U1, U2, U3, U4, U5>;
                     if (wrapper != null)
                     {
-                        if (_ShouldReturn)
+                        try
                         {
-                            wrapper.TryInvoke(ref rv, u1, u2, u3, u4, u5);
+                            if (_ShouldReturn)
+                            {
+                                wrapper.TryInvoke(ref rv, u1, u2, u3, u4, u5);
+                            }
+                            else
+                            {
+                                wrapper.InvokeNoReturn(u1, u2, u3, u4, u5);
+                            }
                         }
-                        else
+                        catch (WeakRefDeadException)
                         {
-                            wrapper.InvokeNoReturn(u1, u2, u3, u4, u5);
+                            RemoveListener(wrapper);
                         }
                     }
                 }
@@ -1705,18 +1875,26 @@ namespace Mod
             {
                 RemoveDead();
                 R rv = default(R);
-                for (int i = 0; i < _Listeners.Count; ++i)
+                var listeners = _Listeners;
+                for (int i = 0; i < listeners.Count; ++i)
                 {
-                    WeakWrapper<R, U1, U2, U3, U4, U5, U6> wrapper = _Listeners[i] as WeakWrapper<R, U1, U2, U3, U4, U5, U6>;
+                    WeakWrapper<R, U1, U2, U3, U4, U5, U6> wrapper = listeners[i] as WeakWrapper<R, U1, U2, U3, U4, U5, U6>;
                     if (wrapper != null)
                     {
-                        if (_ShouldReturn)
+                        try
                         {
-                            wrapper.TryInvoke(ref rv, u1, u2, u3, u4, u5, u6);
+                            if (_ShouldReturn)
+                            {
+                                wrapper.TryInvoke(ref rv, u1, u2, u3, u4, u5, u6);
+                            }
+                            else
+                            {
+                                wrapper.InvokeNoReturn(u1, u2, u3, u4, u5, u6);
+                            }
                         }
-                        else
+                        catch (WeakRefDeadException)
                         {
-                            wrapper.InvokeNoReturn(u1, u2, u3, u4, u5, u6);
+                            RemoveListener(wrapper);
                         }
                     }
                 }
@@ -1742,18 +1920,26 @@ namespace Mod
             {
                 RemoveDead();
                 R rv = default(R);
-                for (int i = 0; i < _Listeners.Count; ++i)
+                var listeners = _Listeners;
+                for (int i = 0; i < listeners.Count; ++i)
                 {
-                    WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7> wrapper = _Listeners[i] as WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7>;
+                    WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7> wrapper = listeners[i] as WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7>;
                     if (wrapper != null)
                     {
-                        if (_ShouldReturn)
+                        try
                         {
-                            wrapper.TryInvoke(ref rv, u1, u2, u3, u4, u5, u6, u7);
+                            if (_ShouldReturn)
+                            {
+                                wrapper.TryInvoke(ref rv, u1, u2, u3, u4, u5, u6, u7);
+                            }
+                            else
+                            {
+                                wrapper.InvokeNoReturn(u1, u2, u3, u4, u5, u6, u7);
+                            }
                         }
-                        else
+                        catch (WeakRefDeadException)
                         {
-                            wrapper.InvokeNoReturn(u1, u2, u3, u4, u5, u6, u7);
+                            RemoveListener(wrapper);
                         }
                     }
                 }
@@ -1779,18 +1965,26 @@ namespace Mod
             {
                 RemoveDead();
                 R rv = default(R);
-                for (int i = 0; i < _Listeners.Count; ++i)
+                var listeners = _Listeners;
+                for (int i = 0; i < listeners.Count; ++i)
                 {
-                    WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8> wrapper = _Listeners[i] as WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8>;
+                    WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8> wrapper = listeners[i] as WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8>;
                     if (wrapper != null)
                     {
-                        if (_ShouldReturn)
+                        try
                         {
-                            wrapper.TryInvoke(ref rv, u1, u2, u3, u4, u5, u6, u7, u8);
+                            if (_ShouldReturn)
+                            {
+                                wrapper.TryInvoke(ref rv, u1, u2, u3, u4, u5, u6, u7, u8);
+                            }
+                            else
+                            {
+                                wrapper.InvokeNoReturn(u1, u2, u3, u4, u5, u6, u7, u8);
+                            }
                         }
-                        else
+                        catch (WeakRefDeadException)
                         {
-                            wrapper.InvokeNoReturn(u1, u2, u3, u4, u5, u6, u7, u8);
+                            RemoveListener(wrapper);
                         }
                     }
                 }
@@ -1816,18 +2010,26 @@ namespace Mod
             {
                 RemoveDead();
                 R rv = default(R);
-                for (int i = 0; i < _Listeners.Count; ++i)
+                var listeners = _Listeners;
+                for (int i = 0; i < listeners.Count; ++i)
                 {
-                    WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9> wrapper = _Listeners[i] as WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9>;
+                    WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9> wrapper = listeners[i] as WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9>;
                     if (wrapper != null)
                     {
-                        if (_ShouldReturn)
+                        try
                         {
-                            wrapper.TryInvoke(ref rv, u1, u2, u3, u4, u5, u6, u7, u8, u9);
+                            if (_ShouldReturn)
+                            {
+                                wrapper.TryInvoke(ref rv, u1, u2, u3, u4, u5, u6, u7, u8, u9);
+                            }
+                            else
+                            {
+                                wrapper.InvokeNoReturn(u1, u2, u3, u4, u5, u6, u7, u8, u9);
+                            }
                         }
-                        else
+                        catch (WeakRefDeadException)
                         {
-                            wrapper.InvokeNoReturn(u1, u2, u3, u4, u5, u6, u7, u8, u9);
+                            RemoveListener(wrapper);
                         }
                     }
                 }
@@ -1853,18 +2055,26 @@ namespace Mod
             {
                 RemoveDead();
                 R rv = default(R);
-                for (int i = 0; i < _Listeners.Count; ++i)
+                var listeners = _Listeners;
+                for (int i = 0; i < listeners.Count; ++i)
                 {
-                    WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10> wrapper = _Listeners[i] as WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10>;
+                    WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10> wrapper = listeners[i] as WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10>;
                     if (wrapper != null)
                     {
-                        if (_ShouldReturn)
+                        try
                         {
-                            wrapper.TryInvoke(ref rv, u1, u2, u3, u4, u5, u6, u7, u8, u9, u10);
+                            if (_ShouldReturn)
+                            {
+                                wrapper.TryInvoke(ref rv, u1, u2, u3, u4, u5, u6, u7, u8, u9, u10);
+                            }
+                            else
+                            {
+                                wrapper.InvokeNoReturn(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10);
+                            }
                         }
-                        else
+                        catch (WeakRefDeadException)
                         {
-                            wrapper.InvokeNoReturn(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10);
+                            RemoveListener(wrapper);
                         }
                     }
                 }
@@ -1890,18 +2100,26 @@ namespace Mod
             {
                 RemoveDead();
                 R rv = default(R);
-                for (int i = 0; i < _Listeners.Count; ++i)
+                var listeners = _Listeners;
+                for (int i = 0; i < listeners.Count; ++i)
                 {
-                    WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11> wrapper = _Listeners[i] as WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11>;
+                    WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11> wrapper = listeners[i] as WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11>;
                     if (wrapper != null)
                     {
-                        if (_ShouldReturn)
+                        try
                         {
-                            wrapper.TryInvoke(ref rv, u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11);
+                            if (_ShouldReturn)
+                            {
+                                wrapper.TryInvoke(ref rv, u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11);
+                            }
+                            else
+                            {
+                                wrapper.InvokeNoReturn(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11);
+                            }
                         }
-                        else
+                        catch (WeakRefDeadException)
                         {
-                            wrapper.InvokeNoReturn(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11);
+                            RemoveListener(wrapper);
                         }
                     }
                 }
@@ -1927,18 +2145,26 @@ namespace Mod
             {
                 RemoveDead();
                 R rv = default(R);
-                for (int i = 0; i < _Listeners.Count; ++i)
+                var listeners = _Listeners;
+                for (int i = 0; i < listeners.Count; ++i)
                 {
-                    WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12> wrapper = _Listeners[i] as WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12>;
+                    WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12> wrapper = listeners[i] as WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12>;
                     if (wrapper != null)
                     {
-                        if (_ShouldReturn)
+                        try
                         {
-                            wrapper.TryInvoke(ref rv, u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12);
+                            if (_ShouldReturn)
+                            {
+                                wrapper.TryInvoke(ref rv, u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12);
+                            }
+                            else
+                            {
+                                wrapper.InvokeNoReturn(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12);
+                            }
                         }
-                        else
+                        catch (WeakRefDeadException)
                         {
-                            wrapper.InvokeNoReturn(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12);
+                            RemoveListener(wrapper);
                         }
                     }
                 }
@@ -1964,18 +2190,26 @@ namespace Mod
             {
                 RemoveDead();
                 R rv = default(R);
-                for (int i = 0; i < _Listeners.Count; ++i)
+                var listeners = _Listeners;
+                for (int i = 0; i < listeners.Count; ++i)
                 {
-                    WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13> wrapper = _Listeners[i] as WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13>;
+                    WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13> wrapper = listeners[i] as WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13>;
                     if (wrapper != null)
                     {
-                        if (_ShouldReturn)
+                        try
                         {
-                            wrapper.TryInvoke(ref rv, u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13);
+                            if (_ShouldReturn)
+                            {
+                                wrapper.TryInvoke(ref rv, u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13);
+                            }
+                            else
+                            {
+                                wrapper.InvokeNoReturn(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13);
+                            }
                         }
-                        else
+                        catch (WeakRefDeadException)
                         {
-                            wrapper.InvokeNoReturn(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13);
+                            RemoveListener(wrapper);
                         }
                     }
                 }
@@ -2001,18 +2235,26 @@ namespace Mod
             {
                 RemoveDead();
                 R rv = default(R);
-                for (int i = 0; i < _Listeners.Count; ++i)
+                var listeners = _Listeners;
+                for (int i = 0; i < listeners.Count; ++i)
                 {
-                    WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14> wrapper = _Listeners[i] as WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14>;
+                    WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14> wrapper = listeners[i] as WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14>;
                     if (wrapper != null)
                     {
-                        if (_ShouldReturn)
+                        try
                         {
-                            wrapper.TryInvoke(ref rv, u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13, u14);
+                            if (_ShouldReturn)
+                            {
+                                wrapper.TryInvoke(ref rv, u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13, u14);
+                            }
+                            else
+                            {
+                                wrapper.InvokeNoReturn(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13, u14);
+                            }
                         }
-                        else
+                        catch (WeakRefDeadException)
                         {
-                            wrapper.InvokeNoReturn(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13, u14);
+                            RemoveListener(wrapper);
                         }
                     }
                 }
@@ -2038,18 +2280,26 @@ namespace Mod
             {
                 RemoveDead();
                 R rv = default(R);
-                for (int i = 0; i < _Listeners.Count; ++i)
+                var listeners = _Listeners;
+                for (int i = 0; i < listeners.Count; ++i)
                 {
-                    WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15> wrapper = _Listeners[i] as WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15>;
+                    WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15> wrapper = listeners[i] as WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15>;
                     if (wrapper != null)
                     {
-                        if (_ShouldReturn)
+                        try
                         {
-                            wrapper.TryInvoke(ref rv, u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13, u14, u15);
+                            if (_ShouldReturn)
+                            {
+                                wrapper.TryInvoke(ref rv, u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13, u14, u15);
+                            }
+                            else
+                            {
+                                wrapper.InvokeNoReturn(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13, u14, u15);
+                            }
                         }
-                        else
+                        catch (WeakRefDeadException)
                         {
-                            wrapper.InvokeNoReturn(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13, u14, u15);
+                            RemoveListener(wrapper);
                         }
                     }
                 }
@@ -2075,18 +2325,26 @@ namespace Mod
             {
                 RemoveDead();
                 R rv = default(R);
-                for (int i = 0; i < _Listeners.Count; ++i)
+                var listeners = _Listeners;
+                for (int i = 0; i < listeners.Count; ++i)
                 {
-                    WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16> wrapper = _Listeners[i] as WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16>;
+                    WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16> wrapper = listeners[i] as WeakWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16>;
                     if (wrapper != null)
                     {
-                        if (_ShouldReturn)
+                        try
                         {
-                            wrapper.TryInvoke(ref rv, u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13, u14, u15, u16);
+                            if (_ShouldReturn)
+                            {
+                                wrapper.TryInvoke(ref rv, u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13, u14, u15, u16);
+                            }
+                            else
+                            {
+                                wrapper.InvokeNoReturn(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13, u14, u15, u16);
+                            }
                         }
-                        else
+                        catch (WeakRefDeadException)
                         {
-                            wrapper.InvokeNoReturn(u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13, u14, u15, u16);
+                            RemoveListener(wrapper);
                         }
                     }
                 }

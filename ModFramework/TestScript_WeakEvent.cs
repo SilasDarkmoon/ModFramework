@@ -30,7 +30,7 @@ public static class TestScript_WeakEvent
         if (RuntimeInfo.IsNativeAOT)
         { // on NativeAOT, it is recommanded to explicitly use WeakRef.
             var winst = inst.WeakRef();
-            TestEvent += y => { if (winst.Value is TestClass value) Console.WriteLine($"Lambda => {value.x - y}"); };
+            TestEvent += y => Console.WriteLine($"Lambda => {winst.Target.x - y}");
         }
         else
         {
