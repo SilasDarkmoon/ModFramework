@@ -632,5 +632,53 @@ namespace Mod.LowLevel
         {
             MemClean(ref dst, 0, Size<D>());
         }
+
+        public static ref byte AddByteOffset(ref byte addr, IntPtr offset)
+        {
+            for (; ; )
+            {
+                RawRef refObj = default;
+                refObj.SetRef(ref addr);
+                var objAddress = refObj.Address;
+                var fieldAddress = (IntPtr)((long)objAddress + (long)offset);
+                RawRef refField = default;
+                refField.Address = fieldAddress;
+                ref byte refResult = ref refField.GetRef<byte>();
+                RawRef refCheck = default;
+                refCheck.SetRef(ref addr);
+                var checkAddress = refCheck.Address;
+                if (checkAddress == objAddress)
+                {
+                    return ref refResult;
+                }
+            }
+        }
+        public static ref T AddOffset<T>(ref T addr, int offset)
+        {
+            long realOffset = offset;
+            unsafe
+            {
+#pragma warning disable CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
+                realOffset *= sizeof(T);
+#pragma warning restore CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
+            }
+            for (; ; )
+            {
+                RawRef refObj = default;
+                refObj.SetRef(ref addr);
+                var objAddress = refObj.Address;
+                var fieldAddress = (IntPtr)((long)objAddress + realOffset);
+                RawRef refField = default;
+                refField.Address = fieldAddress;
+                ref T refResult = ref refField.GetRef<T>();
+                RawRef refCheck = default;
+                refCheck.SetRef(ref addr);
+                var checkAddress = refCheck.Address;
+                if (checkAddress == objAddress)
+                {
+                    return ref refResult;
+                }
+            }
+        }
     }
 }

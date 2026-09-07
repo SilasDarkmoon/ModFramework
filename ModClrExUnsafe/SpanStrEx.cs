@@ -266,7 +266,7 @@ namespace Mod.LowLevel
             }
         }
 
-        public static int StrLen(Span<byte> str)
+        public static int StrLen(ReadOnlySpan<byte> str)
         {
             for (int i = 0; i < str.Length; ++i)
             {
@@ -276,6 +276,35 @@ namespace Mod.LowLevel
                 }
             }
             return str.Length;
+        }
+
+        public static Span<byte> Append(this Span<byte> span, byte value, bool throwOnError = false)
+        {
+            var len = StrLen(span);
+            if (len >= span.Length)
+            {
+                if (throwOnError)
+                {
+                    throw new ArgumentException("Span is full", nameof(span));
+                }
+                return span;
+            }
+            span[len] = value;
+            return span;
+        }
+        public static Span<byte> Append(this Span<byte> span, ReadOnlySpan<byte> value, bool throwOnError = false)
+        {
+            var len = StrLen(span);
+            if (len + value.Length > span.Length)
+            {
+                if (throwOnError)
+                {
+                    throw new ArgumentException("Span has insufficient space", nameof(span));
+                }
+                return span;
+            }
+            value.CopyTo(span.Slice(len));
+            return span;
         }
     }
 }
