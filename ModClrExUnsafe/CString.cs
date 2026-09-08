@@ -2,7 +2,6 @@ using Mod.LowLevel;
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
 using System.Text;
 
 namespace Mod
@@ -14,6 +13,7 @@ namespace Mod
         private int _Length;
         private bool _Readonly;
         private string _ConvertedString;
+        private int _CachedHashCode;
 
         public int Length => _Length;
         public int Size => _Size;
@@ -26,12 +26,17 @@ namespace Mod
                 _Readonly = true;
             }
         }
+        public void ClearCache()
+        {
+            _ConvertedString = null;
+            _CachedHashCode = 0;
+        }
         public void RecalculateLength()
         {
             var newlen = UnsafeEx.StrLen(ref _Address.GetRef(), _Size);
             if (_Length != newlen)
             {
-                _ConvertedString = null;
+                ClearCache();
                 _Length = newlen;
             }
         }
@@ -45,6 +50,7 @@ namespace Mod
             _Length = len;
             _Readonly = false;
             _ConvertedString = null;
+            _CachedHashCode = 0;
         }
         public CStringRef(IntPtr address, int size)
         {
@@ -53,6 +59,7 @@ namespace Mod
             _Length = UnsafeEx.StrLen(address, size);
             _Readonly = false;
             _ConvertedString = null;
+            _CachedHashCode = 0;
         }
         public CStringRef(IntPtr address)
         {
@@ -61,6 +68,7 @@ namespace Mod
             _Size = _Length + 1;
             _Readonly = false;
             _ConvertedString = null;
+            _CachedHashCode = 0;
         }
         public CStringRef(Span<byte> data)
         {
@@ -69,6 +77,7 @@ namespace Mod
             _Length = UnsafeEx.StrLen(data);
             _Readonly = false;
             _ConvertedString = null;
+            _CachedHashCode = 0;
         }
         public CStringRef(ReadOnlySpan<byte> data)
         {
@@ -77,6 +86,7 @@ namespace Mod
             _Length = UnsafeEx.StrLen(data);
             _Readonly = true;
             _ConvertedString = null;
+            _CachedHashCode = 0;
         }
         public CStringRef(string str) : this(Encoding.UTF8.GetBytes(str))
         {
@@ -114,12 +124,12 @@ namespace Mod
                     if (value == 0 && index < _Length)
                     {
                         _Length = index;
-                        _ConvertedString = null;
+                        ClearCache();
                     }
                     else if (value != 0 && index >= _Length)
                     {
                         _Length = index + 1;
-                        _ConvertedString = null;
+                        ClearCache();
                     }
                 }
             }
@@ -219,11 +229,12 @@ namespace Mod
             {
                 to._Length = _Length;
                 to._ConvertedString = _ConvertedString;
+                to._CachedHashCode = _CachedHashCode;
             }
             else
             {
                 to._Length = to._Size;
-                to._ConvertedString = null;
+                to.ClearCache();
             }
         }
 
@@ -319,29 +330,33 @@ namespace Mod
         }
         public override int GetHashCode()
         {
-            int hash = 0;
-            if (_Length > 0)
+            if (_CachedHashCode == 0)
             {
-                var first = _Address.GetValue();
-                hash |= (first << 28);
-                if (_Length > 1)
+                int hash = 0;
+                if (_Length > 0)
                 {
-                    var last = (_Address + (_Length - 1)).GetValue();
-                    hash |= (last & 0x0F);
+                    var first = _Address.GetValue();
+                    hash |= (first << 28);
+                    if (_Length > 1)
+                    {
+                        var last = (_Address + (_Length - 1)).GetValue();
+                        hash |= (last & 0x0F);
+                    }
+                    for (int i = 0; i < _Length; ++i)
+                    {
+                        var b = (_Address + i).GetValue();
+                        var offset = i / 3;
+                        var group = i % 3;
+                        var shift = (3 - group) * 8;
+                        var codepart = ((int)b) << shift;
+                        codepart >>= (offset % 8);
+                        codepart = ((codepart & 0xFF) << 16) | (codepart >> 8);
+                        hash ^= codepart << 4;
+                    }
                 }
-                for (int i = 0; i < _Length; ++i)
-                {
-                    var b = (_Address + i).GetValue();
-                    var offset = i / 3;
-                    var group = i % 3;
-                    var shift = (3 - group) * 8;
-                    var codepart = ((int)b) << shift;
-                    codepart >>= (offset % 8);
-                    codepart = ((codepart & 0xFF) << 16) | (codepart >> 8);
-                    hash ^= codepart << 4;
-                }
+                _CachedHashCode = hash;
             }
-            return hash;
+            return _CachedHashCode;
         }
 
         public static bool operator ==(CStringRef left, CStringRef right)
@@ -383,6 +398,56 @@ namespace Mod
             return new CStringRef(span);
         }
 
+        public int IndexOf(byte value, int startIndex = 0)
+        {
+            throw new NotImplementedException();
+        }
+        public int IndexOf(ReadOnlySpan<byte> value, int startIndex = 0)
+        {
+            throw new NotImplementedException();
+        }
+        public bool Contains(byte value)
+        {
+            throw new NotImplementedException();
+        }
+        public bool Contains(ReadOnlySpan<byte> value)
+        {
+            throw new NotImplementedException();
+        }
+        public int LastIndexOf(byte value)
+        {
+            throw new NotImplementedException();
+        }
+        public int LastIndexOf(ReadOnlySpan<byte> value)
+        {
+            throw new NotImplementedException();
+        }
+
+        public int IndexOfAny(ReadOnlySpan<byte> anyOf, int startIndex = 0)
+        {
+            throw new NotImplementedException();
+        }
+        public int LastIndexOfAny(ReadOnlySpan<byte> anyOf, int startIndex = 0)
+        {
+            throw new NotImplementedException();
+        }
+        public bool StartsWith(byte value)
+        {
+            throw new NotImplementedException();
+        }
+        public bool StartsWith(ReadOnlySpan<byte> value)
+        {
+            throw new NotImplementedException();
+        }
+        public bool EndsWith(byte value)
+        {
+            throw new NotImplementedException();
+        }
+        public bool EndsWith(ReadOnlySpan<byte> value)
+        {
+            throw new NotImplementedException();
+        }
+
         public CStringRef Append(byte value)
         {
             if (_Length >= _Size)
@@ -392,7 +457,10 @@ namespace Mod
                 newbuffer[_Length] = value;
                 return new CStringRef(newbuffer);
             }
-            return new CStringRef(ToSpan().Append(value));
+            ClearCache();
+            ToSpan().Append(value);
+            ++_Length;
+            return this;
         }
         public CStringRef Append(CStringRef other)
         {
@@ -407,8 +475,66 @@ namespace Mod
                 other.ToSpan().CopyTo(new Span<byte>(newbuffer, _Length, newbuffer.Length - _Length));
                 return new CStringRef(newbuffer);
             }
-            var newspan = ToSpan().Append(other.ToSpan());
-            return new CStringRef(newspan);
+            ClearCache();
+            ToSpan().Append(other.ToSpan());
+            _Length += other._Length;
+            return this;
+        }
+    }
+
+    public class Box<T> where T : struct
+    {
+        public T Value;
+        public Box()
+        {
+        }
+        public Box(T value)
+        {
+            Value = value;
+        }
+
+        public static implicit operator T(Box<T> box)
+        {
+            return box.Value;
+        }
+        public static implicit operator Box<T>(T value)
+        {
+            return new Box<T>(value);
+        }
+    }
+    public class CString : Box<CStringRef>
+    {
+        public CString() : base()
+        {
+        }
+        public CString(CStringRef value) : base(value)
+        {
+        }
+        public CString(string value) : base(new CStringRef(value))
+        {
+        }
+        public static implicit operator string(CString thiz)
+        {
+            return thiz.Value.ToString();
+        }
+        public static implicit operator CString(string s)
+        {
+            return new CString(s);
+        }
+        public static implicit operator CStringRef(CString thiz)
+        {
+            return thiz.Value;
+        }
+        public static implicit operator CString(CStringRef cstr)
+        {
+            return new CString(cstr);
+        }
+    }
+    public static class BoxExtensions
+    {
+        public static ref T Unbox<T>(this object box)
+        {
+            return ref UnsafeEx.GetFieldRef<T>(box, 0);
         }
     }
 }
