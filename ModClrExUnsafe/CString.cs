@@ -400,52 +400,394 @@ namespace Mod
 
         public int IndexOf(byte value, int startIndex = 0)
         {
-            throw new NotImplementedException();
+            if (startIndex < 0 || startIndex > _Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(startIndex));
+            }
+            unsafe
+            {
+                fixed (byte* p = &_Address.GetRef())
+                {
+                    for (int i = startIndex; i < _Length; ++i)
+                    {
+                        if (p[i] == value)
+                        {
+                            return i;
+                        }
+                    }
+                }
+            }
+            return -1;
+        }
+        public int IndexOf(CStringRef value, int startIndex = 0)
+        {
+            if (startIndex < 0 || startIndex > _Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(startIndex));
+            }
+            if (value._Length == 0)
+            {
+                return startIndex;
+            }
+            if (value._Length > _Length - startIndex)
+            {
+                return -1;
+            }
+            unsafe
+            {
+                fixed (byte* p = &_Address.GetRef())
+                {
+                    int lastStart = _Length - value._Length;
+                    for (int i = startIndex; i <= lastStart; ++i)
+                    {
+                        bool found = true;
+                        for (int j = 0; j < value._Length; ++j)
+                        {
+                            if (p[i + j] != (value._Address + j).GetValue())
+                            {
+                                found = false;
+                                break;
+                            }
+                        }
+                        if (found)
+                        {
+                            return i;
+                        }
+                    }
+                }
+            }
+            return -1;
         }
         public int IndexOf(ReadOnlySpan<byte> value, int startIndex = 0)
         {
-            throw new NotImplementedException();
+            if (startIndex < 0 || startIndex > _Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(startIndex));
+            }
+            if (value.Length == 0)
+            {
+                return startIndex;
+            }
+            if (value.Length > _Length - startIndex)
+            {
+                return -1;
+            }
+            unsafe
+            {
+                fixed (byte* p = &_Address.GetRef())
+                {
+                    int lastStart = _Length - value.Length;
+                    for (int i = startIndex; i <= lastStart; ++i)
+                    {
+                        bool found = true;
+                        for (int j = 0; j < value.Length; ++j)
+                        {
+                            if (p[i + j] != value[j])
+                            {
+                                found = false;
+                                break;
+                            }
+                        }
+                        if (found)
+                        {
+                            return i;
+                        }
+                    }
+                }
+            }
+            return -1;
         }
+        public int IndexOf(Span<byte> value, int startIndex = 0)
+        {
+            return IndexOf((ReadOnlySpan<byte>)value, startIndex);
+        }
+
         public bool Contains(byte value)
         {
-            throw new NotImplementedException();
+            return IndexOf(value) >= 0;
+        }
+        public bool Contains(CStringRef value)
+        {
+            return IndexOf(value) >= 0;
         }
         public bool Contains(ReadOnlySpan<byte> value)
         {
-            throw new NotImplementedException();
+            return IndexOf(value) >= 0;
         }
+        public bool Contains(Span<byte> value)
+        {
+            return IndexOf(value) >= 0;
+        }
+
         public int LastIndexOf(byte value)
         {
-            throw new NotImplementedException();
+            unsafe
+            {
+                fixed (byte* p = &_Address.GetRef())
+                {
+                    for (int i = _Length - 1; i >= 0; --i)
+                    {
+                        if (p[i] == value)
+                        {
+                            return i;
+                        }
+                    }
+                }
+            }
+            return -1;
+        }
+        public int LastIndexOf(CStringRef value)
+        {
+            if (value._Length == 0)
+            {
+                return _Length;
+            }
+            if (value._Length > _Length)
+            {
+                return -1;
+            }
+            unsafe
+            {
+                fixed (byte* p = &_Address.GetRef())
+                {
+                    for (int i = _Length - value._Length; i >= 0; --i)
+                    {
+                        bool found = true;
+                        for (int j = 0; j < value._Length; ++j)
+                        {
+                            if (p[i + j] != (value._Address + j).GetValue())
+                            {
+                                found = false;
+                                break;
+                            }
+                        }
+                        if (found)
+                        {
+                            return i;
+                        }
+                    }
+                }
+            }
+            return -1;
         }
         public int LastIndexOf(ReadOnlySpan<byte> value)
         {
-            throw new NotImplementedException();
+            if (value.Length == 0)
+            {
+                return _Length;
+            }
+            if (value.Length > _Length)
+            {
+                return -1;
+            }
+            unsafe
+            {
+                fixed (byte* p = &_Address.GetRef())
+                {
+                    for (int i = _Length - value.Length; i >= 0; --i)
+                    {
+                        bool found = true;
+                        for (int j = 0; j < value.Length; ++j)
+                        {
+                            if (p[i + j] != value[j])
+                            {
+                                found = false;
+                                break;
+                            }
+                        }
+                        if (found)
+                        {
+                            return i;
+                        }
+                    }
+                }
+            }
+            return -1;
+        }
+        public int LastIndexOf(Span<byte> value)
+        {
+            return LastIndexOf((ReadOnlySpan<byte>)value);
         }
 
         public int IndexOfAny(ReadOnlySpan<byte> anyOf, int startIndex = 0)
         {
-            throw new NotImplementedException();
+            if (startIndex < 0 || startIndex > _Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(startIndex));
+            }
+            if (anyOf.Length == 0)
+            {
+                throw new ArgumentException("anyOf must not be empty.", nameof(anyOf));
+            }
+            unsafe
+            {
+                fixed (byte* p = &_Address.GetRef())
+                {
+                    for (int i = startIndex; i < _Length; ++i)
+                    {
+                        for (int j = 0; j < anyOf.Length; ++j)
+                        {
+                            if (p[i] == anyOf[j])
+                            {
+                                return i;
+                            }
+                        }
+                    }
+                }
+            }
+            return -1;
         }
         public int LastIndexOfAny(ReadOnlySpan<byte> anyOf, int startIndex = 0)
         {
-            throw new NotImplementedException();
+            if (startIndex < 0 || startIndex > _Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(startIndex));
+            }
+            if (anyOf.Length == 0)
+            {
+                throw new ArgumentException("anyOf must not be empty.", nameof(anyOf));
+            }
+            unsafe
+            {
+                fixed (byte* p = &_Address.GetRef())
+                {
+                    for (int i = _Length - 1; i >= startIndex; --i)
+                    {
+                        for (int j = 0; j < anyOf.Length; ++j)
+                        {
+                            if (p[i] == anyOf[j])
+                            {
+                                return i;
+                            }
+                        }
+                    }
+                }
+            }
+            return -1;
         }
+
         public bool StartsWith(byte value)
         {
-            throw new NotImplementedException();
+            if (_Length == 0)
+            {
+                return false;
+            }
+            unsafe
+            {
+                fixed (byte* p = &_Address.GetRef())
+                {
+                    return p[0] == value;
+                }
+            }
+        }
+        public bool StartsWith(CStringRef value)
+        {
+            if (value._Length > _Length)
+            {
+                return false;
+            }
+            unsafe
+            {
+                fixed (byte* p = &_Address.GetRef())
+                {
+                    for (int j = 0; j < value._Length; ++j)
+                    {
+                        if (p[j] != (value._Address + j).GetValue())
+                        {
+                            return false;
+                        }
+                    }
+                }
+            }
+            return true;
         }
         public bool StartsWith(ReadOnlySpan<byte> value)
         {
-            throw new NotImplementedException();
+            if (value.Length > _Length)
+            {
+                return false;
+            }
+            unsafe
+            {
+                fixed (byte* p = &_Address.GetRef())
+                {
+                    for (int j = 0; j < value.Length; ++j)
+                    {
+                        if (p[j] != value[j])
+                        {
+                            return false;
+                        }
+                    }
+                }
+            }
+            return true;
         }
+        public bool StartsWith(Span<byte> value)
+        {
+            return StartsWith((ReadOnlySpan<byte>)value);
+        }
+
         public bool EndsWith(byte value)
         {
-            throw new NotImplementedException();
+            if (_Length == 0)
+            {
+                return false;
+            }
+            unsafe
+            {
+                fixed (byte* p = &_Address.GetRef())
+                {
+                    return p[_Length - 1] == value;
+                }
+            }
+        }
+        public bool EndsWith(CStringRef value)
+        {
+            if (value._Length > _Length)
+            {
+                return false;
+            }
+            unsafe
+            {
+                fixed (byte* p = &_Address.GetRef())
+                {
+                    int offset = _Length - value._Length;
+                    for (int j = 0; j < value._Length; ++j)
+                    {
+                        if (p[offset + j] != (value._Address + j).GetValue())
+                        {
+                            return false;
+                        }
+                    }
+                }
+            }
+            return true;
         }
         public bool EndsWith(ReadOnlySpan<byte> value)
         {
-            throw new NotImplementedException();
+            if (value.Length > _Length)
+            {
+                return false;
+            }
+            unsafe
+            {
+                fixed (byte* p = &_Address.GetRef())
+                {
+                    int offset = _Length - value.Length;
+                    for (int j = 0; j < value.Length; ++j)
+                    {
+                        if (p[offset + j] != value[j])
+                        {
+                            return false;
+                        }
+                    }
+                }
+            }
+            return true;
+        }
+        public bool EndsWith(Span<byte> value)
+        {
+            return EndsWith((ReadOnlySpan<byte>)value);
         }
 
         public CStringRef Append(byte value)
