@@ -26,6 +26,10 @@ namespace Mod
                 _Readonly = true;
             }
         }
+        public void Unfreeze()
+        {
+            _Readonly = false;
+        }
         public void ClearCache()
         {
             _ConvertedString = null;
@@ -214,7 +218,7 @@ namespace Mod
             return GetEnumerator();
         }
 
-        public void CloneTo(CStringRef to)
+        public void CopyTo(CStringRef to)
         {
             if (to._Readonly)
             {
@@ -237,11 +241,18 @@ namespace Mod
                 to.ClearCache();
             }
         }
-
+        public void CopyTo(Span<byte> to)
+        {
+            UnsafeEx.MemCopy(ref to[0], 0, ref _Address.GetRef(), 0, Math.Min(_Size, to.Length));
+            if (to.Length > _Size)
+            {
+                UnsafeEx.MemClean(ref to[0], _Size, to.Length - _Size);
+            }
+        }
         public CStringRef Clone()
         {
             var newCStr = new CStringRef(new byte[_Length + 1]);
-            CloneTo(newCStr);
+            CopyTo(newCStr);
             return newCStr;
         }
         object ICloneable.Clone()
@@ -287,6 +298,10 @@ namespace Mod
         public int CompareTo(string other)
         {
             return ToString().CompareTo(other);
+        }
+        public static int Compare(CStringRef a, CStringRef b)
+        {
+            return a.CompareTo(b);
         }
 
         int IComparable.CompareTo(object obj)
@@ -397,6 +412,18 @@ namespace Mod
         {
             return new CStringRef(span);
         }
+        public Span<byte> Slice()
+        {
+            return ToSpan().Slice(0, _Length);
+        }
+        public Span<byte> Slice(int start)
+        {
+            return ToSpan().Slice(start, _Length - start);
+        }
+        public Span<byte> Slice(int start, int length)
+        {
+            return ToSpan().Slice(start, length);
+        }
 
         public int IndexOf(byte value, int startIndex = 0)
         {
@@ -436,6 +463,7 @@ namespace Mod
             unsafe
             {
                 fixed (byte* p = &_Address.GetRef())
+                fixed (byte* v = &value._Address.GetRef())
                 {
                     int lastStart = _Length - value._Length;
                     for (int i = startIndex; i <= lastStart; ++i)
@@ -443,7 +471,7 @@ namespace Mod
                         bool found = true;
                         for (int j = 0; j < value._Length; ++j)
                         {
-                            if (p[i + j] != (value._Address + j).GetValue())
+                            if (p[i + j] != v[j])
                             {
                                 found = false;
                                 break;
@@ -549,13 +577,14 @@ namespace Mod
             unsafe
             {
                 fixed (byte* p = &_Address.GetRef())
+                fixed (byte* v = &value._Address.GetRef())
                 {
                     for (int i = _Length - value._Length; i >= 0; --i)
                     {
                         bool found = true;
                         for (int j = 0; j < value._Length; ++j)
                         {
-                            if (p[i + j] != (value._Address + j).GetValue())
+                            if (p[i + j] != v[j])
                             {
                                 found = false;
                                 break;
@@ -609,7 +638,11 @@ namespace Mod
             return LastIndexOf((ReadOnlySpan<byte>)value);
         }
 
-        public int IndexOfAny(ReadOnlySpan<byte> anyOf, int startIndex = 0)
+        public int IndexOfAny(ReadOnlySpan<byte> anyOf)
+        {
+            return IndexOfAny(anyOf, 0);
+        }
+        public int IndexOfAny(ReadOnlySpan<byte> anyOf, int startIndex)
         {
             if (startIndex < 0 || startIndex > _Length)
             {
@@ -637,9 +670,21 @@ namespace Mod
             }
             return -1;
         }
-        public int LastIndexOfAny(ReadOnlySpan<byte> anyOf, int startIndex = 0)
+        public int LastIndexOfAny(ReadOnlySpan<byte> anyOf)
         {
-            if (startIndex < 0 || startIndex > _Length)
+            if (anyOf.Length == 0)
+            {
+                throw new ArgumentException("anyOf must not be empty.", nameof(anyOf));
+            }
+            if (_Length == 0)
+            {
+                return -1;
+            }
+            return LastIndexOfAny(anyOf, _Length - 1);
+        }
+        public int LastIndexOfAny(ReadOnlySpan<byte> anyOf, int startIndex)
+        {
+            if (startIndex < 0 || startIndex >= _Length)
             {
                 throw new ArgumentOutOfRangeException(nameof(startIndex));
             }
@@ -651,7 +696,7 @@ namespace Mod
             {
                 fixed (byte* p = &_Address.GetRef())
                 {
-                    for (int i = _Length - 1; i >= startIndex; --i)
+                    for (int i = startIndex; i >= 0; --i)
                     {
                         for (int j = 0; j < anyOf.Length; ++j)
                         {
@@ -682,6 +727,10 @@ namespace Mod
         }
         public bool StartsWith(CStringRef value)
         {
+            if (value._Length == 0)
+            {
+                return true;
+            }
             if (value._Length > _Length)
             {
                 return false;
@@ -689,10 +738,11 @@ namespace Mod
             unsafe
             {
                 fixed (byte* p = &_Address.GetRef())
+                fixed (byte* v = &value._Address.GetRef())
                 {
                     for (int j = 0; j < value._Length; ++j)
                     {
-                        if (p[j] != (value._Address + j).GetValue())
+                        if (p[j] != v[j])
                         {
                             return false;
                         }
@@ -743,6 +793,10 @@ namespace Mod
         }
         public bool EndsWith(CStringRef value)
         {
+            if (value._Length == 0)
+            {
+                return true;
+            }
             if (value._Length > _Length)
             {
                 return false;
@@ -750,11 +804,12 @@ namespace Mod
             unsafe
             {
                 fixed (byte* p = &_Address.GetRef())
+                fixed (byte* v = &value._Address.GetRef())
                 {
                     int offset = _Length - value._Length;
                     for (int j = 0; j < value._Length; ++j)
                     {
-                        if (p[offset + j] != (value._Address + j).GetValue())
+                        if (p[offset + j] != v[j])
                         {
                             return false;
                         }
@@ -788,6 +843,26 @@ namespace Mod
         public bool EndsWith(Span<byte> value)
         {
             return EndsWith((ReadOnlySpan<byte>)value);
+        }
+
+        public static bool IsWhiteSpace(byte value)
+        {
+            return value == 0x20 || (value >= 0x09 && value <= 0x0D);
+        }
+        public bool IsEmpty()
+        {
+            return _Length == 0;
+        }
+        public bool IsWhiteSpace()
+        {
+            for (int i = 0; i < _Length; ++i)
+            {
+                if (!IsWhiteSpace(this[i]))
+                {
+                    return false;
+                }
+            }
+            return true;
         }
 
         public CStringRef Append(byte value)
@@ -843,6 +918,10 @@ namespace Mod
         {
             return new Box<T>(value);
         }
+        public ref T GetRef()
+        {
+            return ref Value;
+        }
     }
     public class CString : Box<CStringRef>
     {
@@ -870,6 +949,14 @@ namespace Mod
         public static implicit operator CString(CStringRef cstr)
         {
             return new CString(cstr);
+        }
+        public static bool IsNullOrEmpty(CString thiz)
+        {
+            return thiz == null || thiz.Value.IsEmpty();
+        }
+        public static bool IsNullOrWhiteSpace(CString thiz)
+        {
+            return thiz == null || thiz.Value.IsWhiteSpace();
         }
     }
     public static class BoxExtensions
