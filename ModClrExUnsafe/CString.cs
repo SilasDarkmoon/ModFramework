@@ -979,14 +979,15 @@ namespace Mod
                 {
                     return false;
                 }
+                return _Splitters._Length == 0
+                    ? MoveNextByWhitespace()
+                    : MoveNextBySeparators();
+            }
+
+            private bool MoveNextBySeparators()
+            {
                 int length = _Source._Length;
                 int start = _NextStart;
-                if (_Splitters._Length == 0)
-                {
-                    _Current = _Source.Substring(start, length - start);
-                    _Finished = true;
-                    return true;
-                }
                 int i = start;
                 while (i < length)
                 {
@@ -1004,6 +1005,33 @@ namespace Mod
                 else
                 {
                     _Current = _Source.Substring(start, length - start);
+                    _Finished = true;
+                }
+                return true;
+            }
+
+            private bool MoveNextByWhitespace()
+            {
+                int length = _Source._Length;
+                int i = _NextStart;
+                while (i < length && CStringRef.IsWhiteSpace(GetByte(i)))
+                {
+                    ++i;
+                }
+                if (i >= length)
+                {
+                    _Finished = true;
+                    return false;
+                }
+                int start = i;
+                while (i < length && !CStringRef.IsWhiteSpace(GetByte(i)))
+                {
+                    ++i;
+                }
+                _Current = _Source.Substring(start, i - start);
+                _NextStart = i;
+                if (i >= length)
+                {
                     _Finished = true;
                 }
                 return true;
@@ -1042,6 +1070,10 @@ namespace Mod
         public CStringRefSplitEnumerator Split(byte splitter)
         {
             return new CStringRefSplitEnumerator(this, new[] { splitter });
+        }
+        public CStringRefSplitEnumerator Split()
+        {
+            return new CStringRefSplitEnumerator(this, ReadOnlySpan<byte>.Empty);
         }
 
         public CStringRef Append(byte value)
