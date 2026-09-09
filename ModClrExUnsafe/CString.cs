@@ -74,9 +74,36 @@ namespace Mod
             _ConvertedString = null;
             _CachedHashCode = 0;
         }
+        public CStringRef(ref byte address, int size, int len)
+        {
+            _Address = new RefContainer<byte>(ref address);
+            _Size = size;
+            _Length = len;
+            _Readonly = false;
+            _ConvertedString = null;
+            _CachedHashCode = 0;
+        }
+        public CStringRef(ref byte address, int size)
+        {
+            _Address = new RefContainer<byte>(ref address);
+            _Size = size;
+            _Length = UnsafeEx.StrLen(ref address, size);
+            _Readonly = false;
+            _ConvertedString = null;
+            _CachedHashCode = 0;
+        }
+        public CStringRef(ref byte address)
+        {
+            _Address = new RefContainer<byte>(ref address);
+            _Length = UnsafeEx.StrLen(ref address);
+            _Size = _Length + 1;
+            _Readonly = false;
+            _ConvertedString = null;
+            _CachedHashCode = 0;
+        }
         public CStringRef(Span<byte> data)
         {
-            _Address = new RefContainer<byte>(ref data[0]);
+            _Address = new RefContainer<byte>(ref data.GetRef());
             _Size = data.Length;
             _Length = UnsafeEx.StrLen(data);
             _Readonly = false;
@@ -85,9 +112,27 @@ namespace Mod
         }
         public CStringRef(ReadOnlySpan<byte> data)
         {
-            _Address = new RefContainer<byte>(ref LowLevel.Ref.Unprotect(in data[0]));
+            _Address = new RefContainer<byte>(ref data.GetRef());
             _Size = data.Length;
             _Length = UnsafeEx.StrLen(data);
+            _Readonly = true;
+            _ConvertedString = null;
+            _CachedHashCode = 0;
+        }
+        public CStringRef(Span<byte> data, int length)
+        {
+            _Address = new RefContainer<byte>(ref data.GetRef());
+            _Size = data.Length;
+            _Length = Math.Min(length, _Size);
+            _Readonly = false;
+            _ConvertedString = null;
+            _CachedHashCode = 0;
+        }
+        public CStringRef(ReadOnlySpan<byte> data, int length)
+        {
+            _Address = new RefContainer<byte>(ref data.GetRef());
+            _Size = data.Length;
+            _Length = Math.Min(length, _Size);
             _Readonly = true;
             _ConvertedString = null;
             _CachedHashCode = 0;
@@ -243,10 +288,10 @@ namespace Mod
         }
         public void CopyTo(Span<byte> to)
         {
-            UnsafeEx.MemCopy(ref to[0], 0, ref _Address.GetRef(), 0, Math.Min(_Size, to.Length));
+            UnsafeEx.MemCopy(ref to.GetRef(), 0, ref _Address.GetRef(), 0, Math.Min(_Size, to.Length));
             if (to.Length > _Size)
             {
-                UnsafeEx.MemClean(ref to[0], _Size, to.Length - _Size);
+                UnsafeEx.MemClean(ref to.GetRef(), _Size, to.Length - _Size);
             }
         }
         public CStringRef Clone()
@@ -423,6 +468,44 @@ namespace Mod
         public Span<byte> Slice(int start, int length)
         {
             return ToSpan().Slice(start, length);
+        }
+        public CStringRef Substring(int startIndex)
+        {
+            if (startIndex < 0 || startIndex > _Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(startIndex));
+            }
+            if (startIndex >= _Size)
+            {
+                return new CStringRef() { _Readonly = _Readonly };
+            }
+            else
+            {
+                return new CStringRef(ref (_Address + startIndex).GetRef(), _Size - startIndex, _Length - startIndex) { _Readonly = _Readonly };
+            }
+        }
+        public CStringRef Substring(int startIndex, int length)
+        {
+            if (startIndex < 0 || startIndex > _Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(startIndex));
+            }
+            if (length < 0 || startIndex + length > _Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(length));
+            }
+            if (startIndex >= _Size)
+            {
+                return new CStringRef() { _Readonly = _Readonly };
+            }
+            if (startIndex + length == _Length)
+            {
+                return new CStringRef(ref (_Address + startIndex).GetRef(), _Size - startIndex, length) { _Readonly = _Readonly };
+            }
+            else
+            {
+                return new CStringRef(ref (_Address + startIndex).GetRef(), length, length) { _Readonly = _Readonly };
+            }
         }
 
         public int IndexOf(byte value, int startIndex = 0)
@@ -865,8 +948,108 @@ namespace Mod
             return true;
         }
 
+        public struct CStringRefSplitEnumerator : IEnumerator<CStringRef>
+        {
+            private CStringRef _Source;
+            private CStringRef _Splitters;
+            private int _NextStart;
+            private bool _Finished;
+            private CStringRef _Current;
+
+            public CStringRefSplitEnumerator(CStringRef source, ReadOnlySpan<byte> splitters)
+            {
+                _Source = source;
+                _Splitters = new CStringRef(splitters, splitters.Length);
+                _NextStart = 0;
+                _Finished = false;
+                _Current = default;
+            }
+            public CStringRefSplitEnumerator GetEnumerator()
+            {
+                return this;
+            }
+
+            public CStringRef Current => _Current;
+
+            object IEnumerator.Current => Current;
+
+            public bool MoveNext()
+            {
+                if (_Finished)
+                {
+                    return false;
+                }
+                int length = _Source._Length;
+                int start = _NextStart;
+                if (_Splitters._Length == 0)
+                {
+                    _Current = _Source.Substring(start, length - start);
+                    _Finished = true;
+                    return true;
+                }
+                int i = start;
+                while (i < length)
+                {
+                    if (IsSplitter(GetByte(i)))
+                    {
+                        break;
+                    }
+                    ++i;
+                }
+                if (i < length)
+                {
+                    _Current = _Source.Substring(start, i - start);
+                    _NextStart = i + 1;
+                }
+                else
+                {
+                    _Current = _Source.Substring(start, length - start);
+                    _Finished = true;
+                }
+                return true;
+            }
+
+            public void Reset()
+            {
+                _NextStart = 0;
+                _Finished = false;
+                _Current = default;
+            }
+
+            public void Dispose()
+            {
+            }
+
+            private byte GetByte(int index) => (_Source._Address + index).GetValue();
+
+            private bool IsSplitter(byte value)
+            {
+                int n = _Splitters._Length;
+                for (int i = 0; i < n; ++i)
+                {
+                    if ((_Splitters._Address + i).GetValue() == value)
+                    {
+                        return true;
+                    }
+                }
+                return false;
+            }
+        }
+        public CStringRefSplitEnumerator Split(ReadOnlySpan<byte> splitters)
+        {
+            return new CStringRefSplitEnumerator(this, splitters);
+        }
+        public CStringRefSplitEnumerator Split(byte splitter)
+        {
+            return new CStringRefSplitEnumerator(this, new[] { splitter });
+        }
+
         public CStringRef Append(byte value)
         {
+            if (_Readonly)
+            {
+                throw new InvalidOperationException("Cannot modify a readonly CStringRef");
+            }
             if (_Length >= _Size)
             {
                 var newbuffer = new byte[_Length + 2];
@@ -881,6 +1064,10 @@ namespace Mod
         }
         public CStringRef Append(CStringRef other)
         {
+            if (_Readonly)
+            {
+                throw new InvalidOperationException("Cannot modify a readonly CStringRef");
+            }
             if (other._Length == 0)
             {
                 return this;
@@ -895,6 +1082,106 @@ namespace Mod
             ClearCache();
             ToSpan().Append(other.ToSpan());
             _Length += other._Length;
+            return this;
+        }
+
+        private static bool ShouldTrim(byte value, ReadOnlySpan<byte> chars)
+        {
+            if (chars.Length == 0)
+            {
+                return IsWhiteSpace(value);
+            }
+            for (int i = 0; i < chars.Length; ++i)
+            {
+                if (chars[i] == value)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+        public CStringRef Trim(ReadOnlySpan<byte> chars = default)
+        {
+            if (_Length == 0)
+            {
+                return this;
+            }
+            int start = 0;
+            while (start < _Length && ShouldTrim(this[start], chars))
+            {
+                ++start;
+            }
+            int end = _Length;
+            while (end > start && ShouldTrim(this[end - 1], chars))
+            {
+                --end;
+            }
+            if (start == 0 && end == _Length)
+            {
+                return this;
+            }
+            if (_Readonly)
+            {
+                throw new InvalidOperationException("Cannot modify a readonly CStringRef");
+            }
+            int newLength = end - start;
+            if (newLength > 0)
+            {
+                UnsafeEx.MemCopy(ref _Address.GetRef(), 0, ref _Address.GetRef(), start, newLength);
+            }
+            _Length = newLength;
+            ClearCache();
+            this[newLength] = 0;
+            return this;
+        }
+        public CStringRef TrimEnd(ReadOnlySpan<byte> chars = default)
+        {
+            if (_Length == 0)
+            {
+                return this;
+            }
+            int end = _Length;
+            while (end > 0 && ShouldTrim(this[end - 1], chars))
+            {
+                --end;
+            }
+            if (end == _Length)
+            {
+                return this;
+            }
+            if (_Readonly)
+            {
+                throw new InvalidOperationException("Cannot modify a readonly CStringRef");
+            }
+            _Length = end;
+            ClearCache();
+            this[end] = 0;
+            return this;
+        }
+        public CStringRef TrimStart(ReadOnlySpan<byte> chars = default)
+        {
+            if (_Length == 0)
+            {
+                return this;
+            }
+            int start = 0;
+            while (start < _Length && ShouldTrim(this[start], chars))
+            {
+                ++start;
+            }
+            if (start == 0)
+            {
+                return this;
+            }
+            if (_Readonly)
+            {
+                throw new InvalidOperationException("Cannot modify a readonly CStringRef");
+            }
+            int newLength = _Length - start;
+            UnsafeEx.MemCopy(ref _Address.GetRef(), 0, ref _Address.GetRef(), start, newLength);
+            _Length = newLength;
+            ClearCache();
+            this[newLength] = 0;
             return this;
         }
     }
