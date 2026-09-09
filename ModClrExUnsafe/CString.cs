@@ -15,7 +15,30 @@ namespace Mod
         private string _ConvertedString;
         private int _CachedHashCode;
 
-        public int Length => _Length;
+        public int Length
+        {
+            get => _Length;
+            set
+            {
+                if (value != _Length)
+                {
+                    if (_Readonly)
+                    {
+                        throw new InvalidOperationException("Cannot modify a readonly CStringRef");
+                    }
+                    if (value < 0 || value > _Size)
+                    {
+                        throw new ArgumentOutOfRangeException(nameof(value));
+                    }
+                    if (value < _Length)
+                    {
+                        UnsafeEx.MemClean(ref (_Address + value).GetRef(), 0, _Length - value);
+                    }
+                    _Length = value;
+                    ClearCache();
+                }
+            }
+        }
         public int Size => _Size;
         public bool Readonly => _Readonly;
         public void Freeze()
@@ -490,7 +513,7 @@ namespace Mod
             {
                 throw new ArgumentOutOfRangeException(nameof(startIndex));
             }
-            if (length < 0 || startIndex + length > _Length)
+            if (length < 0 || length > _Length - startIndex)
             {
                 throw new ArgumentOutOfRangeException(nameof(length));
             }
@@ -1116,6 +1139,10 @@ namespace Mod
             _Length += other._Length;
             return this;
         }
+        public static CStringRef operator +(CStringRef a, CStringRef b)
+        {
+            return a.Append(b);
+        }
 
         private static bool ShouldTrim(byte value, ReadOnlySpan<byte> chars)
         {
@@ -1161,9 +1188,7 @@ namespace Mod
             {
                 UnsafeEx.MemCopy(ref _Address.GetRef(), 0, ref _Address.GetRef(), start, newLength);
             }
-            _Length = newLength;
-            ClearCache();
-            this[newLength] = 0;
+            Length = newLength;
             return this;
         }
         public CStringRef TrimEnd(ReadOnlySpan<byte> chars = default)
@@ -1185,9 +1210,7 @@ namespace Mod
             {
                 throw new InvalidOperationException("Cannot modify a readonly CStringRef");
             }
-            _Length = end;
-            ClearCache();
-            this[end] = 0;
+            Length = end;
             return this;
         }
         public CStringRef TrimStart(ReadOnlySpan<byte> chars = default)
@@ -1211,10 +1234,402 @@ namespace Mod
             }
             int newLength = _Length - start;
             UnsafeEx.MemCopy(ref _Address.GetRef(), 0, ref _Address.GetRef(), start, newLength);
+            Length = newLength;
+            return this;
+        }
+
+        public CStringRef Clear()
+        {
+            if (_Length == 0)
+            {
+                return this;
+            }
+            if (_Readonly)
+            {
+                throw new InvalidOperationException("Cannot modify a readonly CStringRef");
+            }
+            Length = 0;
+            return this;
+        }
+        public CStringRef Remove(int startIndex, int length)
+        {
+            if (length == 0)
+            {
+                return this;
+            }
+            if (_Readonly)
+            {
+                throw new InvalidOperationException("Cannot modify a readonly CStringRef");
+            }
+            if (startIndex < 0 || startIndex >= _Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(startIndex));
+            }
+            if (length < 0 || length > _Length - startIndex)
+            {
+                throw new ArgumentOutOfRangeException(nameof(length));
+            }
+            int newLength = _Length - length;
+            UnsafeEx.MemCopy(ref _Address.GetRef(), startIndex, ref _Address.GetRef(), startIndex + length, newLength - startIndex);
+            Length = newLength;
+            return this;
+        }
+
+        public CStringRef Insert(int index, byte ch)
+        {
+            return Insert(index, ch, 1);
+        }
+        public CStringRef Insert(int index, byte ch, int repeat)
+        {
+            if (repeat == 0)
+            {
+                return this;
+            }
+            if (_Readonly)
+            {
+                throw new InvalidOperationException("Cannot modify a readonly CStringRef");
+            }
+            if (index < 0 || index > _Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+            if (repeat < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(repeat));
+            }
+            if (repeat > int.MaxValue - _Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(repeat));
+            }
+            int newLength = _Length + repeat;
+            if (newLength > _Size)
+            {
+                var buffer = new byte[newLength + 1];
+                UnsafeEx.MemCopy(ref buffer[0], 0, ref _Address.GetRef(), 0, index);
+                UnsafeEx.MemSet(ref buffer[0], index, ch, repeat);
+                UnsafeEx.MemCopy(ref buffer[0], index + repeat, ref _Address.GetRef(), index, _Length - index);
+                return new CStringRef(buffer, newLength);
+            }
+            UnsafeEx.MemCopy(ref _Address.GetRef(), index + repeat, ref _Address.GetRef(), index, _Length - index);
+            UnsafeEx.MemSet(ref _Address.GetRef(), index, ch, repeat);
+            if (newLength < _Size)
+            {
+                (_Address + newLength).SetValue(0);
+            }
             _Length = newLength;
             ClearCache();
-            this[newLength] = 0;
             return this;
+        }
+        public CStringRef Insert(int index, CStringRef sub)
+        {
+            return Insert(index, sub, 1);
+        }
+        public CStringRef Insert(int index, CStringRef sub, int repeat)
+        {
+            if (repeat == 0 || sub._Length == 0)
+            {
+                return this;
+            }
+            if (_Readonly)
+            {
+                throw new InvalidOperationException("Cannot modify a readonly CStringRef");
+            }
+            if (index < 0 || index > _Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+            if (repeat < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(repeat));
+            }
+            long addLength64 = (long)sub._Length * repeat;
+            if (addLength64 > int.MaxValue - _Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(repeat));
+            }
+            int addLength = (int)addLength64;
+            int newLength = _Length + addLength;
+            if (newLength > _Size)
+            {
+                var buffer = new byte[newLength + 1];
+                UnsafeEx.MemCopy(ref buffer[0], 0, ref _Address.GetRef(), 0, index);
+                for (int i = 0; i < repeat; ++i)
+                {
+                    UnsafeEx.MemCopy(ref buffer[0], index + i * sub._Length, ref sub._Address.GetRef(), 0, sub._Length);
+                }
+                UnsafeEx.MemCopy(ref buffer[0], index + addLength, ref _Address.GetRef(), index, _Length - index);
+                return new CStringRef(buffer, newLength);
+            }
+            // In-place insertion: snapshot sub first so it survives the shift when sub shares the same underlying buffer as this view
+            Span<byte> snapshot = stackalloc byte[sub._Length];
+            UnsafeEx.MemCopy(ref snapshot[0], 0, ref sub._Address.GetRef(), 0, sub._Length);
+            UnsafeEx.MemCopy(ref _Address.GetRef(), index + addLength, ref _Address.GetRef(), index, _Length - index);
+            for (int i = 0; i < repeat; ++i)
+            {
+                UnsafeEx.MemCopy(ref _Address.GetRef(), index + i * sub._Length, ref snapshot[0], 0, sub._Length);
+            }
+            if (newLength < _Size)
+            {
+                (_Address + newLength).SetValue(0);
+            }
+            _Length = newLength;
+            ClearCache();
+            return this;
+        }
+        public CStringRef Replace(byte oldch, byte newch)
+        {
+            return Replace(oldch, newch, 0, _Length);
+        }
+        public CStringRef Replace(byte oldch, byte newch, int startIndex, int count)
+        {
+            if (count == 0)
+            {
+                return this;
+            }
+            if (startIndex < 0 || startIndex >= _Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(startIndex));
+            }
+            if (count < 0 || count > _Length - startIndex)
+            {
+                throw new ArgumentOutOfRangeException(nameof(count));
+            }
+            if (oldch == newch)
+            {
+                return this;
+            }
+            int windowEnd = startIndex + count;
+            int first = -1;
+            for (int i = startIndex; i < windowEnd; ++i)
+            {
+                if ((_Address + i).GetValue() == oldch)
+                {
+                    first = i;
+                    break;
+                }
+            }
+            if (first < 0)
+            {
+                return this;
+            }
+            if (_Readonly)
+            {
+                throw new InvalidOperationException("Cannot modify a readonly CStringRef");
+            }
+            // Pure byte replacement; _Length is unchanged (same when newch is 0: a NUL is merely written into the content, no truncation)
+            for (int i = first; i < windowEnd; ++i)
+            {
+                var address = _Address + i;
+                if (address.GetValue() == oldch)
+                {
+                    address.SetValue(newch);
+                }
+            }
+            ClearCache();
+            return this;
+        }
+        public CStringRef Replace(CStringRef oldstr, CStringRef newstr)
+        {
+            return ReplaceCore(oldstr, newstr, 0, _Length);
+        }
+        public CStringRef Replace(CStringRef oldstr, CStringRef newstr, int startIndex, int count)
+        {
+            if (count == 0)
+            {
+                return this;
+            }
+            if (startIndex < 0 || startIndex >= _Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(startIndex));
+            }
+            if (count < 0 || count > _Length - startIndex)
+            {
+                throw new ArgumentOutOfRangeException(nameof(count));
+            }
+            return ReplaceCore(oldstr, newstr, startIndex, startIndex + count);
+        }
+
+        // Replaces oldstr with newstr left-to-right and non-overlapping within [windowStart, windowEnd); content outside the window keeps its relative position and shifts naturally as the length changes
+        private CStringRef ReplaceCore(CStringRef oldstr, CStringRef newstr, int windowStart, int windowEnd)
+        {
+            if (oldstr._Length == 0)
+            {
+                throw new ArgumentException("String cannot be of zero length", nameof(oldstr));
+            }
+            int oldLength = oldstr._Length;
+            int newLength = newstr._Length;
+            int maxStart = windowEnd - oldLength;
+
+            // First pass: count matches, keeping the first/last positions so that tiny cases need no second pass
+            int first = -1;
+            int last = -1;
+            int matchCount = 0;
+            int scan = windowStart;
+            while (scan <= maxStart)
+            {
+                if (MemCmp(ref _Address.GetRef(), scan, ref oldstr._Address.GetRef(), 0, oldLength) == 0)
+                {
+                    if (matchCount == 0)
+                    {
+                        first = scan;
+                    }
+                    last = scan;
+                    ++matchCount;
+                    scan += oldLength;
+                }
+                else
+                {
+                    ++scan;
+                }
+            }
+            if (matchCount == 0)
+            {
+                return this;
+            }
+            if (_Readonly)
+            {
+                throw new InvalidOperationException("Cannot modify a readonly CStringRef");
+            }
+
+            Span<byte> snapshot = stackalloc byte[newLength];
+            if (newLength > 0)
+            {
+                UnsafeEx.MemCopy(ref snapshot[0], 0, ref newstr._Address.GetRef(), 0, newLength);
+            }
+            int diff = newLength - oldLength;
+            long newTotal64 = (long)_Length + (long)diff * matchCount;
+            if (newTotal64 < 0 || newTotal64 > int.MaxValue)
+            {
+                throw new ArgumentOutOfRangeException(nameof(newstr));
+            }
+            int newTotal = (int)newTotal64;
+
+            Span<int> positions = matchCount <= 64 ? stackalloc int[matchCount] : new int[matchCount];
+            if (matchCount > 2)
+            {
+                int k = 0;
+                scan = windowStart;
+                while (scan <= maxStart)
+                {
+                    if (MemCmp(ref _Address.GetRef(), scan, ref oldstr._Address.GetRef(), 0, oldLength) == 0)
+                    {
+                        positions[k++] = scan;
+                        scan += oldLength;
+                    }
+                    else
+                    {
+                        ++scan;
+                    }
+                }
+            }
+            else
+            {
+                positions[0] = first;
+                if (matchCount == 2)
+                {
+                    positions[1] = last;
+                }
+            }
+
+            if (newTotal > _Size)
+            {
+                var buffer = new byte[newTotal + 1];
+                int source = 0;
+                int target = 0;
+                for (int i = 0; i < matchCount; ++i)
+                {
+                    int pos = positions[i];
+                    if (source < pos)
+                    {
+                        int segmentLength = pos - source;
+                        UnsafeEx.MemCopy(ref buffer[0], target, ref _Address.GetRef(), source, segmentLength);
+                        source += segmentLength;
+                        target += segmentLength;
+                    }
+                    if (newLength > 0)
+                    {
+                        UnsafeEx.MemCopy(ref buffer[0], target, ref snapshot[0], 0, newLength);
+                        target += newLength;
+                    }
+                    source += oldLength;
+                }
+                if (source < _Length)
+                {
+                    UnsafeEx.MemCopy(ref buffer[0], target, ref _Address.GetRef(), source, _Length - source);
+                }
+                return new CStringRef(buffer, newTotal);
+            }
+            else
+            {
+                if (diff == 0)
+                {
+                    for (int i = 0; i < matchCount; ++i)
+                    {
+                        UnsafeEx.MemCopy(ref _Address.GetRef(), positions[i], ref snapshot[0], 0, oldLength);
+                    }
+                    ClearCache();
+                    return this;
+                }
+                else if (diff > 0)
+                {
+                    int sourceRight = _Length;
+                    int targetRight = newTotal;
+                    for (int i = matchCount - 1; i >= 0; --i)
+                    {
+                        int start = positions[i];
+                        int segmentEnd = start + oldLength;
+                        int segmentLength = sourceRight - segmentEnd;
+                        if (segmentLength > 0)
+                        {
+                            int targetSegmentStart = targetRight - segmentLength;
+                            UnsafeEx.MemCopy(ref _Address.GetRef(), targetSegmentStart, ref _Address.GetRef(), segmentEnd, segmentLength);
+                            targetRight = targetSegmentStart;
+                        }
+                        if (newLength > 0)
+                        {
+                            int targetNewStart = targetRight - newLength;
+                            UnsafeEx.MemCopy(ref _Address.GetRef(), targetNewStart, ref snapshot[0], 0, newLength);
+                            targetRight = targetNewStart;
+                        }
+                        sourceRight = start;
+                    }
+                    if (newTotal < _Size)
+                    {
+                        (_Address + newTotal).SetValue(0);
+                    }
+                    _Length = newTotal;
+                    ClearCache();
+                    return this;
+                }
+                else //if (diff < 0)
+                {
+                    int write = 0;
+                    int read = 0;
+                    for (int i = 0; i < matchCount; ++i)
+                    {
+                        int pos = positions[i];
+                        if (pos > read)
+                        {
+                            UnsafeEx.MemCopy(ref _Address.GetRef(), write, ref _Address.GetRef(), read, pos - read);
+                            write += pos - read;
+                        }
+                        read = pos;
+                        if (newLength > 0)
+                        {
+                            UnsafeEx.MemCopy(ref _Address.GetRef(), write, ref snapshot[0], 0, newLength);
+                            write += newLength;
+                        }
+                        read += oldLength;
+                    }
+                    if (_Length > read)
+                    {
+                        UnsafeEx.MemCopy(ref _Address.GetRef(), write, ref _Address.GetRef(), read, _Length - read);
+                        write += _Length - read;
+                    }
+                    Length = write;
+                    return this;
+                }
+            }
         }
     }
 

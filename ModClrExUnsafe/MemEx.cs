@@ -65,7 +65,15 @@ namespace Mod.LowLevel
 
         public static void MemCopy(ref byte dst, int dstStart, ref byte src, int srcStart, int cnt)
         {
-            MemCopy1024(ref dst, dstStart, ref src, srcStart, cnt);
+            int offset = (int)OffsetBetween(ref dst, ref src);
+            if (srcStart + cnt > offset + dstStart)
+            {
+                MemCopyRight1024(ref dst, dstStart, ref src, srcStart, cnt);
+            }
+            else
+            {
+                MemCopy1024(ref dst, dstStart, ref src, srcStart, cnt);
+            }
         }
         private static void MemCopy1024(ref byte dst, int dstStart, ref byte src, int srcStart, int cnt)
         {
@@ -203,6 +211,94 @@ namespace Mod.LowLevel
                     MemCopyLE7<MemCopyHelper1>(ref dst, dstStart, ref src, srcStart);
                     break;
             }
+        }
+        private static void MemCopyRight1024(ref byte dst, int dstStart, ref byte src, int srcStart, int cnt)
+        {
+            while (cnt >= 1024)
+            {
+                ref MemCopyHelper1024 dstBuffer = ref GetFieldRef<byte, MemCopyHelper1024>(ref dst, dstStart + cnt - 1024);
+                ref MemCopyHelper1024 srcBuffer = ref GetFieldRef<byte, MemCopyHelper1024>(ref src, srcStart + cnt - 1024);
+                dstBuffer = srcBuffer;
+                cnt -= 1024;
+            }
+            MemCopyRight512(ref dst, dstStart, ref src, srcStart, cnt);
+        }
+        private static void MemCopyRight512(ref byte dst, int dstStart, ref byte src, int srcStart, int cnt)
+        {
+            while (cnt >= 512)
+            {
+                ref MemCopyHelper512 dstBuffer = ref GetFieldRef<byte, MemCopyHelper512>(ref dst, dstStart + cnt - 512);
+                ref MemCopyHelper512 srcBuffer = ref GetFieldRef<byte, MemCopyHelper512>(ref src, srcStart + cnt - 512);
+                dstBuffer = srcBuffer;
+                cnt -= 512;
+            }
+            MemCopyRight256(ref dst, dstStart, ref src, srcStart, cnt);
+        }
+        private static void MemCopyRight256(ref byte dst, int dstStart, ref byte src, int srcStart, int cnt)
+        {
+            while (cnt >= 256)
+            {
+                ref MemCopyHelper256 dstBuffer = ref GetFieldRef<byte, MemCopyHelper256>(ref dst, dstStart + cnt - 256);
+                ref MemCopyHelper256 srcBuffer = ref GetFieldRef<byte, MemCopyHelper256>(ref src, srcStart + cnt - 256);
+                dstBuffer = srcBuffer;
+                cnt -= 256;
+            }
+            MemCopyRight128(ref dst, dstStart, ref src, srcStart, cnt);
+        }
+        private static void MemCopyRight128(ref byte dst, int dstStart, ref byte src, int srcStart, int cnt)
+        {
+            while (cnt >= 128)
+            {
+                ref MemCopyHelper128 dstBuffer = ref GetFieldRef<byte, MemCopyHelper128>(ref dst, dstStart + cnt - 128);
+                ref MemCopyHelper128 srcBuffer = ref GetFieldRef<byte, MemCopyHelper128>(ref src, srcStart + cnt - 128);
+                dstBuffer = srcBuffer;
+                cnt -= 128;
+            }
+            MemCopyRight64(ref dst, dstStart, ref src, srcStart, cnt);
+        }
+        private static void MemCopyRight64(ref byte dst, int dstStart, ref byte src, int srcStart, int cnt)
+        {
+            while (cnt >= 64)
+            {
+                ref MemCopyHelper64 dstBuffer = ref GetFieldRef<byte, MemCopyHelper64>(ref dst, dstStart + cnt - 64);
+                ref MemCopyHelper64 srcBuffer = ref GetFieldRef<byte, MemCopyHelper64>(ref src, srcStart + cnt - 64);
+                dstBuffer = srcBuffer;
+                cnt -= 64;
+            }
+            MemCopyRight32(ref dst, dstStart, ref src, srcStart, cnt);
+        }
+        private static void MemCopyRight32(ref byte dst, int dstStart, ref byte src, int srcStart, int cnt)
+        {
+            while (cnt >= 32)
+            {
+                ref MemCopyHelper32 dstBuffer = ref GetFieldRef<byte, MemCopyHelper32>(ref dst, dstStart + cnt - 32);
+                ref MemCopyHelper32 srcBuffer = ref GetFieldRef<byte, MemCopyHelper32>(ref src, srcStart + cnt - 32);
+                dstBuffer = srcBuffer;
+                cnt -= 32;
+            }
+            MemCopyRight16(ref dst, dstStart, ref src, srcStart, cnt);
+        }
+        private static void MemCopyRight16(ref byte dst, int dstStart, ref byte src, int srcStart, int cnt)
+        {
+            while (cnt >= 16)
+            {
+                ref MemCopyHelper16 dstBuffer = ref GetFieldRef<byte, MemCopyHelper16>(ref dst, dstStart + cnt - 16);
+                ref MemCopyHelper16 srcBuffer = ref GetFieldRef<byte, MemCopyHelper16>(ref src, srcStart + cnt - 16);
+                dstBuffer = srcBuffer;
+                cnt -= 16;
+            }
+            MemCopyRight8(ref dst, dstStart, ref src, srcStart, cnt);
+        }
+        private static void MemCopyRight8(ref byte dst, int dstStart, ref byte src, int srcStart, int cnt)
+        {
+            while (cnt >= 8)
+            {
+                ref ulong dstBuffer = ref GetFieldRef<byte, ulong>(ref dst, dstStart + cnt - 8);
+                ref ulong srcBuffer = ref GetFieldRef<byte, ulong>(ref src, srcStart + cnt - 8);
+                dstBuffer = srcBuffer;
+                cnt -= 8;
+            }
+            MemCopyLE7(ref dst, dstStart, ref src, srcStart, cnt);
         }
 
         public static void MemCopy(object dst, int dstStart, object src, int srcStart, int cnt)
@@ -677,6 +773,28 @@ namespace Mod.LowLevel
                 if (checkAddress == objAddress)
                 {
                     return ref refResult;
+                }
+            }
+        }
+        public static IntPtr OffsetBetween<D, S>(ref D rd, ref S rs)
+        {
+            for (; ; )
+            {
+                RawRef refd = default;
+                refd.SetRef(ref rd);
+                var daddr = refd.Address;
+
+                RawRef refs = default;
+                refs.SetRef(ref rs);
+                var saddr = refs.Address;
+
+                var offset = (IntPtr)((long)daddr - (long)saddr);
+
+                refd.SetRef(ref rd);
+                refs.SetRef(ref rs);
+                if (daddr == refd.Address && saddr == refs.Address)
+                {
+                    return offset;
                 }
             }
         }
