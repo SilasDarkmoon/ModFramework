@@ -160,10 +160,10 @@ namespace Mod
             _ConvertedString = null;
             _CachedHashCode = 0;
         }
-        public CStringRef(string str) : this(Encoding.UTF8.GetBytes(str))
+        public CStringRef(string str) : this(new Span<byte>(Encoding.UTF8.GetBytes(str)))
         {
         }
-        public CStringRef(string str, Encoding encoding) : this((encoding ?? Encoding.Default).GetBytes(str))
+        public CStringRef(string str, Encoding encoding) : this(new Span<byte>((encoding ?? Encoding.Default).GetBytes(str)))
         {
         }
 
@@ -196,13 +196,12 @@ namespace Mod
                     if (value == 0 && index < _Length)
                     {
                         _Length = index;
-                        ClearCache();
                     }
                     else if (value != 0 && index >= _Length)
                     {
                         _Length = index + 1;
-                        ClearCache();
                     }
+                    ClearCache();   // overwriting an existing byte also invalidates cached string/hash
                 }
             }
         }
@@ -235,6 +234,10 @@ namespace Mod
         {
             if (_ConvertedString == null)
             {
+                if (IsEmpty())
+                {
+                    return _ConvertedString = string.Empty;
+                }
                 unsafe
                 {
                     fixed (byte* ptr = &_Address.GetRef())
@@ -286,7 +289,7 @@ namespace Mod
             return GetEnumerator();
         }
 
-        public void CopyTo(CStringRef to)
+        public void CopyTo(ref CStringRef to)
         {
             if (to._Readonly)
             {
@@ -309,6 +312,10 @@ namespace Mod
                 to.ClearCache();
             }
         }
+        public void CopyFrom(CStringRef from)
+        {
+            from.CopyTo(ref this);
+        }
         public void CopyTo(Span<byte> to)
         {
             UnsafeEx.MemCopy(ref to.GetRef(), 0, ref _Address.GetRef(), 0, Math.Min(_Size, to.Length));
@@ -319,8 +326,8 @@ namespace Mod
         }
         public CStringRef Clone()
         {
-            var newCStr = new CStringRef(new byte[_Length + 1]);
-            CopyTo(newCStr);
+            var newCStr = new CStringRef(new Span<byte>(new byte[_Length + 1]));
+            CopyTo(ref newCStr);
             return newCStr;
         }
         object ICloneable.Clone()
@@ -1110,7 +1117,7 @@ namespace Mod
                 var newbuffer = new byte[_Length + 2];
                 ToSpan().CopyTo(newbuffer);
                 newbuffer[_Length] = value;
-                return new CStringRef(newbuffer);
+                return new CStringRef(new Span<byte>(newbuffer));
             }
             ClearCache();
             ToSpan().Append(value);
@@ -1132,7 +1139,7 @@ namespace Mod
                 var newbuffer = new byte[_Length + other._Length + 1];
                 ToSpan().CopyTo(newbuffer);
                 other.ToSpan().CopyTo(new Span<byte>(newbuffer, _Length, newbuffer.Length - _Length));
-                return new CStringRef(newbuffer);
+                return new CStringRef(new Span<byte>(newbuffer));
             }
             ClearCache();
             ToSpan().Append(other.ToSpan());
@@ -1308,7 +1315,7 @@ namespace Mod
                 UnsafeEx.MemCopy(ref buffer[0], 0, ref _Address.GetRef(), 0, index);
                 UnsafeEx.MemSet(ref buffer[0], index, ch, repeat);
                 UnsafeEx.MemCopy(ref buffer[0], index + repeat, ref _Address.GetRef(), index, _Length - index);
-                return new CStringRef(buffer, newLength);
+                return new CStringRef(new Span<byte>(buffer), newLength);
             }
             UnsafeEx.MemCopy(ref _Address.GetRef(), index + repeat, ref _Address.GetRef(), index, _Length - index);
             UnsafeEx.MemSet(ref _Address.GetRef(), index, ch, repeat);
@@ -1358,7 +1365,7 @@ namespace Mod
                     UnsafeEx.MemCopy(ref buffer[0], index + i * sub._Length, ref sub._Address.GetRef(), 0, sub._Length);
                 }
                 UnsafeEx.MemCopy(ref buffer[0], index + addLength, ref _Address.GetRef(), index, _Length - index);
-                return new CStringRef(buffer, newLength);
+                return new CStringRef(new Span<byte>(buffer), newLength);
             }
             // In-place insertion: snapshot sub first so it survives the shift when sub shares the same underlying buffer as this view
             Span<byte> snapshot = stackalloc byte[sub._Length];
@@ -1557,7 +1564,7 @@ namespace Mod
                 {
                     UnsafeEx.MemCopy(ref buffer[0], target, ref _Address.GetRef(), source, _Length - source);
                 }
-                return new CStringRef(buffer, newTotal);
+                return new CStringRef(new Span<byte>(buffer), newTotal);
             }
             else
             {
