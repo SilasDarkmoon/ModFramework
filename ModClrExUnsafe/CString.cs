@@ -8,7 +8,7 @@ namespace Mod
 {
     public struct CStringRef : IEnumerable<byte>, IEnumerable, ICloneable, IComparable, IComparable<CStringRef>, IComparable<string>, IEquatable<CStringRef>, IEquatable<string>, IDisposable
     {
-        private readonly RawTrackingRef<byte> _Address;
+        private UnionRef<byte> _Address;
         private int _Size;
         private int _Length;
         private bool _Readonly;
@@ -70,9 +70,10 @@ namespace Mod
 
         public static readonly CStringRef Empty = default;
 
+        private static UnionRef.RefType _RefType = RuntimeInfo.Runtime == RuntimeInfo.RuntimeCategory.NetFramework || RuntimeInfo.Runtime == RuntimeInfo.RuntimeCategory.NetCore ? UnionRef.RefType.Tracking : UnionRef.RefType.Raw;
         public CStringRef(IntPtr address, int size, int len)
         {
-            _Address = RawTrackingRef<byte>.Create();
+            _Address = new UnionRef<byte>(_RefType);
             _Address.Address = address;
             _Size = size;
             _Length = len;
@@ -82,7 +83,7 @@ namespace Mod
         }
         public CStringRef(IntPtr address, int size)
         {
-            _Address = RawTrackingRef<byte>.Create();
+            _Address = new UnionRef<byte>(_RefType);
             _Address.Address = address;
             _Size = size;
             _Length = UnsafeEx.StrLen(address, size);
@@ -92,7 +93,7 @@ namespace Mod
         }
         public CStringRef(IntPtr address)
         {
-            _Address = RawTrackingRef<byte>.Create();
+            _Address = new UnionRef<byte>(_RefType);
             _Address.Address = address;
             _Length = UnsafeEx.StrLen(address);
             _Size = _Length + 1;
@@ -102,7 +103,7 @@ namespace Mod
         }
         public CStringRef(ref byte address, int size, int len)
         {
-            _Address = RawTrackingRef<byte>.Create();
+            _Address = new UnionRef<byte>(_RefType);
             _Address.SetRef(ref address);
             _Size = size;
             _Length = len;
@@ -112,7 +113,7 @@ namespace Mod
         }
         public CStringRef(ref byte address, int size)
         {
-            _Address = RawTrackingRef<byte>.Create();
+            _Address = new UnionRef<byte>(_RefType);
             _Address.SetRef(ref address);
             _Size = size;
             _Length = UnsafeEx.StrLen(ref address, size);
@@ -122,7 +123,7 @@ namespace Mod
         }
         public CStringRef(ref byte address)
         {
-            _Address = RawTrackingRef<byte>.Create();
+            _Address = new UnionRef<byte>(_RefType);
             _Address.SetRef(ref address);
             _Length = UnsafeEx.StrLen(ref address);
             _Size = _Length + 1;
@@ -132,7 +133,7 @@ namespace Mod
         }
         public CStringRef(Span<byte> data)
         {
-            _Address = RawTrackingRef<byte>.Create();
+            _Address = new UnionRef<byte>(_RefType);
             _Address.SetRef(ref data.GetRef());
             _Size = data.Length;
             _Length = UnsafeEx.StrLen(data);
@@ -142,7 +143,7 @@ namespace Mod
         }
         public CStringRef(ReadOnlySpan<byte> data)
         {
-            _Address = RawTrackingRef<byte>.Create();
+            _Address = new UnionRef<byte>(_RefType);
             _Address.SetRef(ref data.GetRef());
             _Size = data.Length;
             _Length = UnsafeEx.StrLen(data);
@@ -152,7 +153,7 @@ namespace Mod
         }
         public CStringRef(Span<byte> data, int length)
         {
-            _Address = RawTrackingRef<byte>.Create();
+            _Address = new UnionRef<byte>(_RefType);
             _Address.SetRef(ref data.GetRef());
             _Size = data.Length;
             _Length = Math.Min(length, _Size);
@@ -162,7 +163,7 @@ namespace Mod
         }
         public CStringRef(ReadOnlySpan<byte> data, int length)
         {
-            _Address = RawTrackingRef<byte>.Create();
+            _Address = new UnionRef<byte>(_RefType);
             _Address.SetRef(ref data.GetRef());
             _Size = data.Length;
             _Length = Math.Min(length, _Size);
@@ -179,6 +180,15 @@ namespace Mod
         public void Dispose()
         {
             _Address.Dispose();
+        }
+
+        public void Track()
+        {
+            _Address.Type = UnionRef.RefType.Tracking;
+        }
+        public void Untrack()
+        {
+            _Address.Type = UnionRef.RefType.Raw;
         }
 
         /// <summary>
@@ -236,7 +246,7 @@ namespace Mod
 
         public struct RefIndexer
         {
-            private readonly RawTrackingRef<byte> _Address;
+            private readonly UnionRef<byte> _Address;
             private readonly int _Size;
 
             public RefIndexer(CStringRef cstr)
@@ -279,7 +289,7 @@ namespace Mod
 
         public struct Enumerator : IEnumerator<byte>
         {
-            private readonly RawTrackingRef<byte> _Address;
+            private readonly UnionRef<byte> _Address;
             private int _Length;
             private int _Index;
             public Enumerator(CStringRef cstr)

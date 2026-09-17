@@ -464,5 +464,77 @@ namespace Mod.Tests
 
             s.Dispose();
         }
+
+        // ---------- Track / Untrack (UnionRef mode switching) ----------
+
+        [Fact]
+        public void Track_Untrack_RoundTrip_PreservesContent()
+        {
+            var s = new CStringRef("hello");       // net10: Tracking mode by default
+            s.Untrack();                            // Tracking → Raw (old slot returned)
+            Assert.Equal("hello", s.ToString());    // content survives the switch
+            Assert.Equal(5, s.Length);
+            s.Track();                              // Raw → Tracking (fresh slot leased)
+            Assert.Equal("hello", s.ToString());
+            Assert.Equal(5, s.Length);
+
+            s.Dispose();                            // returns the current Tracking slot
+        }
+
+        [Fact]
+        public void Untrack_ThenMutate_StillWorks()
+        {
+            var s = CStr.New("he", 8);
+            s.Untrack();                            // Raw mode: plain address, no slot
+            s[2] = (byte)'y';                       // indexer write through the raw address
+            Assert.Equal("hey", s.ToString());
+            var r = s.Append((byte)'!');            // mutation chain in Raw mode
+            Assert.Equal("hey!", r.ToString());
+
+            r.Track();                              // back to Tracking before Dispose
+            r.Dispose();
+        }
+
+        [Fact]
+        public void RepeatedSwitching_KeepsPoolConsistent()
+        {
+            // Each Untrack returns the old Tracking slot; each Track leases a fresh
+            // one. Many rounds must not throw (the IntBag bitmap would catch any
+            // double return / double allocation) and the final Dispose must return
+            // exactly the current slot.
+            var s = new CStringRef("x");
+            for (int i = 0; i < 100; i++)
+            {
+                s.Untrack();
+                s.Track();
+            }
+            Assert.Equal("x", s.ToString());
+
+            s.Dispose();
+        }
+
+        [Fact]
+        public void Untrack_ThenDispose_IsSafeNoOp()
+        {
+            var s = new CStringRef("abc");
+            s.Untrack();                // Raw mode holds no slot
+            s.Dispose();                // nothing to return — must not throw
+        }
+
+        [Fact]
+        public void TrackGC_SurvivesForcedCollection()
+        {
+            var s = new CStringRef("tracked");
+            s.Track();                  // ensure Tracking mode (the net10 default anyway)
+            byte[][] junk = new byte[64][];
+            for (int i = 0; i < 2_000_000; i++) junk[i & 63] = new byte[96];
+            GC.Collect(2, GCCollectionMode.Forced, true, true);
+            GC.Collect(2, GCCollectionMode.Forced, true, true);
+            GC.KeepAlive(junk);
+            Assert.Equal("tracked", s.ToString());   // the byref followed the moved buffer
+            Assert.Equal((byte)'t', s[0]);
+
+            s.Dispose();
+        }
     }
 }
