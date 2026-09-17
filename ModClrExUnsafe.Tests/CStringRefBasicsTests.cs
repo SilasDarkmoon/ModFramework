@@ -4,6 +4,19 @@ using Xunit;
 
 namespace Mod.Tests
 {
+    /// <summary>
+    /// Convention for this file: every local that holds a constructed CStringRef
+    /// (<c>new CStringRef("...")</c>, <c>new CStringRef(span)</c>, <c>CStr.New(...)</c> and
+    /// <c>Clone()</c>) is disposed with <c>Dispose()</c> before the test returns.
+    /// <c>Substring()</c> returns a <c>CStringSpan</c> — a slot-free view, nothing to dispose.
+    ///
+    /// Why: <c>CStringRef._Address</c> is a <c>RawTrackingRef&lt;byte&gt;</c> — a slot in the
+    /// dedicated tracking thread's stack that the GC follows as an interior byref. The slot is
+    /// leased by <c>RawTrackingRef.Create()</c> and only returned by <c>Dispose()</c>; a view that
+    /// is never disposed keeps its slot (and therefore keeps the target buffer alive) for the
+    /// rest of the process. Disposing is what makes the lease short-lived. Please keep the
+    /// <c>Dispose()</c> calls.
+    /// </summary>
     public class CStringRefBasicsTests
     {
         // ---------- construction & conversion ----------
@@ -16,6 +29,8 @@ namespace Mod.Tests
             Assert.Equal(5, s.Size);
             Assert.False(s.Readonly);
             Assert.Equal("Hello", s.ToString());
+
+            s.Dispose();
         }
 
         [Fact]
@@ -24,6 +39,8 @@ namespace Mod.Tests
             var s = new CStringRef("你好A");
             Assert.Equal(Encoding.UTF8.GetByteCount("你好A"), s.Length);
             Assert.Equal("你好A", s.ToString());
+
+            s.Dispose();
         }
 
         [Fact]
@@ -35,6 +52,8 @@ namespace Mod.Tests
             Assert.Equal(5, s.Size);
             Assert.False(s.Readonly);
             Assert.Equal("ab", s.ToString());
+
+            s.Dispose();
         }
 
         [Fact]
@@ -45,6 +64,8 @@ namespace Mod.Tests
             Assert.Equal(4, s.Length);
             Assert.Equal(5, s.Size);
             Assert.Equal("abc\0", s.ToString());
+
+            s.Dispose();
         }
 
         [Fact]
@@ -66,6 +87,9 @@ namespace Mod.Tests
             Assert.Equal("abc", str);
             CStringRef back = (CStringRef)"abc";   // explicit string -> CStringRef
             Assert.Equal(s, back);
+
+            s.Dispose();
+            back.Dispose();
         }
 
         [Fact]
@@ -76,6 +100,9 @@ namespace Mod.Tests
             Assert.Equal(new byte[] { 97, 98, 99 }, span.ToArray());
             CStringRef viaSpan = new CStringRef(span);
             Assert.Equal("abc", viaSpan.ToString());
+
+            s.Dispose();
+            viaSpan.Dispose();
         }
 
         // ---------- Length / Size / Readonly ----------
@@ -86,6 +113,8 @@ namespace Mod.Tests
             var s = CStr.New("abc", 5);
             Assert.Equal(3, s.Length);
             Assert.Equal(8, s.Size);
+
+            s.Dispose();
         }
 
         [Fact]
@@ -97,6 +126,8 @@ namespace Mod.Tests
             Assert.Equal(2, s.Length);
             Assert.Equal("he", s.ToString());
             Assert.Equal(new byte[] { 104, 101 }, CStr.Content(s));
+
+            s.Dispose();
         }
 
         [Fact]
@@ -106,6 +137,8 @@ namespace Mod.Tests
             s.Length = 5;
             Assert.Equal(5, s.Length);
             Assert.Equal(new byte[] { 104, 105, 0, 0, 0 }, CStr.Content(s));
+
+            s.Dispose();
         }
 
         [Fact]
@@ -114,6 +147,8 @@ namespace Mod.Tests
             var s = new CStringRef("abc");
             s.Length = 3;
             Assert.Equal("abc", s.ToString());
+
+            s.Dispose();
         }
 
         [Fact]
@@ -122,6 +157,8 @@ namespace Mod.Tests
             var s = CStr.New("abc", 2);
             Assert.Throws<ArgumentOutOfRangeException>(() => s.Length = -1);
             Assert.Throws<ArgumentOutOfRangeException>(() => s.Length = 6);   // > Size (5)
+
+            s.Dispose();
         }
 
         [Fact]
@@ -131,6 +168,8 @@ namespace Mod.Tests
             s.Freeze();
             Assert.True(s.Readonly);
             Assert.Throws<InvalidOperationException>(() => s.Length = 2);
+
+            s.Dispose();
         }
 
         [Fact]
@@ -143,6 +182,8 @@ namespace Mod.Tests
             Assert.False(s.Readonly);
             s[0] = (byte)'z';   // no longer throws
             Assert.Equal("zbc", s.ToString());
+
+            s.Dispose();
         }
 
         [Fact]
@@ -154,6 +195,8 @@ namespace Mod.Tests
             s.RecalculateLength();
             Assert.Equal(3, s.Length);
             Assert.Equal("abc", s.ToString());
+
+            s.Dispose();
         }
 
         // ---------- indexer ----------
@@ -167,6 +210,8 @@ namespace Mod.Tests
             Assert.Throws<IndexOutOfRangeException>(() => s[-1]);
             Assert.Throws<IndexOutOfRangeException>(() => s[3]);
             Assert.Throws<IndexOutOfRangeException>(() => s[100]);
+
+            s.Dispose();
         }
 
         [Fact]
@@ -179,6 +224,8 @@ namespace Mod.Tests
             s[3] = (byte)'d';
             Assert.Equal(4, s.Length);
             Assert.Equal("abcd", s.ToString());
+
+            s.Dispose();
         }
 
         [Fact]
@@ -189,6 +236,8 @@ namespace Mod.Tests
             s[2] = 0;
             Assert.Equal(2, s.Length);
             Assert.Equal("he", s.ToString());
+
+            s.Dispose();
         }
 
         [Fact]
@@ -198,6 +247,8 @@ namespace Mod.Tests
             s[2] = 0;
             Assert.Equal(2, s.Length);
             Assert.Equal("ab", s.ToString());
+
+            s.Dispose();
         }
 
         [Fact]
@@ -206,6 +257,8 @@ namespace Mod.Tests
             var s = new CStringRef("abc");
             s.Freeze();
             Assert.Throws<InvalidOperationException>(() => s[1] = (byte)'x');
+
+            s.Dispose();
         }
 
         [Fact]
@@ -219,6 +272,8 @@ namespace Mod.Tests
 
             Assert.Equal("hXllo", s.ToString());
             Assert.NotEqual(hashBefore, s.GetHashCode());
+
+            s.Dispose();
         }
 
         // ---------- cache ----------
@@ -230,6 +285,8 @@ namespace Mod.Tests
             object a = s.ToString();
             object b = s.ToString();
             Assert.Same(a, b);
+
+            s.Dispose();
         }
 
         // ---------- copy / clone ----------
@@ -243,22 +300,32 @@ namespace Mod.Tests
             clone[0] = (byte)'H';
             Assert.Equal("Hello", clone.ToString());
             Assert.Equal("hello", s.ToString());
+
+            s.Dispose();
+            clone.Dispose();
         }
 
         [Fact]
         public void CopyTo_OtherCStringRef()
         {
+            var src = new CStringRef("hi");
             var dst = CStr.New("xxxxx", 0);
-            new CStringRef("hi").CopyTo(dst);
+            src.CopyTo(ref dst);
             Assert.Equal("hi", dst.ToString());
+
+            src.Dispose();
+            dst.Dispose();
         }
 
         [Fact]
         public void CopyTo_Span_WritesContent()
         {
             var span = new byte[4];
-            new CStringRef("hi").CopyTo(span);
+            var src = new CStringRef("hi");
+            src.CopyTo(span);
             Assert.Equal(new byte[] { 104, 105, 0, 0 }, span);
+
+            src.Dispose();
         }
 
         // ---------- equality / ordering / hash ----------
@@ -272,6 +339,9 @@ namespace Mod.Tests
             Assert.True(a.Equals((object)b));
             Assert.True(a == b);
             Assert.False(a != b);
+
+            a.Dispose();
+            b.Dispose();
         }
 
         [Fact]
@@ -281,6 +351,9 @@ namespace Mod.Tests
             var b = new CStringRef("hellp");
             Assert.False(a.Equals(b));
             Assert.True(a != b);
+
+            a.Dispose();
+            b.Dispose();
         }
 
         [Fact]
@@ -293,6 +366,9 @@ namespace Mod.Tests
             Assert.True(b.CompareTo(a) > 0);
             Assert.True(a.CompareTo(new CStringRef("aa")) > 0);
             Assert.Equal(0, a.CompareTo("ab"));
+
+            a.Dispose();
+            b.Dispose();
         }
 
         [Fact]
@@ -301,6 +377,9 @@ namespace Mod.Tests
             var a = new CStringRef("hello");
             var b = CStr.New("hello", 3);
             Assert.Equal(a.GetHashCode(), b.GetHashCode());
+
+            a.Dispose();
+            b.Dispose();
         }
 
         // ---------- slicing / substring ----------
@@ -310,6 +389,8 @@ namespace Mod.Tests
         {
             var s = CStr.New("hello", 3);
             Assert.Equal(CStr.Content(s), s.Slice().ToArray());
+
+            s.Dispose();
         }
 
         [Fact]
@@ -317,14 +398,18 @@ namespace Mod.Tests
         {
             var s = new CStringRef("hello world");
             Assert.Equal(CStr.Bytes("lo wo"), s.Slice(3, 5).ToArray());
+
+            s.Dispose();
         }
 
         [Fact]
         public void Substring_Middle_ReturnsExactContent()
         {
             var parent = new CStringRef("hello world");
-            var sub = parent.Substring(6, 5);
+            var sub = parent.Substring(6, 5);      // CStringSpan view: no slot, no Dispose
             Assert.Equal("world", sub.ToString());
+
+            parent.Dispose();
         }
 
         [Fact]
@@ -333,17 +418,21 @@ namespace Mod.Tests
             var s = new CStringRef("abc");
             Assert.Equal("", s.Substring(0, 0).ToString());
             Assert.Equal("", s.Substring(3, 0).ToString());
+
+            s.Dispose();
         }
 
         [Fact]
         public void Substring_Tail_IsAViewOverSameBuffer()
         {
             var parent = CStr.New("hello world", 4);
-            var tail = parent.Substring(6, parent.Length - 6);
+            var tail = parent.Substring(6, parent.Length - 6);   // CStringSpan view over the same buffer
             Assert.Equal("world", tail.ToString());
 
             parent[6] = (byte)'W';      // mutate the parent through indexer
             Assert.Equal((byte)'W', tail[0]);
+
+            parent.Dispose();
         }
 
         [Fact]
@@ -353,6 +442,8 @@ namespace Mod.Tests
             Assert.Throws<ArgumentOutOfRangeException>(() => s.Substring(-1, 1));
             Assert.Throws<ArgumentOutOfRangeException>(() => s.Substring(3, 1));
             Assert.Throws<ArgumentOutOfRangeException>(() => s.Substring(1, 3));
+
+            s.Dispose();
         }
 
         // ---------- enumeration ----------
@@ -370,6 +461,8 @@ namespace Mod.Tests
             }
             Assert.Equal(3, count);
             Assert.Equal(97 + 98 + 99, sum);
+
+            s.Dispose();
         }
     }
 }

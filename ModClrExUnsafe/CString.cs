@@ -6,10 +6,10 @@ using System.Text;
 
 namespace Mod
 {
-    public struct CStringRef : IEnumerable<byte>, IEnumerable, ICloneable, IComparable, IComparable<CStringRef>, IComparable<string>, IEquatable<CStringRef>, IEquatable<string>
+    public struct CStringRef : IEnumerable<byte>, IEnumerable, ICloneable, IComparable, IComparable<CStringRef>, IComparable<string>, IEquatable<CStringRef>, IEquatable<string>, IDisposable
     {
-        private readonly RefContainer<byte> _Address;
-        private readonly int _Size;
+        private readonly RawTrackingRef<byte> _Address;
+        private int _Size;
         private int _Length;
         private bool _Readonly;
         private string _ConvertedString;
@@ -32,7 +32,7 @@ namespace Mod
                     }
                     if (value < _Length)
                     {
-                        UnsafeEx.MemClean(ref (_Address + value).GetRef(), 0, _Length - value);
+                        UnsafeEx.MemClean(ref UnsafeEx.AddByteOffset(ref _Address.GetRef(), (IntPtr)value), 0, _Length - value);
                     }
                     _Length = value;
                     ClearCache();
@@ -72,7 +72,8 @@ namespace Mod
 
         public CStringRef(IntPtr address, int size, int len)
         {
-            _Address = new RefContainer<byte>(address);
+            _Address = RawTrackingRef<byte>.Create();
+            _Address.Address = address;
             _Size = size;
             _Length = len;
             _Readonly = false;
@@ -81,7 +82,8 @@ namespace Mod
         }
         public CStringRef(IntPtr address, int size)
         {
-            _Address = new RefContainer<byte>(address);
+            _Address = RawTrackingRef<byte>.Create();
+            _Address.Address = address;
             _Size = size;
             _Length = UnsafeEx.StrLen(address, size);
             _Readonly = false;
@@ -90,7 +92,8 @@ namespace Mod
         }
         public CStringRef(IntPtr address)
         {
-            _Address = new RefContainer<byte>(address);
+            _Address = RawTrackingRef<byte>.Create();
+            _Address.Address = address;
             _Length = UnsafeEx.StrLen(address);
             _Size = _Length + 1;
             _Readonly = false;
@@ -99,7 +102,8 @@ namespace Mod
         }
         public CStringRef(ref byte address, int size, int len)
         {
-            _Address = new RefContainer<byte>(ref address);
+            _Address = RawTrackingRef<byte>.Create();
+            _Address.SetRef(ref address);
             _Size = size;
             _Length = len;
             _Readonly = false;
@@ -108,7 +112,8 @@ namespace Mod
         }
         public CStringRef(ref byte address, int size)
         {
-            _Address = new RefContainer<byte>(ref address);
+            _Address = RawTrackingRef<byte>.Create();
+            _Address.SetRef(ref address);
             _Size = size;
             _Length = UnsafeEx.StrLen(ref address, size);
             _Readonly = false;
@@ -117,7 +122,8 @@ namespace Mod
         }
         public CStringRef(ref byte address)
         {
-            _Address = new RefContainer<byte>(ref address);
+            _Address = RawTrackingRef<byte>.Create();
+            _Address.SetRef(ref address);
             _Length = UnsafeEx.StrLen(ref address);
             _Size = _Length + 1;
             _Readonly = false;
@@ -126,7 +132,8 @@ namespace Mod
         }
         public CStringRef(Span<byte> data)
         {
-            _Address = new RefContainer<byte>(ref data.GetRef());
+            _Address = RawTrackingRef<byte>.Create();
+            _Address.SetRef(ref data.GetRef());
             _Size = data.Length;
             _Length = UnsafeEx.StrLen(data);
             _Readonly = false;
@@ -135,7 +142,8 @@ namespace Mod
         }
         public CStringRef(ReadOnlySpan<byte> data)
         {
-            _Address = new RefContainer<byte>(ref data.GetRef());
+            _Address = RawTrackingRef<byte>.Create();
+            _Address.SetRef(ref data.GetRef());
             _Size = data.Length;
             _Length = UnsafeEx.StrLen(data);
             _Readonly = true;
@@ -144,7 +152,8 @@ namespace Mod
         }
         public CStringRef(Span<byte> data, int length)
         {
-            _Address = new RefContainer<byte>(ref data.GetRef());
+            _Address = RawTrackingRef<byte>.Create();
+            _Address.SetRef(ref data.GetRef());
             _Size = data.Length;
             _Length = Math.Min(length, _Size);
             _Readonly = false;
@@ -153,7 +162,8 @@ namespace Mod
         }
         public CStringRef(ReadOnlySpan<byte> data, int length)
         {
-            _Address = new RefContainer<byte>(ref data.GetRef());
+            _Address = RawTrackingRef<byte>.Create();
+            _Address.SetRef(ref data.GetRef());
             _Size = data.Length;
             _Length = Math.Min(length, _Size);
             _Readonly = true;
@@ -166,6 +176,24 @@ namespace Mod
         public CStringRef(string str, Encoding encoding) : this(new Span<byte>((encoding ?? Encoding.Default).GetBytes(str)))
         {
         }
+        public void Dispose()
+        {
+            _Address.Dispose();
+        }
+
+        /// <summary>
+        /// Growth path shared by all mutators: re-points the owned slot at a fresh
+        /// (larger) managed buffer instead of returning a new CStringRef. Mutators
+        /// always return this, so a whole mutation chain shares one slot and
+        /// Dispose happens exactly once, on the final handle.
+        /// </summary>
+        private void RebindToNewBuffer(byte[] newbuffer, int newLength)
+        {
+            _Address.SetRef(ref newbuffer[0]);
+            _Size = newbuffer.Length;
+            _Length = newLength;
+            ClearCache();
+        }
 
         public byte this[int index]
         {
@@ -177,7 +205,7 @@ namespace Mod
                 }
                 else
                 {
-                    return (_Address + index).GetValue();
+                    return UnsafeEx.AddByteOffset(ref _Address.GetRef(), (IntPtr)index);
                 }
             }
             set
@@ -192,7 +220,7 @@ namespace Mod
                 }
                 else
                 {
-                    (_Address + index).SetValue(value);
+                    UnsafeEx.AddByteOffset(ref _Address.GetRef(), (IntPtr)index) = value;
                     if (value == 0 && index < _Length)
                     {
                         _Length = index;
@@ -208,7 +236,7 @@ namespace Mod
 
         public struct RefIndexer
         {
-            private readonly RefContainer<byte> _Address;
+            private readonly RawTrackingRef<byte> _Address;
             private readonly int _Size;
 
             public RefIndexer(CStringRef cstr)
@@ -224,7 +252,7 @@ namespace Mod
                     {
                         throw new IndexOutOfRangeException();
                     }
-                    return ref (_Address + index).GetRef();
+                    return ref UnsafeEx.AddByteOffset(ref _Address.GetRef(), (IntPtr)index);
                 }
             }
         }
@@ -251,7 +279,7 @@ namespace Mod
 
         public struct Enumerator : IEnumerator<byte>
         {
-            private readonly RefContainer<byte> _Address;
+            private readonly RawTrackingRef<byte> _Address;
             private int _Length;
             private int _Index;
             public Enumerator(CStringRef cstr)
@@ -260,7 +288,7 @@ namespace Mod
                 _Length = cstr._Length;
                 _Index = -1;
             }
-            public byte Current => (_Address + _Index).GetValue();
+            public byte Current => UnsafeEx.AddByteOffset(ref _Address.GetRef(), (IntPtr)_Index);
             object IEnumerator.Current => Current;
             public bool MoveNext()
             {
@@ -429,12 +457,12 @@ namespace Mod
                     hash |= (first << 28);
                     if (_Length > 1)
                     {
-                        var last = (_Address + (_Length - 1)).GetValue();
+                        var last = UnsafeEx.AddByteOffset(ref _Address.GetRef(), (IntPtr)(_Length - 1));
                         hash |= (last & 0x0F);
                     }
                     for (int i = 0; i < _Length; ++i)
                     {
-                        var b = (_Address + i).GetValue();
+                        var b = UnsafeEx.AddByteOffset(ref _Address.GetRef(), (IntPtr)i);
                         var offset = i / 3;
                         var group = i % 3;
                         var shift = (3 - group) * 8;
@@ -487,6 +515,25 @@ namespace Mod
         {
             return new CStringRef(span);
         }
+
+        public static implicit operator CStringSpan(CStringRef thiz)
+        {
+            return new CStringSpan(ref thiz._Address.GetRef(), thiz._Size, thiz._Length)
+            {
+                _Readonly = thiz._Readonly,
+                _ConvertedString = thiz._ConvertedString,
+                _CachedHashCode = thiz._CachedHashCode,
+            };
+        }
+        public static explicit operator CStringRef(CStringSpan thiz)
+        {
+            return new CStringRef(thiz.ToSpan(), thiz.Length)
+            {
+                _Readonly = thiz._Readonly,
+                _ConvertedString = thiz._ConvertedString,
+                _CachedHashCode = thiz._CachedHashCode,
+            };
+        }
         public Span<byte> Slice()
         {
             return ToSpan().Slice(0, _Length);
@@ -499,7 +546,7 @@ namespace Mod
         {
             return ToSpan().Slice(start, length);
         }
-        public CStringRef Substring(int startIndex)
+        public CStringSpan Substring(int startIndex)
         {
             if (startIndex < 0 || startIndex > _Length)
             {
@@ -507,14 +554,19 @@ namespace Mod
             }
             if (startIndex >= _Size)
             {
-                return new CStringRef() { _Readonly = _Readonly };
+                var empty = default(CStringSpan);
+                empty._Readonly = _Readonly;
+                return empty;
             }
             else
             {
-                return new CStringRef(ref (_Address + startIndex).GetRef(), _Size - startIndex, _Length - startIndex) { _Readonly = _Readonly };
+                return new CStringSpan(ref UnsafeEx.AddByteOffset(ref _Address.GetRef(), (IntPtr)startIndex), _Size - startIndex, _Length - startIndex)
+                {
+                    _Readonly = _Readonly,
+                };
             }
         }
-        public CStringRef Substring(int startIndex, int length)
+        public CStringSpan Substring(int startIndex, int length)
         {
             if (startIndex < 0 || startIndex > _Length)
             {
@@ -526,15 +578,23 @@ namespace Mod
             }
             if (startIndex >= _Size)
             {
-                return new CStringRef() { _Readonly = _Readonly };
+                var empty = default(CStringSpan);
+                empty._Readonly = _Readonly;
+                return empty;
             }
             if (startIndex + length == _Length)
             {
-                return new CStringRef(ref (_Address + startIndex).GetRef(), _Size - startIndex, length) { _Readonly = _Readonly };
+                return new CStringSpan(ref UnsafeEx.AddByteOffset(ref _Address.GetRef(), (IntPtr)startIndex), _Size - startIndex, length)
+                {
+                    _Readonly = _Readonly,
+                };
             }
             else
             {
-                return new CStringRef(ref (_Address + startIndex).GetRef(), length, length) { _Readonly = _Readonly };
+                return new CStringSpan(ref UnsafeEx.AddByteOffset(ref _Address.GetRef(), (IntPtr)startIndex), length, length)
+                {
+                    _Readonly = _Readonly,
+                };
             }
         }
 
@@ -662,6 +722,10 @@ namespace Mod
 
         public int LastIndexOf(byte value)
         {
+            if (_Length == 0)
+            {
+                return -1;
+            }
             unsafe
             {
                 fixed (byte* p = &_Address.GetRef())
@@ -978,132 +1042,35 @@ namespace Mod
             return true;
         }
 
-        public struct CStringRefSplitEnumerator : IEnumerator<CStringRef>
+        public CStringSpanSplitEnumerator Split(ReadOnlySpan<byte> splitters)
         {
-            private CStringRef _Source;
-            private CStringRef _Splitters;
-            private int _NextStart;
-            private bool _Finished;
-            private CStringRef _Current;
-
-            public CStringRefSplitEnumerator(CStringRef source, ReadOnlySpan<byte> splitters)
+            if (_Size == 0)
             {
-                _Source = source;
-                _Splitters = new CStringRef(splitters, splitters.Length);
-                _NextStart = 0;
-                _Finished = false;
-                _Current = default;
+                // default / Empty source: no valid slot behind it, nothing to enumerate
+                return new CStringSpanSplitEnumerator(default(CStringSpan), splitters);
             }
-            public CStringRefSplitEnumerator GetEnumerator()
+            if (splitters.IsEmpty)
             {
-                return this;
+                // An empty splitter set means whitespace mode (legacy behavior)
+                return new CStringSpanSplitEnumerator(this, -1);
             }
-
-            public CStringRef Current => _Current;
-
-            object IEnumerator.Current => Current;
-
-            public bool MoveNext()
-            {
-                if (_Finished)
-                {
-                    return false;
-                }
-                return _Splitters._Length == 0
-                    ? MoveNextByWhitespace()
-                    : MoveNextBySeparators();
-            }
-
-            private bool MoveNextBySeparators()
-            {
-                int length = _Source._Length;
-                int start = _NextStart;
-                int i = start;
-                while (i < length)
-                {
-                    if (IsSplitter(GetByte(i)))
-                    {
-                        break;
-                    }
-                    ++i;
-                }
-                if (i < length)
-                {
-                    _Current = _Source.Substring(start, i - start);
-                    _NextStart = i + 1;
-                }
-                else
-                {
-                    _Current = _Source.Substring(start, length - start);
-                    _Finished = true;
-                }
-                return true;
-            }
-
-            private bool MoveNextByWhitespace()
-            {
-                int length = _Source._Length;
-                int i = _NextStart;
-                while (i < length && CStringRef.IsWhiteSpace(GetByte(i)))
-                {
-                    ++i;
-                }
-                if (i >= length)
-                {
-                    _Finished = true;
-                    return false;
-                }
-                int start = i;
-                while (i < length && !CStringRef.IsWhiteSpace(GetByte(i)))
-                {
-                    ++i;
-                }
-                _Current = _Source.Substring(start, i - start);
-                _NextStart = i;
-                if (i >= length)
-                {
-                    _Finished = true;
-                }
-                return true;
-            }
-
-            public void Reset()
-            {
-                _NextStart = 0;
-                _Finished = false;
-                _Current = default;
-            }
-
-            public void Dispose()
-            {
-            }
-
-            private byte GetByte(int index) => (_Source._Address + index).GetValue();
-
-            private bool IsSplitter(byte value)
-            {
-                int n = _Splitters._Length;
-                for (int i = 0; i < n; ++i)
-                {
-                    if ((_Splitters._Address + i).GetValue() == value)
-                    {
-                        return true;
-                    }
-                }
-                return false;
-            }
+            return new CStringSpanSplitEnumerator(this, splitters);
         }
-        public CStringRefSplitEnumerator Split(ReadOnlySpan<byte> splitters)
+        public CStringSpanSplitEnumerator Split(byte splitter)
         {
-            return new CStringRefSplitEnumerator(this, splitters);
+            if (_Size == 0)
+            {
+                return new CStringSpanSplitEnumerator(default(CStringSpan), splitter);
+            }
+            return new CStringSpanSplitEnumerator(this, splitter);
         }
-        public CStringRefSplitEnumerator Split(byte splitter)
+        public CStringSpanSplitEnumerator Split()
         {
-            return new CStringRefSplitEnumerator(this, new[] { splitter });
-        }
-        public CStringRefSplitEnumerator Split()
-        {
-            return new CStringRefSplitEnumerator(this, ReadOnlySpan<byte>.Empty);
+            if (_Size == 0)
+            {
+                return new CStringSpanSplitEnumerator(default(CStringSpan), -1);
+            }
+            return new CStringSpanSplitEnumerator(this, -1);
         }
 
         public CStringRef Append(byte value)
@@ -1115,9 +1082,10 @@ namespace Mod
             if (_Length >= _Size)
             {
                 var newbuffer = new byte[_Length + 2];
-                ToSpan().CopyTo(newbuffer);
+                UnsafeEx.MemCopy(ref newbuffer[0], 0, ref _Address.GetRef(), 0, _Length);
                 newbuffer[_Length] = value;
-                return new CStringRef(new Span<byte>(newbuffer));
+                RebindToNewBuffer(newbuffer, _Length + 1);
+                return this;
             }
             ClearCache();
             ToSpan().Append(value);
@@ -1137,9 +1105,10 @@ namespace Mod
             if (_Length + other._Length > _Size)
             {
                 var newbuffer = new byte[_Length + other._Length + 1];
-                ToSpan().CopyTo(newbuffer);
-                other.ToSpan().CopyTo(new Span<byte>(newbuffer, _Length, newbuffer.Length - _Length));
-                return new CStringRef(new Span<byte>(newbuffer));
+                UnsafeEx.MemCopy(ref newbuffer[0], 0, ref _Address.GetRef(), 0, _Length);
+                UnsafeEx.MemCopy(ref newbuffer[0], _Length, ref other._Address.GetRef(), 0, other._Length);
+                RebindToNewBuffer(newbuffer, _Length + other._Length);
+                return this;
             }
             ClearCache();
             ToSpan().Append(other.ToSpan());
@@ -1315,13 +1284,14 @@ namespace Mod
                 UnsafeEx.MemCopy(ref buffer[0], 0, ref _Address.GetRef(), 0, index);
                 UnsafeEx.MemSet(ref buffer[0], index, ch, repeat);
                 UnsafeEx.MemCopy(ref buffer[0], index + repeat, ref _Address.GetRef(), index, _Length - index);
-                return new CStringRef(new Span<byte>(buffer), newLength);
+                RebindToNewBuffer(buffer, newLength);
+                return this;
             }
             UnsafeEx.MemCopy(ref _Address.GetRef(), index + repeat, ref _Address.GetRef(), index, _Length - index);
             UnsafeEx.MemSet(ref _Address.GetRef(), index, ch, repeat);
             if (newLength < _Size)
             {
-                (_Address + newLength).SetValue(0);
+                UnsafeEx.AddByteOffset(ref _Address.GetRef(), (IntPtr)newLength) = 0;
             }
             _Length = newLength;
             ClearCache();
@@ -1365,7 +1335,8 @@ namespace Mod
                     UnsafeEx.MemCopy(ref buffer[0], index + i * sub._Length, ref sub._Address.GetRef(), 0, sub._Length);
                 }
                 UnsafeEx.MemCopy(ref buffer[0], index + addLength, ref _Address.GetRef(), index, _Length - index);
-                return new CStringRef(new Span<byte>(buffer), newLength);
+                RebindToNewBuffer(buffer, newLength);
+                return this;
             }
             // In-place insertion: snapshot sub first so it survives the shift when sub shares the same underlying buffer as this view
             Span<byte> snapshot = stackalloc byte[sub._Length];
@@ -1377,7 +1348,7 @@ namespace Mod
             }
             if (newLength < _Size)
             {
-                (_Address + newLength).SetValue(0);
+                UnsafeEx.AddByteOffset(ref _Address.GetRef(), (IntPtr)newLength) = 0;
             }
             _Length = newLength;
             ClearCache();
@@ -1409,7 +1380,7 @@ namespace Mod
             int first = -1;
             for (int i = startIndex; i < windowEnd; ++i)
             {
-                if ((_Address + i).GetValue() == oldch)
+                if (UnsafeEx.AddByteOffset(ref _Address.GetRef(), (IntPtr)i) == oldch)
                 {
                     first = i;
                     break;
@@ -1426,10 +1397,10 @@ namespace Mod
             // Pure byte replacement; _Length is unchanged (same when newch is 0: a NUL is merely written into the content, no truncation)
             for (int i = first; i < windowEnd; ++i)
             {
-                var address = _Address + i;
-                if (address.GetValue() == oldch)
+                ref var address = ref UnsafeEx.AddByteOffset(ref _Address.GetRef(), (IntPtr)i);
+                if (address == oldch)
                 {
-                    address.SetValue(newch);
+                    address = newch;
                 }
             }
             ClearCache();
@@ -1564,7 +1535,8 @@ namespace Mod
                 {
                     UnsafeEx.MemCopy(ref buffer[0], target, ref _Address.GetRef(), source, _Length - source);
                 }
-                return new CStringRef(new Span<byte>(buffer), newTotal);
+                RebindToNewBuffer(buffer, newTotal);
+                return this;
             }
             else
             {
@@ -1602,7 +1574,7 @@ namespace Mod
                     }
                     if (newTotal < _Size)
                     {
-                        (_Address + newTotal).SetValue(0);
+                        UnsafeEx.AddByteOffset(ref _Address.GetRef(), (IntPtr)newTotal) = 0;
                     }
                     _Length = newTotal;
                     ClearCache();
@@ -1664,7 +1636,54 @@ namespace Mod
             return ref Value;
         }
     }
-    public class CString : Box<CStringRef>
+
+    public class DisposableBox<T> : Box<T>
+        where T : struct, IDisposable
+    {
+        public DisposableBox() : base() { }
+        public DisposableBox(T value) : base(value) { }
+
+        private bool _DisposedValue;
+        protected void Dispose(bool disposing)
+        {
+            if (!_DisposedValue)
+            {
+                if (disposing)
+                {
+                }
+
+                DisposeImp();
+                _DisposedValue = true;
+            }
+        }
+        protected virtual void DisposeImp()
+        {
+            Value.Dispose();
+            Value = default;
+        }
+
+        ~DisposableBox()
+        {
+            Dispose(disposing: false);
+        }
+
+        public void Dispose()
+        {
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
+
+        public static implicit operator T(DisposableBox<T> box)
+        {
+            return box.Value;
+        }
+        public static explicit operator DisposableBox<T>(T value)
+        {
+            return new DisposableBox<T>(value);
+        }
+    }
+
+    public class CString : DisposableBox<CStringRef>
     {
         public CString() : base()
         {

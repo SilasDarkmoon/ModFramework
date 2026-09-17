@@ -3,6 +3,15 @@ using Xunit;
 
 namespace Mod.Tests
 {
+    /// <summary>
+    /// Convention for this file: mutators (<c>Append</c>/<c>Insert</c>/<c>Replace</c>/<c>Trim</c>/
+    /// <c>Remove</c>/<c>Clear</c>) always return the receiver — the result <c>r</c> and the
+    /// receiver <c>s</c> share ONE slot, so exactly ONE of them is disposed (the final handle;
+    /// growth re-binds the slot via <c>RebindToNewBuffer</c> instead of creating a new CStringRef).
+    /// <c>Substring()</c> returns a <c>CStringSpan</c> — a slot-free view, nothing to dispose.
+    /// Purely temporary arguments (<c>new CStringRef("x")</c>, <c>(CStringRef)spanView</c>) are
+    /// intermediates and are NOT disposed (see CStringRefBasicsTests for the slot-lease rationale).
+    /// </summary>
     public class CStringRefMutationTests
     {
         // ---------- Append ----------
@@ -14,16 +23,22 @@ namespace Mod.Tests
             var r = s.Append((byte)'y');
             Assert.Equal(3, r.Length);
             Assert.Equal("hey", r.ToString());
+
+
+            r.Dispose();
         }
 
         [Fact]
-        public void Append_Byte_Overflow_ReturnsNewAndLeavesOriginal()
+        public void Append_Byte_Overflow_GrowsInPlace()
         {
             var s = new CStringRef("ab");      // Size == 2
-            var r = s.Append((byte)'c');
+            var r = s.Append((byte)'c');       // growth re-binds the slot to a larger buffer
             Assert.Equal("abc", r.ToString());
             Assert.Equal(3, r.Length);
-            Assert.Equal("ab", s.ToString());
+            Assert.Equal("abc", s.ToString()); // r and s are the same view now
+            Assert.True(r.Size > 3);
+
+            r.Dispose();                       // r and s share one slot: dispose exactly one handle
         }
 
         [Fact]
@@ -32,6 +47,9 @@ namespace Mod.Tests
             var s = CStr.New("he", 8);
             var r = s.Append(new CStringRef("llo"));
             Assert.Equal("hello", r.ToString());
+
+
+            r.Dispose();
         }
 
         [Fact]
@@ -41,6 +59,9 @@ namespace Mod.Tests
             var r = s.Append(CStringRef.Empty);
             Assert.Equal(1, r.Length);
             Assert.Equal("x", r.ToString());
+
+
+            r.Dispose();
         }
 
         [Fact]
@@ -49,17 +70,23 @@ namespace Mod.Tests
             var s = new CStringRef("ab");
             s.Freeze();
             Assert.Throws<InvalidOperationException>(() => s.Append((byte)'c'));
+
+            s.Dispose();
         }
 
         [Fact]
-        public void OperatorPlus_ConcatenatesCopies()
+        public void OperatorPlus_Concatenates()
         {
             var left = new CStringRef("foo");
             var right = new CStringRef("bar");
-            var sum = left + right;
+            var sum = left + right;          // operator+ forwards to left.Append(right): the mutation
+                                             // lands on the operator's by-value copy, so sum is the live
+                                             // handle (left keeps a stale Length - use the return value)
             Assert.Equal("foobar", sum.ToString());
-            Assert.Equal("foo", left.ToString());
             Assert.Equal("bar", right.ToString());
+
+            right.Dispose();
+            sum.Dispose();                   // sum and left share one slot: dispose exactly one handle
         }
 
         // ---------- Trim family ----------
@@ -70,6 +97,9 @@ namespace Mod.Tests
             var s = CStr.New("  \thello \r\n", 4);
             var r = s.Trim();
             Assert.Equal("hello", r.ToString());
+
+
+            r.Dispose();
         }
 
         [Fact]
@@ -78,6 +108,9 @@ namespace Mod.Tests
             var s = CStr.New("..hello..", 4);
             var r = s.Trim(CStr.Bytes("."));
             Assert.Equal("hello", r.ToString());
+
+
+            r.Dispose();
         }
 
         [Fact]
@@ -86,6 +119,9 @@ namespace Mod.Tests
             var s = CStr.New("..hello", 4);
             var r = s.TrimStart(CStr.Bytes("."));
             Assert.Equal("hello", r.ToString());
+
+
+            r.Dispose();
         }
 
         [Fact]
@@ -94,6 +130,9 @@ namespace Mod.Tests
             var s = CStr.New("hello..", 4);
             var r = s.TrimEnd(CStr.Bytes("."));
             Assert.Equal("hello", r.ToString());
+
+
+            r.Dispose();
         }
 
         [Fact]
@@ -103,6 +142,9 @@ namespace Mod.Tests
             var r = s.Trim();
             Assert.Equal(0, r.Length);
             Assert.Equal("", r.ToString());
+
+
+            r.Dispose();
         }
 
         [Fact]
@@ -111,6 +153,9 @@ namespace Mod.Tests
             var s = CStr.New("hello", 2);
             var r = s.Trim();
             Assert.Equal("hello", r.ToString());
+
+
+            r.Dispose();
         }
 
         [Fact]
@@ -119,6 +164,8 @@ namespace Mod.Tests
             var s = CStr.New("  hi", 4);
             s.Freeze();
             Assert.Throws<InvalidOperationException>(() => s.Trim());
+
+            s.Dispose();
         }
 
         // ---------- Clear / Remove ----------
@@ -132,6 +179,9 @@ namespace Mod.Tests
             Assert.Equal(0, r.Length);
             Assert.Equal(size, r.Size);
             Assert.Equal("", r.ToString());
+
+
+            r.Dispose();
         }
 
         [Fact]
@@ -140,6 +190,8 @@ namespace Mod.Tests
             var s = new CStringRef("abc");
             s.Freeze();
             Assert.Throws<InvalidOperationException>(() => s.Clear());
+
+            s.Dispose();
         }
 
         [Fact]
@@ -149,13 +201,25 @@ namespace Mod.Tests
             var r = s.Remove(2, 3);
             Assert.Equal("abf", r.ToString());
             Assert.Equal(new byte[] { 97, 98, 102 }, CStr.Content(r));
+
+
+            r.Dispose();
         }
 
         [Fact]
         public void Remove_FromStart_And_ToEnd()
         {
-            Assert.Equal("def", new CStringRef("abcdef").Remove(0, 3).ToString());
-            Assert.Equal("abc", new CStringRef("abcdef").Remove(3, 3).ToString());
+            var fromStart = new CStringRef("abcdef");
+            var fromStartResult = fromStart.Remove(0, 3);
+            Assert.Equal("def", fromStartResult.ToString());
+
+            var toEnd = new CStringRef("abcdef");
+            var toEndResult = toEnd.Remove(3, 3);
+            Assert.Equal("abc", toEndResult.ToString());
+
+
+            fromStartResult.Dispose();
+            toEndResult.Dispose();
         }
 
         [Fact]
@@ -165,6 +229,9 @@ namespace Mod.Tests
             var r = s.Remove(0, 6);
             Assert.Equal(0, r.Length);
             Assert.Equal("", r.ToString());
+
+
+            r.Dispose();
         }
 
         [Fact]
@@ -174,6 +241,8 @@ namespace Mod.Tests
             Assert.Throws<ArgumentOutOfRangeException>(() => s.Remove(-1, 1));
             Assert.Throws<ArgumentOutOfRangeException>(() => s.Remove(6, 1));      // startIndex == Length
             Assert.Throws<ArgumentOutOfRangeException>(() => s.Remove(3, 4));      // overruns the end
+
+            s.Dispose();
         }
 
         [Fact]
@@ -182,6 +251,8 @@ namespace Mod.Tests
             var s = new CStringRef("abc");
             s.Freeze();
             Assert.Throws<InvalidOperationException>(() => s.Remove(1, 1));
+
+            s.Dispose();
         }
 
         // ---------- Insert(byte) ----------
@@ -191,18 +262,29 @@ namespace Mod.Tests
         {
             var s = CStr.New("ac", 6);
             Assert.Equal("abc", s.Insert(1, (byte)'b').ToString());
-            Assert.Equal("aac", CStr.New("ac", 6).Insert(0, (byte)'a').ToString());
-            Assert.Equal("abc", CStr.New("ab", 6).Insert(2, (byte)'c').ToString());
+
+            var atStart = CStr.New("ac", 6);
+            Assert.Equal("aac", atStart.Insert(0, (byte)'a').ToString());
+
+            var atEnd = CStr.New("ab", 6);
+            Assert.Equal("abc", atEnd.Insert(2, (byte)'c').ToString());
+
+            s.Dispose();
+            atStart.Dispose();
+            atEnd.Dispose();
         }
 
         [Fact]
-        public void Insert_Byte_Overflow_ReturnsNewAndLeavesOriginal()
+        public void Insert_Byte_Overflow_GrowsInPlace()
         {
             var s = new CStringRef("ab");      // Size == 2, inserting needs 3
-            var r = s.Insert(1, (byte)'x');
+            var r = s.Insert(1, (byte)'x');    // growth re-binds the slot to a larger buffer
             Assert.Equal("axb", r.ToString());
             Assert.Equal(3, r.Length);
-            Assert.Equal("ab", s.ToString());
+            Assert.Equal("axb", s.ToString()); // r and s are the same view now
+            Assert.True(r.Size > 3);
+
+            r.Dispose();                       // r and s share one slot: dispose exactly one handle
         }
 
         [Fact]
@@ -211,6 +293,9 @@ namespace Mod.Tests
             var s = CStr.New("ab", 8);
             var r = s.Insert(1, (byte)'-', 3);
             Assert.Equal("a---b", r.ToString());
+
+
+            r.Dispose();
         }
 
         [Fact]
@@ -218,6 +303,8 @@ namespace Mod.Tests
         {
             var s = new CStringRef("ab");
             Assert.Equal("ab", s.Insert(0, (byte)'x', 0).ToString());
+
+            s.Dispose();
         }
 
         [Fact]
@@ -226,6 +313,8 @@ namespace Mod.Tests
             var s = new CStringRef("ab");
             Assert.Throws<ArgumentOutOfRangeException>(() => s.Insert(3, (byte)'x'));
             Assert.Throws<ArgumentOutOfRangeException>(() => s.Insert(-1, (byte)'x'));
+
+            s.Dispose();
         }
 
         [Fact]
@@ -234,6 +323,8 @@ namespace Mod.Tests
             var s = new CStringRef("ab");
             s.Freeze();
             Assert.Throws<InvalidOperationException>(() => s.Insert(1, (byte)'x'));
+
+            s.Dispose();
         }
 
         // ---------- Insert(CStringRef) ----------
@@ -244,43 +335,54 @@ namespace Mod.Tests
             var s = CStr.New("ac", 6);
             var r = s.Insert(1, new CStringRef("b"));
             Assert.Equal("abc", r.ToString());
+
+
+            r.Dispose();
         }
 
         [Fact]
-        public void Insert_CStringRef_Overflow_ReturnsNew()
+        public void Insert_CStringRef_Overflow_GrowsInPlace()
         {
             var s = new CStringRef("ac");     // Size == 2
-            var r = s.Insert(1, new CStringRef("bb"));
+            var r = s.Insert(1, new CStringRef("bb"));   // growth re-binds the slot
             Assert.Equal("abbc", r.ToString());
-            Assert.Equal("ac", s.ToString());
+            Assert.Equal("abbc", s.ToString());          // r and s are the same view now
+
+            r.Dispose();                      // r and s share one slot: dispose exactly one handle
         }
 
         [Fact]
         public void Insert_CStringRef_FromSameBuffer_InPlace()
         {
             var s = CStr.New("abc", 8);
-            var tail = s.Substring(1, 2);           // "bc" aliasing s's buffer
-            var r = s.Insert(0, tail);
+            var tail = s.Substring(1, 2);           // "bc" — CStringSpan view over s's buffer
+            var r = s.Insert(0, (CStringRef)tail);
             Assert.Equal("bcabc", r.ToString());
+
+            r.Dispose();       // r and s share one slot (mutators return this)
         }
 
         [Fact]
         public void Insert_CStringRef_FromSameBuffer_Overflow()
         {
             var s = new CStringRef("abc");          // Size == 3
-            var one = s.Substring(1, 1);            // "b" aliasing s's buffer
-            var r = s.Insert(0, one);
+            var one = s.Substring(1, 1);            // "b" — CStringSpan view over s's buffer
+            var r = s.Insert(0, (CStringRef)one);   // growth re-binds the slot (reads the old buffer first)
             Assert.Equal("babc", r.ToString());
-            Assert.Equal("abc", s.ToString());
+            Assert.Equal("babc", s.ToString());     // r and s are the same view now
+
+            r.Dispose();                           // r and s share one slot: dispose exactly one handle
         }
 
         [Fact]
         public void Insert_CStringRef_RepeatedFromSameBuffer()
         {
             var s = CStr.New("abc", 8);
-            var last = s.Substring(2, 1);           // "c" aliasing s's buffer
-            var r = s.Insert(1, last, 3);
+            var last = s.Substring(2, 1);           // "c" — CStringSpan view over s's buffer
+            var r = s.Insert(1, (CStringRef)last, 3);
             Assert.Equal("acccbc", r.ToString());
+
+            r.Dispose();       // r and s share one slot (mutators return this)
         }
 
         [Fact]
@@ -289,6 +391,8 @@ namespace Mod.Tests
             var s = new CStringRef("ab");
             s.Freeze();
             Assert.Throws<InvalidOperationException>(() => s.Insert(1, new CStringRef("x")));
+
+            s.Dispose();
         }
 
         // ---------- Replace(byte, byte) ----------
@@ -299,6 +403,8 @@ namespace Mod.Tests
             var s = CStr.New("a.b.c", 2);
             var r = s.Replace((byte)'.', (byte)'-');
             Assert.Equal("a-b-c", r.ToString());
+
+            r.Dispose();       // r and s share one slot (byte replace is in-place)
         }
 
         [Fact]
@@ -308,6 +414,8 @@ namespace Mod.Tests
             var r = s.Replace((byte)'.', 0);
             Assert.Equal(5, r.Length);
             Assert.Equal(new byte[] { 97, 0, 98, 0, 99 }, CStr.Content(r));
+
+            r.Dispose();       // r and s share one slot (byte replace is in-place)
         }
 
         [Fact]
@@ -316,6 +424,8 @@ namespace Mod.Tests
             var s = new CStringRef("abc");
             var r = s.Replace((byte)'z', (byte)'y');
             Assert.Equal("abc", r.ToString());
+
+            r.Dispose();       // r and s share one slot (byte replace is in-place)
         }
 
         [Fact]
@@ -324,6 +434,8 @@ namespace Mod.Tests
             var s = new CStringRef("abcabc");
             var r = s.Replace((byte)'b', (byte)'X', 1, 4);   // window covers indexes 1..4
             Assert.Equal("aXcaXc", r.ToString());
+
+            r.Dispose();       // r and s share one slot (byte replace is in-place)
         }
 
         [Fact]
@@ -332,6 +444,8 @@ namespace Mod.Tests
             var s = new CStringRef("abc");
             Assert.Throws<ArgumentOutOfRangeException>(() => s.Replace((byte)'a', (byte)'b', -1, 1));
             Assert.Throws<ArgumentOutOfRangeException>(() => s.Replace((byte)'a', (byte)'b', 3, 1));
+
+            s.Dispose();
         }
 
         [Fact]
@@ -340,6 +454,8 @@ namespace Mod.Tests
             var s = new CStringRef("abc");
             s.Freeze();
             Assert.Throws<InvalidOperationException>(() => s.Replace((byte)'a', (byte)'x'));
+
+            s.Dispose();
         }
 
         // ---------- Replace(oldstr, newstr) ----------
@@ -350,6 +466,9 @@ namespace Mod.Tests
             var s = new CStringRef("ababababab");      // 5 matches -> exercises positions buffer
             var r = s.Replace(new CStringRef("ab"), new CStringRef("XY"));
             Assert.Equal("XYXYXYXYXY", r.ToString());
+
+
+            r.Dispose();
         }
 
         [Fact]
@@ -358,15 +477,20 @@ namespace Mod.Tests
             var s = CStr.New("abcXdefXghi", 8);
             var r = s.Replace(new CStringRef("X"), new CStringRef("XY"));
             Assert.Equal("abcXYdefXYghi", r.ToString());
+
+
+            r.Dispose();
         }
 
         [Fact]
-        public void Replace_Growth_Overflow_ReturnsNew()
+        public void Replace_Growth_Overflow_GrowsInPlace()
         {
             var s = new CStringRef("abcabc");          // Size == 6
-            var r = s.Replace(new CStringRef("c"), new CStringRef("ZZ"));
+            var r = s.Replace(new CStringRef("c"), new CStringRef("ZZ"));   // growth re-binds the slot
             Assert.Equal("abZZabZZ", r.ToString());
-            Assert.Equal("abcabc", s.ToString());
+            Assert.Equal("abZZabZZ", s.ToString());    // r and s are the same view now
+
+            r.Dispose();                              // r and s share one slot: dispose exactly one handle
         }
 
         [Fact]
@@ -375,14 +499,24 @@ namespace Mod.Tests
             var s = new CStringRef("a1b1c1d1");        // 4 deletions
             var r = s.Replace(new CStringRef("1"), CStringRef.Empty);
             Assert.Equal("abcd", r.ToString());
+
+
+            r.Dispose();
         }
 
         [Fact]
         public void Replace_OverlappingMatches_NonOverlappingReplacement()
         {
-            Assert.Equal("bb", CStr.New("aaaa", 0).Replace(new CStringRef("aa"), new CStringRef("b")).ToString());
+            var flat = CStr.New("aaaa", 0);
+            var flatResult = flat.Replace(new CStringRef("aa"), new CStringRef("b"));
+            Assert.Equal("bb", flatResult.ToString());
+
             var grow = CStr.New("aaaa", 4).Replace(new CStringRef("aa"), new CStringRef("bbb"));
             Assert.Equal("bbbbbb", grow.ToString());
+
+
+            flatResult.Dispose();
+            grow.Dispose();        // grow is the only handle on the temporary's slot
         }
 
         [Fact]
@@ -392,6 +526,9 @@ namespace Mod.Tests
             var s = CStr.New("x-y-zz", 2);
             var r = s.Replace(new CStringRef("-"), new CStringRef("QQ"), 2, 4);
             Assert.Equal("x-yQQzz", r.ToString());
+
+
+            r.Dispose();
         }
 
         [Fact]
@@ -400,6 +537,9 @@ namespace Mod.Tests
             var s = new CStringRef("abXcdXefXg");      // X at 2,5,8; window covers only 2 & 5
             var r = s.Replace(new CStringRef("X"), CStringRef.Empty, 0, 7);
             Assert.Equal("abcdefXg", r.ToString());
+
+
+            r.Dispose();
         }
 
         [Fact]
@@ -409,6 +549,9 @@ namespace Mod.Tests
             s.Freeze();
             var r = s.Replace(new CStringRef("zz"), new CStringRef("y"));
             Assert.Equal("abc", r.ToString());          // no mutation needed, no throw
+
+
+            r.Dispose();
         }
 
         [Fact]
@@ -416,6 +559,8 @@ namespace Mod.Tests
         {
             var s = new CStringRef("abc");
             Assert.Throws<ArgumentException>(() => s.Replace(CStringRef.Empty, new CStringRef("x")));
+
+            s.Dispose();
         }
 
         [Fact]
@@ -424,6 +569,9 @@ namespace Mod.Tests
             var s = new CStringRef("abc");
             var r = s.Replace(new CStringRef("b"), new CStringRef("X"), 1, 0);
             Assert.Equal("abc", r.ToString());
+
+
+            r.Dispose();
         }
 
         [Fact]
@@ -432,6 +580,8 @@ namespace Mod.Tests
             var s = new CStringRef("abc");
             s.Freeze();
             Assert.Throws<InvalidOperationException>(() => s.Replace(new CStringRef("b"), new CStringRef("X")));
+
+            s.Dispose();
         }
 
         [Fact]
@@ -440,15 +590,51 @@ namespace Mod.Tests
             var s = new CStringRef("abcabc");
             var r = s.Replace(new CStringRef("bc"), new CStringRef("bc"));
             Assert.Equal("abcabc", r.ToString());
+
+
+            r.Dispose();
         }
 
         [Fact]
         public void Replace_FromAliasingNewString_IsSafe()
         {
             var s = CStr.New("abXcd", 8);
-            var part = s.Substring(0, 2);               // "ab" aliases the same buffer
-            var r = s.Replace(new CStringRef("X"), part);
+            var part = s.Substring(0, 2);               // "ab" — CStringSpan view over the same buffer
+            var r = s.Replace(new CStringRef("X"), (CStringRef)part);
             Assert.Equal("ababcd", r.ToString());
+
+            r.Dispose();       // r and s share one slot (mutators return this)
+        }
+
+        [Fact]
+        public void Mutators_ShareOneSlot_DisposeExactlyOneHandle()
+        {
+            var s = new CStringRef("  hello  ");
+            var r = s.Trim();               // r and s share one slot (mutators return this)
+            Assert.Equal("hello", r.ToString());
+            Assert.Equal("hello", s.ToString());
+
+            r.Dispose();                    // disposes the shared slot
+        }
+
+        [Fact]
+        public void ChainedMutators_ShareOneSlot_DisposeOnce()
+        {
+            var space = new CStringRef(" ");
+            var s = new CStringRef("a b c ");
+            var r = s.Replace(space, CStringRef.Empty).TrimEnd();   // the whole chain shares s's slot
+            Assert.Equal("abc", r.ToString());
+
+            r.Dispose();                    // the chain's single slot
+            space.Dispose();                // space kept its own slot
+        }
+
+        [Fact]
+        public void Ownership_DefaultAndEmptyDisposeIsNoOp()
+        {
+            CStringRef.Empty.Dispose();     // default: never leased a slot, no throw
+            var s = default(CStringRef);
+            s.Dispose();                    // no-op
         }
     }
 }

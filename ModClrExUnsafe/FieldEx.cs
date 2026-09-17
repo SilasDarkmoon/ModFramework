@@ -486,7 +486,9 @@ namespace Mod.LowLevel
             }
             else
             {
-                return Size(obj);
+                // Cast to object explicitly: a bare Size(obj) call would re-bind
+                // to this same generic overload and recurse forever.
+                return Size((object)obj);
             }
         }
         public static int Size<T>(this T obj)
@@ -497,7 +499,9 @@ namespace Mod.LowLevel
             }
             else
             {
-                return Size(obj);
+                // Same as above: without the cast to object the call re-binds
+                // to this overload itself and blows the stack.
+                return Size((object)obj);
             }
         }
 

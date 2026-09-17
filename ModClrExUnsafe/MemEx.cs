@@ -298,6 +298,27 @@ namespace Mod.LowLevel
                 dstBuffer = srcBuffer;
                 cnt -= 8;
             }
+            MemCopyRightLE7(ref dst, dstStart, ref src, srcStart, cnt);
+        }
+        // Tail segment for the backward (Right) chain. That chain is entered whenever
+        // the source end runs past the destination start, so it also carries plain
+        // left-shift overlaps and non-overlapping moves. Only for a right-shift
+        // overlap (destination after source) does the <=7-byte struct assignment get
+        // lowered by the runtime into ascending piecewise copies (measured to behave
+        // like memcpy, not memmove), so only that case must be moved in reverse order
+        // here. Doing so for a left-shift overlap would rewrite source bytes that have
+        // not been read yet; everything else falls back to the forward LE7 path.
+        private static void MemCopyRightLE7(ref byte dst, int dstStart, ref byte src, int srcStart, int cnt)
+        {
+            long dstAbs = (long)OffsetBetween(ref dst, ref src) + dstStart;
+            if (dstAbs > srcStart && srcStart + cnt > dstAbs)
+            {
+                for (int i = cnt - 1; i >= 0; i--)
+                {
+                    GetFieldRef<byte, byte>(ref dst, dstStart + i) = GetFieldRef<byte, byte>(ref src, srcStart + i);
+                }
+                return;
+            }
             MemCopyLE7(ref dst, dstStart, ref src, srcStart, cnt);
         }
 
@@ -729,7 +750,7 @@ namespace Mod.LowLevel
             MemClean(ref dst, 0, Size<D>());
         }
 
-        public static ref byte AddByteOffset(ref byte addr, IntPtr offset)
+        public static ref byte AddByteOffset(this ref byte addr, IntPtr offset)
         {
             for (; ; )
             {
