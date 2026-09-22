@@ -73,7 +73,7 @@ namespace Mod
         private static UnionRef.RefType _RefType = RuntimeInfo.Runtime == RuntimeInfo.RuntimeCategory.NetFramework || RuntimeInfo.Runtime == RuntimeInfo.RuntimeCategory.NetCore ? UnionRef.RefType.Tracking : UnionRef.RefType.Raw;
         public CStringRef(IntPtr address, int size, int len)
         {
-            _Address = new UnionRef<byte>(_RefType);
+            _Address = new UnionRef<byte>(UnionRef.RefType.Raw); // Native address -> Raw
             _Address.Address = address;
             _Size = size;
             _Length = len;
@@ -83,7 +83,7 @@ namespace Mod
         }
         public CStringRef(IntPtr address, int size)
         {
-            _Address = new UnionRef<byte>(_RefType);
+            _Address = new UnionRef<byte>(UnionRef.RefType.Raw); // Native address -> Raw
             _Address.Address = address;
             _Size = size;
             _Length = UnsafeEx.StrLen(address, size);
@@ -93,7 +93,7 @@ namespace Mod
         }
         public CStringRef(IntPtr address)
         {
-            _Address = new UnionRef<byte>(_RefType);
+            _Address = new UnionRef<byte>(UnionRef.RefType.Raw); // Native address -> Raw
             _Address.Address = address;
             _Length = UnsafeEx.StrLen(address);
             _Size = _Length + 1;
@@ -103,7 +103,7 @@ namespace Mod
         }
         public CStringRef(ref byte address, int size, int len)
         {
-            _Address = new UnionRef<byte>(_RefType);
+            _Address = new UnionRef<byte>(_RefType); // ref -> auto
             _Address.SetRef(ref address);
             _Size = size;
             _Length = len;
@@ -113,7 +113,7 @@ namespace Mod
         }
         public CStringRef(ref byte address, int size)
         {
-            _Address = new UnionRef<byte>(_RefType);
+            _Address = new UnionRef<byte>(_RefType); // ref -> auto
             _Address.SetRef(ref address);
             _Size = size;
             _Length = UnsafeEx.StrLen(ref address, size);
@@ -123,7 +123,7 @@ namespace Mod
         }
         public CStringRef(ref byte address)
         {
-            _Address = new UnionRef<byte>(_RefType);
+            _Address = new UnionRef<byte>(_RefType); // ref -> auto
             _Address.SetRef(ref address);
             _Length = UnsafeEx.StrLen(ref address);
             _Size = _Length + 1;
@@ -133,7 +133,7 @@ namespace Mod
         }
         public CStringRef(Span<byte> data)
         {
-            _Address = new UnionRef<byte>(_RefType);
+            _Address = new UnionRef<byte>(_RefType); // span -> auto
             _Address.SetRef(ref data.GetRef());
             _Size = data.Length;
             _Length = UnsafeEx.StrLen(data);
@@ -143,7 +143,7 @@ namespace Mod
         }
         public CStringRef(ReadOnlySpan<byte> data)
         {
-            _Address = new UnionRef<byte>(_RefType);
+            _Address = new UnionRef<byte>(_RefType); // span -> auto
             _Address.SetRef(ref data.GetRef());
             _Size = data.Length;
             _Length = UnsafeEx.StrLen(data);
@@ -153,7 +153,7 @@ namespace Mod
         }
         public CStringRef(Span<byte> data, int length)
         {
-            _Address = new UnionRef<byte>(_RefType);
+            _Address = new UnionRef<byte>(_RefType); // span -> auto
             _Address.SetRef(ref data.GetRef());
             _Size = data.Length;
             _Length = Math.Min(length, _Size);
@@ -163,7 +163,7 @@ namespace Mod
         }
         public CStringRef(ReadOnlySpan<byte> data, int length)
         {
-            _Address = new UnionRef<byte>(_RefType);
+            _Address = new UnionRef<byte>(_RefType); // span -> auto
             _Address.SetRef(ref data.GetRef());
             _Size = data.Length;
             _Length = Math.Min(length, _Size);
