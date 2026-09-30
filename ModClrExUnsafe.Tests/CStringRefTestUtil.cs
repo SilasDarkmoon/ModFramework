@@ -1,7 +1,8 @@
 using System;
 using System.Text;
+using Mod;
 
-namespace Mod.Tests
+namespace ModClrExUnsafe.Tests
 {
     /// <summary>
     /// Test-side helpers for building CStringRef instances.

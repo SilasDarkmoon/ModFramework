@@ -1,10 +1,11 @@
+using Mod;
 using System;
 using System.Runtime.InteropServices;
 using System.Text;
 using Mod.LowLevel;
 using Xunit;
 
-namespace Mod.Tests
+namespace ModClrExUnsafe.Tests
 {
     /// <summary>
     /// Is a CStringRef safe when its RawTrackingRef carries a NATIVE address?

@@ -1,8 +1,9 @@
 using System;
+using Mod;
 using Mod.LowLevel;
 using Xunit;
 
-namespace Mod.Tests
+namespace ModClrExUnsafe.Tests
 {
     /// <summary>
     /// GC stress for <b>managed-backed</b> <see cref="CStringRef"/> (UnionRef Tracking mode).

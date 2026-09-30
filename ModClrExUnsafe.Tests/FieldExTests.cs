@@ -3,7 +3,7 @@ using System;
 using System.Reflection;
 using Xunit;
 
-namespace Mod.Tests
+namespace ModClrExUnsafe.Tests
 {
     public class FieldExTests
     {

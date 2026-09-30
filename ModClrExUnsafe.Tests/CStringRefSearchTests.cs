@@ -1,9 +1,10 @@
+using Mod;
 using System;
 using System.Collections.Generic;
 using Mod.LowLevel;
 using Xunit;
 
-namespace Mod.Tests
+namespace ModClrExUnsafe.Tests
 {
     /// <summary>
     /// Convention for this file: every local that holds a constructed CStringRef is disposed with

@@ -1,8 +1,9 @@
+using Mod;
 using System;
 using System.Text;
 using Xunit;
 
-namespace Mod.Tests
+namespace ModClrExUnsafe.Tests
 {
     /// <summary>
     /// Convention for this file: every local that holds a constructed CStringRef

@@ -1,7 +1,8 @@
+using Mod;
 using System;
 using Xunit;
 
-namespace Mod.Tests
+namespace ModClrExUnsafe.Tests
 {
     /// <summary>
     /// Convention for this file: mutators (<c>Append</c>/<c>Insert</c>/<c>Replace</c>/<c>Trim</c>/

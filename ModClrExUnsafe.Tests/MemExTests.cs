@@ -3,7 +3,7 @@ using System;
 using System.Runtime.InteropServices;
 using Xunit;
 
-namespace Mod.Tests
+namespace ModClrExUnsafe.Tests
 {
     public class MemExTests
     {

@@ -1,10 +1,11 @@
+using Mod;
 using System;
 using System.Runtime.InteropServices;
 using System.Text;
 using Mod.LowLevel;
 using Xunit;
 
-namespace Mod.Tests
+namespace ModClrExUnsafe.Tests
 {
     /// <summary>
     /// CStringRef over memory obtained from Marshal.AllocHGlobal. Non-managed blocks are

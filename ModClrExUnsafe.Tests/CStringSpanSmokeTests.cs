@@ -1,3 +1,4 @@
+using Mod;
 using Mod.LowLevel;
 using System;
 using System.Text;
@@ -6,6 +7,8 @@ using Xunit;
 // CStringSpan 是 ref struct + Span<byte> 载体——GC 安全是构造保证的，
 // 不需要 CStringRef 那套"局部变量一律 = default"的约定（本文件刻意不置空以证明这一点）。
 
+namespace ModClrExUnsafe.Tests
+{
 public class CStringSpanSmokeTests
 {
     [Fact]
@@ -276,4 +279,5 @@ public class CStringSpanSmokeTests
         Assert.True(new CStringSpan(new byte[] { (byte)' ', (byte)'\t' }).IsWhiteSpace());
         Assert.False(new CStringSpan(" a ").IsWhiteSpace());
     }
+}
 }
