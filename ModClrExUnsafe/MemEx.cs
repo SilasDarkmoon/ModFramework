@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Text;
 
 namespace Mod.LowLevel
@@ -65,14 +66,28 @@ namespace Mod.LowLevel
 
         public static void MemCopy(ref byte dst, int dstStart, ref byte src, int srcStart, int cnt)
         {
-            long offset = (long)OffsetBetween(ref dst, ref src);
-            if (srcStart + cnt > offset + dstStart)
+            if (RuntimeInfo.IsNetFramework)
             {
-                MemCopyRight1024(ref dst, dstStart, ref src, srcStart, cnt);
+                long offset = (long)OffsetBetween(ref dst, ref src);
+                // Right-shift overlap only: the destination head falls strictly inside the source
+                // interval. Only that shape needs the backward chain - left-shift overlaps and
+                // non-overlapping moves are fully safe on the forward chain (forward blocks write
+                // low and read high, never clobbering an unread source byte).
+                long dstAbs = offset + dstStart;
+                if (dstAbs > srcStart && dstAbs < srcStart + cnt)
+                {
+                    MemCopyRight1024(ref dst, dstStart, ref src, srcStart, cnt);
+                }
+                else
+                {
+                    MemCopy1024(ref dst, dstStart, ref src, srcStart, cnt);
+                }
             }
             else
             {
-                MemCopy1024(ref dst, dstStart, ref src, srcStart, cnt);
+                Span<byte> srcSpan = UnsafeEx.AsSpan<byte>(ref src, srcStart + cnt).Slice(srcStart);
+                Span<byte> dstSpan = UnsafeEx.AsSpan<byte>(ref dst, dstStart + cnt).Slice(dstStart);
+                srcSpan.CopyTo(dstSpan);
             }
         }
         private static void MemCopy1024(ref byte dst, int dstStart, ref byte src, int srcStart, int cnt)
@@ -179,7 +194,19 @@ namespace Mod.LowLevel
             }
             MemCopyLE7(ref dst, dstStart, ref src, srcStart, cnt);
         }
-        private static void MemCopyLE7<T>(ref byte dst, int dstStart, ref byte src, int srcStart) where T : struct
+        [MethodImpl(MethodImplOptions.NoOptimization)]
+        private static void MemCopyUsingSwap<T>(ref T dst, ref T src)
+        {
+            T swap = src;
+            dst = swap;
+        }
+        private static void MemCopyUsingSwap<T>(ref byte dst, int dstStart, ref byte src, int srcStart) where T : struct
+        {
+            ref T dstBuffer = ref GetFieldRef<byte, T>(ref dst, dstStart);
+            ref T srcBuffer = ref GetFieldRef<byte, T>(ref src, srcStart);
+            MemCopyUsingSwap(ref dstBuffer, ref srcBuffer);
+        }
+        private static void MemCopyDirect<T>(ref byte dst, int dstStart, ref byte src, int srcStart) where T : struct
         {
             ref T dstBuffer = ref GetFieldRef<byte, T>(ref dst, dstStart);
             ref T srcBuffer = ref GetFieldRef<byte, T>(ref src, srcStart);
@@ -190,25 +217,25 @@ namespace Mod.LowLevel
             switch (cnt)
             {
                 case 7:
-                    MemCopyLE7<MemCopyHelper7>(ref dst, dstStart, ref src, srcStart);
+                    MemCopyDirect<MemCopyHelper7>(ref dst, dstStart, ref src, srcStart);
                     break;
                 case 6:
-                    MemCopyLE7<MemCopyHelper6>(ref dst, dstStart, ref src, srcStart);
+                    MemCopyDirect<MemCopyHelper6>(ref dst, dstStart, ref src, srcStart);
                     break;
                 case 5:
-                    MemCopyLE7<MemCopyHelper5>(ref dst, dstStart, ref src, srcStart);
+                    MemCopyDirect<MemCopyHelper5>(ref dst, dstStart, ref src, srcStart);
                     break;
                 case 4:
-                    MemCopyLE7<MemCopyHelper4>(ref dst, dstStart, ref src, srcStart);
+                    MemCopyDirect<MemCopyHelper4>(ref dst, dstStart, ref src, srcStart);
                     break;
                 case 3:
-                    MemCopyLE7<MemCopyHelper3>(ref dst, dstStart, ref src, srcStart);
+                    MemCopyDirect<MemCopyHelper3>(ref dst, dstStart, ref src, srcStart);
                     break;
                 case 2:
-                    MemCopyLE7<MemCopyHelper2>(ref dst, dstStart, ref src, srcStart);
+                    MemCopyDirect<MemCopyHelper2>(ref dst, dstStart, ref src, srcStart);
                     break;
                 case 1:
-                    MemCopyLE7<MemCopyHelper1>(ref dst, dstStart, ref src, srcStart);
+                    MemCopyDirect<MemCopyHelper1>(ref dst, dstStart, ref src, srcStart);
                     break;
             }
         }
@@ -218,7 +245,7 @@ namespace Mod.LowLevel
             {
                 ref MemCopyHelper1024 dstBuffer = ref GetFieldRef<byte, MemCopyHelper1024>(ref dst, dstStart + cnt - 1024);
                 ref MemCopyHelper1024 srcBuffer = ref GetFieldRef<byte, MemCopyHelper1024>(ref src, srcStart + cnt - 1024);
-                dstBuffer = srcBuffer;
+                MemCopyUsingSwap(ref dstBuffer, ref srcBuffer);
                 cnt -= 1024;
             }
             MemCopyRight512(ref dst, dstStart, ref src, srcStart, cnt);
@@ -229,7 +256,7 @@ namespace Mod.LowLevel
             {
                 ref MemCopyHelper512 dstBuffer = ref GetFieldRef<byte, MemCopyHelper512>(ref dst, dstStart + cnt - 512);
                 ref MemCopyHelper512 srcBuffer = ref GetFieldRef<byte, MemCopyHelper512>(ref src, srcStart + cnt - 512);
-                dstBuffer = srcBuffer;
+                MemCopyUsingSwap(ref dstBuffer, ref srcBuffer);
                 cnt -= 512;
             }
             MemCopyRight256(ref dst, dstStart, ref src, srcStart, cnt);
@@ -240,7 +267,7 @@ namespace Mod.LowLevel
             {
                 ref MemCopyHelper256 dstBuffer = ref GetFieldRef<byte, MemCopyHelper256>(ref dst, dstStart + cnt - 256);
                 ref MemCopyHelper256 srcBuffer = ref GetFieldRef<byte, MemCopyHelper256>(ref src, srcStart + cnt - 256);
-                dstBuffer = srcBuffer;
+                MemCopyUsingSwap(ref dstBuffer, ref srcBuffer);
                 cnt -= 256;
             }
             MemCopyRight128(ref dst, dstStart, ref src, srcStart, cnt);
@@ -251,7 +278,7 @@ namespace Mod.LowLevel
             {
                 ref MemCopyHelper128 dstBuffer = ref GetFieldRef<byte, MemCopyHelper128>(ref dst, dstStart + cnt - 128);
                 ref MemCopyHelper128 srcBuffer = ref GetFieldRef<byte, MemCopyHelper128>(ref src, srcStart + cnt - 128);
-                dstBuffer = srcBuffer;
+                MemCopyUsingSwap(ref dstBuffer, ref srcBuffer);
                 cnt -= 128;
             }
             MemCopyRight64(ref dst, dstStart, ref src, srcStart, cnt);
@@ -262,7 +289,7 @@ namespace Mod.LowLevel
             {
                 ref MemCopyHelper64 dstBuffer = ref GetFieldRef<byte, MemCopyHelper64>(ref dst, dstStart + cnt - 64);
                 ref MemCopyHelper64 srcBuffer = ref GetFieldRef<byte, MemCopyHelper64>(ref src, srcStart + cnt - 64);
-                dstBuffer = srcBuffer;
+                MemCopyUsingSwap(ref dstBuffer, ref srcBuffer);
                 cnt -= 64;
             }
             MemCopyRight32(ref dst, dstStart, ref src, srcStart, cnt);
@@ -273,7 +300,7 @@ namespace Mod.LowLevel
             {
                 ref MemCopyHelper32 dstBuffer = ref GetFieldRef<byte, MemCopyHelper32>(ref dst, dstStart + cnt - 32);
                 ref MemCopyHelper32 srcBuffer = ref GetFieldRef<byte, MemCopyHelper32>(ref src, srcStart + cnt - 32);
-                dstBuffer = srcBuffer;
+                MemCopyUsingSwap(ref dstBuffer, ref srcBuffer);
                 cnt -= 32;
             }
             MemCopyRight16(ref dst, dstStart, ref src, srcStart, cnt);
@@ -284,7 +311,7 @@ namespace Mod.LowLevel
             {
                 ref MemCopyHelper16 dstBuffer = ref GetFieldRef<byte, MemCopyHelper16>(ref dst, dstStart + cnt - 16);
                 ref MemCopyHelper16 srcBuffer = ref GetFieldRef<byte, MemCopyHelper16>(ref src, srcStart + cnt - 16);
-                dstBuffer = srcBuffer;
+                MemCopyUsingSwap(ref dstBuffer, ref srcBuffer);
                 cnt -= 16;
             }
             MemCopyRight8(ref dst, dstStart, ref src, srcStart, cnt);
@@ -295,31 +322,37 @@ namespace Mod.LowLevel
             {
                 ref ulong dstBuffer = ref GetFieldRef<byte, ulong>(ref dst, dstStart + cnt - 8);
                 ref ulong srcBuffer = ref GetFieldRef<byte, ulong>(ref src, srcStart + cnt - 8);
-                dstBuffer = srcBuffer;
+                MemCopyUsingSwap(ref dstBuffer, ref srcBuffer);
                 cnt -= 8;
             }
             MemCopyRightLE7(ref dst, dstStart, ref src, srcStart, cnt);
         }
-        // Tail segment for the backward (Right) chain. That chain is entered whenever
-        // the source end runs past the destination start, so it also carries plain
-        // left-shift overlaps and non-overlapping moves. Only for a right-shift
-        // overlap (destination after source) does the <=7-byte struct assignment get
-        // lowered by the runtime into ascending piecewise copies (measured to behave
-        // like memcpy, not memmove), so only that case must be moved in reverse order
-        // here. Doing so for a left-shift overlap would rewrite source bytes that have
-        // not been read yet; everything else falls back to the forward LE7 path.
         private static void MemCopyRightLE7(ref byte dst, int dstStart, ref byte src, int srcStart, int cnt)
         {
-            long dstAbs = (long)OffsetBetween(ref dst, ref src) + dstStart;
-            if (dstAbs > srcStart && srcStart + cnt > dstAbs)
+            switch (cnt)
             {
-                for (int i = cnt - 1; i >= 0; i--)
-                {
-                    GetFieldRef<byte, byte>(ref dst, dstStart + i) = GetFieldRef<byte, byte>(ref src, srcStart + i);
-                }
-                return;
+                case 7:
+                    MemCopyUsingSwap<MemCopyHelper7>(ref dst, dstStart, ref src, srcStart);
+                    break;
+                case 6:
+                    MemCopyUsingSwap<MemCopyHelper6>(ref dst, dstStart, ref src, srcStart);
+                    break;
+                case 5:
+                    MemCopyUsingSwap<MemCopyHelper5>(ref dst, dstStart, ref src, srcStart);
+                    break;
+                case 4:
+                    MemCopyUsingSwap<MemCopyHelper4>(ref dst, dstStart, ref src, srcStart);
+                    break;
+                case 3:
+                    MemCopyUsingSwap<MemCopyHelper3>(ref dst, dstStart, ref src, srcStart);
+                    break;
+                case 2:
+                    MemCopyUsingSwap<MemCopyHelper2>(ref dst, dstStart, ref src, srcStart);
+                    break;
+                case 1:
+                    MemCopyUsingSwap<MemCopyHelper1>(ref dst, dstStart, ref src, srcStart);
+                    break;
             }
-            MemCopyLE7(ref dst, dstStart, ref src, srcStart, cnt);
         }
 
         public static void MemCopy(object dst, int dstStart, object src, int srcStart, int cnt)
