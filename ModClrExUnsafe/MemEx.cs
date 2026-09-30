@@ -65,7 +65,7 @@ namespace Mod.LowLevel
 
         public static void MemCopy(ref byte dst, int dstStart, ref byte src, int srcStart, int cnt)
         {
-            int offset = (int)OffsetBetween(ref dst, ref src);
+            long offset = (long)OffsetBetween(ref dst, ref src);
             if (srcStart + cnt > offset + dstStart)
             {
                 MemCopyRight1024(ref dst, dstStart, ref src, srcStart, cnt);
