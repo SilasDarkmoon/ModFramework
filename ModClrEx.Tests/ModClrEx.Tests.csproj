@@ -19,6 +19,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- PointerDelegate（VoidReturn 等 Mod.LowLevel 类型）是普通 dll 引用，
+         不经 ProjectReference 传递——Tests 需直引（同 ModClrExUnsafe.Tests 的先例）。 -->
+    <Reference Include="PointerDelegate">
+      <HintPath>..\ModClrExUnsafe\PointerDelegate.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
 
