@@ -5,6 +5,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <!-- Auto-loads the repo-root .runsettings for every `dotnet test` run (session
+         timeout etc.) without needing the CLI settings flag. Official mechanism:
+         dotnet SDK Microsoft.TestPlatform.targets maps VSTestSetting to
+         $(RunSettingsFilePath) when no settings file is passed on the command line. -->
+    <RunSettingsFilePath>$(MSBuildThisFileDirectory).runsettings</RunSettingsFilePath>
   </PropertyGroup>
 
   <ItemGroup>

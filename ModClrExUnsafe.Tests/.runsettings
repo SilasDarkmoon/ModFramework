@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <!-- Session-level timeout (ms): kills the whole test session if it exceeds the
+       budget. Normal full run: ~4s; 120s leaves ~10x headroom for GC/thread
+       stress tests while still catching runaway loops instead of hanging CI
+       forever.
+
+       Auto-loaded by `dotnet test` via <RunSettingsFilePath> in the csproj
+       (official mechanism: dotnet SDK Microsoft.TestPlatform.targets maps
+       VSTestSetting to $(RunSettingsFilePath) when no settings file is passed
+       on the command line).
+
+       NOTE: per-test [Fact(Timeout=...)] is NOT an option with xUnit v2:
+       "Tests marked with Timeout are only supported for async tests"
+       (verified 2026-10-08, xunit 2.9.3). -->
+  <RunConfiguration>
+    <TestSessionTimeout>120000</TestSessionTimeout>
+  </RunConfiguration>
+</RunSettings>

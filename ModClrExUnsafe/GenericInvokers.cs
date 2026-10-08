@@ -178,103 +178,103 @@ namespace Mod.LowLevel
         public static UnifiedRefFunc<R> CreateGenericInvoker<R>(this Type type, string methodName, Type[] genericTypes = null)
         {
             var utypes = Array.Empty<Type>();
-            var gmethod = type.GetGenericMethods(methodName).FindOverload(utypes, withThis: true);
+            var gmethod = type.GetGenericMethods(methodName).FindOverload(utypes, withThis: true, checkGeneric: true);
             return CreateGenericInvoker<R>(gmethod, genericTypes);
         }
         public static UnifiedRefFunc<R, P1> CreateGenericInvoker<R, U1, P1>(this Type type, string methodName, Type[] genericTypes = null)
         {
             var utypes = new[] { typeof(U1) };
-            var gmethod = type.GetGenericMethods(methodName).FindOverload(utypes, withThis: true);
+            var gmethod = type.GetGenericMethods(methodName).FindOverload(utypes, withThis: true, checkGeneric: true);
             return CreateGenericInvoker<R, U1, P1>(gmethod, genericTypes);
         }
         public static UnifiedRefFunc<R, P1, P2> CreateGenericInvoker<R, U1, U2, P1, P2>(this Type type, string methodName, Type[] genericTypes = null)
         {
             var utypes = new[] { typeof(U1), typeof(U2) };
-            var gmethod = type.GetGenericMethods(methodName).FindOverload(utypes, withThis: true);
+            var gmethod = type.GetGenericMethods(methodName).FindOverload(utypes, withThis: true, checkGeneric: true);
             return CreateGenericInvoker<R, U1, U2, P1, P2>(gmethod, genericTypes);
         }
         public static UnifiedRefFunc<R, P1, P2, P3> CreateGenericInvoker<R, U1, U2, U3, P1, P2, P3>(this Type type, string methodName, Type[] genericTypes = null)
         {
             var utypes = new[] { typeof(U1), typeof(U2), typeof(U3) };
-            var gmethod = type.GetGenericMethods(methodName).FindOverload(utypes, withThis: true);
+            var gmethod = type.GetGenericMethods(methodName).FindOverload(utypes, withThis: true, checkGeneric: true);
             return CreateGenericInvoker<R, U1, U2, U3, P1, P2, P3>(gmethod, genericTypes);
         }
         public static UnifiedRefFunc<R, P1, P2, P3, P4> CreateGenericInvoker<R, U1, U2, U3, U4, P1, P2, P3, P4>(this Type type, string methodName, Type[] genericTypes = null)
         {
             var utypes = new[] { typeof(U1), typeof(U2), typeof(U3), typeof(U4) };
-            var gmethod = type.GetGenericMethods(methodName).FindOverload(utypes, withThis: true);
+            var gmethod = type.GetGenericMethods(methodName).FindOverload(utypes, withThis: true, checkGeneric: true);
             return CreateGenericInvoker<R, U1, U2, U3, U4, P1, P2, P3, P4>(gmethod, genericTypes);
         }
         public static UnifiedRefFunc<R, P1, P2, P3, P4, P5> CreateGenericInvoker<R, U1, U2, U3, U4, U5, P1, P2, P3, P4, P5>(this Type type, string methodName, Type[] genericTypes = null)
         {
             var utypes = new[] { typeof(U1), typeof(U2), typeof(U3), typeof(U4), typeof(U5) };
-            var gmethod = type.GetGenericMethods(methodName).FindOverload(utypes, withThis: true);
+            var gmethod = type.GetGenericMethods(methodName).FindOverload(utypes, withThis: true, checkGeneric: true);
             return CreateGenericInvoker<R, U1, U2, U3, U4, U5, P1, P2, P3, P4, P5>(gmethod, genericTypes);
         }
         public static UnifiedRefFunc<R, P1, P2, P3, P4, P5, P6> CreateGenericInvoker<R, U1, U2, U3, U4, U5, U6, P1, P2, P3, P4, P5, P6>(this Type type, string methodName, Type[] genericTypes = null)
         {
             var utypes = new[] { typeof(U1), typeof(U2), typeof(U3), typeof(U4), typeof(U5), typeof(U6) };
-            var gmethod = type.GetGenericMethods(methodName).FindOverload(utypes, withThis: true);
+            var gmethod = type.GetGenericMethods(methodName).FindOverload(utypes, withThis: true, checkGeneric: true);
             return CreateGenericInvoker<R, U1, U2, U3, U4, U5, U6, P1, P2, P3, P4, P5, P6>(gmethod, genericTypes);
         }
         public static UnifiedRefFunc<R, P1, P2, P3, P4, P5, P6, P7> CreateGenericInvoker<R, U1, U2, U3, U4, U5, U6, U7, P1, P2, P3, P4, P5, P6, P7>(this Type type, string methodName, Type[] genericTypes = null)
         {
             var utypes = new[] { typeof(U1), typeof(U2), typeof(U3), typeof(U4), typeof(U5), typeof(U6), typeof(U7) };
-            var gmethod = type.GetGenericMethods(methodName).FindOverload(utypes, withThis: true);
+            var gmethod = type.GetGenericMethods(methodName).FindOverload(utypes, withThis: true, checkGeneric: true);
             return CreateGenericInvoker<R, U1, U2, U3, U4, U5, U6, U7, P1, P2, P3, P4, P5, P6, P7>(gmethod, genericTypes);
         }
         public static UnifiedRefFunc<R, P1, P2, P3, P4, P5, P6, P7, P8> CreateGenericInvoker<R, U1, U2, U3, U4, U5, U6, U7, U8, P1, P2, P3, P4, P5, P6, P7, P8>(this Type type, string methodName, Type[] genericTypes = null)
         {
             var utypes = new[] { typeof(U1), typeof(U2), typeof(U3), typeof(U4), typeof(U5), typeof(U6), typeof(U7), typeof(U8) };
-            var gmethod = type.GetGenericMethods(methodName).FindOverload(utypes, withThis: true);
+            var gmethod = type.GetGenericMethods(methodName).FindOverload(utypes, withThis: true, checkGeneric: true);
             return CreateGenericInvoker<R, U1, U2, U3, U4, U5, U6, U7, U8, P1, P2, P3, P4, P5, P6, P7, P8>(gmethod, genericTypes);
         }
         public static UnifiedRefFunc<R, P1, P2, P3, P4, P5, P6, P7, P8, P9> CreateGenericInvoker<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, P1, P2, P3, P4, P5, P6, P7, P8, P9>(this Type type, string methodName, Type[] genericTypes = null)
         {
             var utypes = new[] { typeof(U1), typeof(U2), typeof(U3), typeof(U4), typeof(U5), typeof(U6), typeof(U7), typeof(U8), typeof(U9) };
-            var gmethod = type.GetGenericMethods(methodName).FindOverload(utypes, withThis: true);
+            var gmethod = type.GetGenericMethods(methodName).FindOverload(utypes, withThis: true, checkGeneric: true);
             return CreateGenericInvoker<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, P1, P2, P3, P4, P5, P6, P7, P8, P9>(gmethod, genericTypes);
         }
         public static UnifiedRefFunc<R, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10> CreateGenericInvoker<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10>(this Type type, string methodName, Type[] genericTypes = null)
         {
             var utypes = new[] { typeof(U1), typeof(U2), typeof(U3), typeof(U4), typeof(U5), typeof(U6), typeof(U7), typeof(U8), typeof(U9), typeof(U10) };
-            var gmethod = type.GetGenericMethods(methodName).FindOverload(utypes, withThis: true);
+            var gmethod = type.GetGenericMethods(methodName).FindOverload(utypes, withThis: true, checkGeneric: true);
             return CreateGenericInvoker<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10>(gmethod, genericTypes);
         }
         public static UnifiedRefFunc<R, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11> CreateGenericInvoker<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11>(this Type type, string methodName, Type[] genericTypes = null)
         {
             var utypes = new[] { typeof(U1), typeof(U2), typeof(U3), typeof(U4), typeof(U5), typeof(U6), typeof(U7), typeof(U8), typeof(U9), typeof(U10), typeof(U11) };
-            var gmethod = type.GetGenericMethods(methodName).FindOverload(utypes, withThis: true);
+            var gmethod = type.GetGenericMethods(methodName).FindOverload(utypes, withThis: true, checkGeneric: true);
             return CreateGenericInvoker<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11>(gmethod, genericTypes);
         }
         public static UnifiedRefFunc<R, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12> CreateGenericInvoker<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12>(this Type type, string methodName, Type[] genericTypes = null)
         {
             var utypes = new[] { typeof(U1), typeof(U2), typeof(U3), typeof(U4), typeof(U5), typeof(U6), typeof(U7), typeof(U8), typeof(U9), typeof(U10), typeof(U11), typeof(U12) };
-            var gmethod = type.GetGenericMethods(methodName).FindOverload(utypes, withThis: true);
+            var gmethod = type.GetGenericMethods(methodName).FindOverload(utypes, withThis: true, checkGeneric: true);
             return CreateGenericInvoker<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12>(gmethod, genericTypes);
         }
         public static UnifiedRefFunc<R, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13> CreateGenericInvoker<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13>(this Type type, string methodName, Type[] genericTypes = null)
         {
             var utypes = new[] { typeof(U1), typeof(U2), typeof(U3), typeof(U4), typeof(U5), typeof(U6), typeof(U7), typeof(U8), typeof(U9), typeof(U10), typeof(U11), typeof(U12), typeof(U13) };
-            var gmethod = type.GetGenericMethods(methodName).FindOverload(utypes, withThis: true);
+            var gmethod = type.GetGenericMethods(methodName).FindOverload(utypes, withThis: true, checkGeneric: true);
             return CreateGenericInvoker<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13>(gmethod, genericTypes);
         }
         public static UnifiedRefFunc<R, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14> CreateGenericInvoker<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14>(this Type type, string methodName, Type[] genericTypes = null)
         {
             var utypes = new[] { typeof(U1), typeof(U2), typeof(U3), typeof(U4), typeof(U5), typeof(U6), typeof(U7), typeof(U8), typeof(U9), typeof(U10), typeof(U11), typeof(U12), typeof(U13), typeof(U14) };
-            var gmethod = type.GetGenericMethods(methodName).FindOverload(utypes, withThis: true);
+            var gmethod = type.GetGenericMethods(methodName).FindOverload(utypes, withThis: true, checkGeneric: true);
             return CreateGenericInvoker<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14>(gmethod, genericTypes);
         }
         public static UnifiedRefFunc<R, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15> CreateGenericInvoker<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15>(this Type type, string methodName, Type[] genericTypes = null)
         {
             var utypes = new[] { typeof(U1), typeof(U2), typeof(U3), typeof(U4), typeof(U5), typeof(U6), typeof(U7), typeof(U8), typeof(U9), typeof(U10), typeof(U11), typeof(U12), typeof(U13), typeof(U14), typeof(U15) };
-            var gmethod = type.GetGenericMethods(methodName).FindOverload(utypes, withThis: true);
+            var gmethod = type.GetGenericMethods(methodName).FindOverload(utypes, withThis: true, checkGeneric: true);
             return CreateGenericInvoker<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15>(gmethod, genericTypes);
         }
         public static UnifiedRefFunc<R, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15, P16> CreateGenericInvoker<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15, P16>(this Type type, string methodName, Type[] genericTypes = null)
         {
             var utypes = new[] { typeof(U1), typeof(U2), typeof(U3), typeof(U4), typeof(U5), typeof(U6), typeof(U7), typeof(U8), typeof(U9), typeof(U10), typeof(U11), typeof(U12), typeof(U13), typeof(U14), typeof(U15), typeof(U16) };
-            var gmethod = type.GetGenericMethods(methodName).FindOverload(utypes, withThis: true);
+            var gmethod = type.GetGenericMethods(methodName).FindOverload(utypes, withThis: true, checkGeneric: true);
             return CreateGenericInvoker<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15, P16>(gmethod, genericTypes);
         }
 

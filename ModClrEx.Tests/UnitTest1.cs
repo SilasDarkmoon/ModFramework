@@ -1,4 +1,4 @@
-﻿namespace ModClrEx.Tests;
+namespace ModClrEx.Tests;
 
 public class UnitTest1
 {
