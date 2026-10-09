@@ -232,5 +232,48 @@ namespace ModClrExUnsafe.Tests
 
             Assert.Throws<ArgumentException>(() => plain.PostInvoke(_ => { }));
         }
+
+        // =====================================================================
+        // ChangeDelegateType + implicit multi-step currying
+        // (migrated from TestScript_DelegateCurry.cs Pass2/Pass3)
+        // =====================================================================
+
+        private struct CurryFields
+        {
+            public int F0, F1, F2, F3, F4, F5;
+            public CurryFields(int f0, int f1, int f2, int f3, int f4, int f5)
+            {
+                F0 = f0; F1 = f1; F2 = f2; F3 = f3; F4 = f4; F5 = f5;
+            }
+        }
+        private delegate CurryFields TestCurryDel(int p1, int p2, int p3, int p4, int p5, int p6);
+        private delegate CurryFields TestFinalCurriedDel(int p6);
+
+        [Fact]
+        public void Curry_ChangeDelegateType_MidChain()
+        {
+            // custom 6-arg delegate -> Func (ChangeDelegateType) -> curry 5 steps
+            // -> custom 1-arg delegate (ChangeDelegateType again)
+            TestCurryDel odel = (f0, f1, f2, f3, f4, f5) => new CurryFields(f0, f1, f2, f3, f4, f5);
+            var func = odel.ChangeDelegateType<Func<int, int, int, int, int, int, CurryFields>>()
+                .Curry(30).Curry(40).Curry(50).Curry(60).Curry(70)
+                .ChangeDelegateType<TestFinalCurriedDel>();
+
+            var inst = func(80);
+            Assert.Equal((30, 40, 50, 60, 70, 80), (inst.F0, inst.F1, inst.F2, inst.F3, inst.F4, inst.F5));
+        }
+
+        [Fact]
+        public void Curry_ImplicitMultiStep()
+        {
+            // implicit currying: Curry on the custom delegate directly (no
+            // ChangeDelegateType needed for the steps), typed back at the end
+            TestCurryDel odel = (f0, f1, f2, f3, f4, f5) => new CurryFields(f0, f1, f2, f3, f4, f5);
+            var func = odel.Curry(9).Curry(8).Curry(7).Curry(6).Curry(5)
+                .ChangeDelegateType<TestFinalCurriedDel>();
+
+            var inst = func(4);
+            Assert.Equal((9, 8, 7, 6, 5, 4), (inst.F0, inst.F1, inst.F2, inst.F3, inst.F4, inst.F5));
+        }
     }
 }

@@ -225,5 +225,45 @@ namespace ModClrExUnsafe.Tests
             Assert.ThrowsAny<Exception>(
                 () => typeof(GHost).CreateGenericInvoker<int, int, int>("NoSuchMethod"));
         }
+
+        // =====================================================================
+        // ByRefParam shapes (migrated from TestScript.cs "Generic Invokers"):
+        // value-type `this` carried via U=ByRefParam, inference from the
+        // method's own generic parameter
+        // =====================================================================
+
+        private struct ByRefHostStruct
+        {
+            public T TestGeneric<T>(T t) => t;
+        }
+        private struct ByRefHostStruct<T>
+        {
+            public T Field0;
+            public ByRefHostStruct(T t) { Field0 = t; }
+            public T TestGeneric<U>(U u)
+            {
+                // reads the U argument's address as a T
+                return RawRef.Of(ref u).GetRef<T>();
+            }
+        }
+
+        [Fact]
+        public void ByRefParam_GenericInvoker_ValueTypeThis()
+        {
+            // U1=ByRefParam: the struct `this` is passed by address; T is inferred
+            // from the method argument (IntPtr)
+            var invoker = typeof(ByRefHostStruct).CreateGenericInvoker<IntPtr, ByRefParam, IntPtr, ByRefHostStruct, IntPtr>(nameof(ByRefHostStruct.TestGeneric));
+            Assert.Equal((IntPtr)100, invoker.Invoke(default, (IntPtr)100));
+        }
+
+        [Fact]
+        public void ByRefParam_GenericInvoker_GenericClassThis_SmallCarrier()
+        {
+            // P1=byte: the `this` carrier only needs to be an addressable slot -
+            // the method never touches the receiver, so a 1-byte carrier is fine
+            // (size-compatible through the lenient stage)
+            var invoker = typeof(ByRefHostStruct<long>).CreateGenericInvoker<long, ByRefParam, IntPtr, byte, IntPtr>(nameof(ByRefHostStruct<long>.TestGeneric));
+            Assert.Equal(111L, invoker.Invoke(default, (IntPtr)111));
+        }
     }
 }

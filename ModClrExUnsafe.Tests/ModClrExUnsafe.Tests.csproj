@@ -32,6 +32,10 @@
     <Reference Include="ByRefUtils">
       <HintPath>..\ModClrExUnsafe\ByRefUtils.dll</HintPath>
     </Reference>
+    <!-- SpanEx（SpanStubModern 等 Mod.LowLevel 类型）同上——Tests 直引 -->
+    <Reference Include="SpanEx">
+      <HintPath>..\ModClrExUnsafe\SpanEx.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
   <ItemGroup>
