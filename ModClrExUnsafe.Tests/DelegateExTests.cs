@@ -219,38 +219,77 @@ namespace ModClrExUnsafe.Tests
             Assert.Null(overloads.FindOverload(new[] { typeof(byte) }));
         }
 
-        // ---------- GuessGenericParameters ----------
+        // ---------- FindOverload generic-parameter inference ----------
+        // (replaces the removed GuessGenericParameters: one FindOverload call now
+        //  does matching + inference via the genericParameters output)
 
         [Fact]
-        public void GuessGenericParameters_FromParameter()
+        public void FindOverload_Infers_FromParameter()
         {
             var mi = typeof(Helper).GetMethod(nameof(Helper.Echo));
-            var guessed = mi.GuessGenericParameters(new[] { typeof(int) });
-            Assert.Equal(new[] { typeof(int) }, guessed);
+            var inferred = new List<Type>();
+            var found = new[] { (MethodBase)mi }.FindOverload(new[] { typeof(int) }, checkGeneric: true, genericParameters: inferred);
+            Assert.Same(mi, found);
+            Assert.Equal(new[] { typeof(int) }, inferred);
         }
 
         [Fact]
-        public void GuessGenericParameters_FromNestedGenericParameter()
+        public void FindOverload_Infers_FromNestedGenericParameter()
         {
+            // First<T>(IList<T>) vs List<int>: the open-generic interface is
+            // resolved through the implementing type (IList<int> on List<int>)
             var mi = typeof(Helper).GetMethod(nameof(Helper.First));
-            var guessed = mi.GuessGenericParameters(new[] { typeof(List<int>) });
-            Assert.Equal(new[] { typeof(int) }, guessed);
+            var inferred = new List<Type>();
+            var found = new[] { (MethodBase)mi }.FindOverload(new[] { typeof(List<int>) }, checkGeneric: true, genericParameters: inferred);
+            Assert.Same(mi, found);
+            Assert.Equal(new[] { typeof(int) }, inferred);
         }
 
         [Fact]
-        public void GuessGenericParameters_MultipleParametersCrossReferenced()
+        public void FindOverload_Infers_MultipleParametersCrossReferenced()
         {
             var mi = typeof(Helper).GetMethod(nameof(Helper.MakePair));
-            var guessed = mi.GuessGenericParameters(new[] { typeof(int), typeof(string) });
-            Assert.Equal(new[] { typeof(int), typeof(string) }, guessed);
+            var inferred = new List<Type>();
+            var found = new[] { (MethodBase)mi }.FindOverload(new[] { typeof(int), typeof(string) }, checkGeneric: true, genericParameters: inferred);
+            Assert.Same(mi, found);
+            Assert.Equal(new[] { typeof(int), typeof(string) }, inferred);
         }
 
         [Fact]
-        public void GuessGenericParameters_FromReturnType()
+        public void FindOverload_Infers_FromReturnType()
         {
             var mi = typeof(Helper).GetMethod(nameof(Helper.Create));
-            var guessed = mi.GuessGenericParameters(Array.Empty<Type>(), returnType: typeof(string));
-            Assert.Equal(new[] { typeof(string) }, guessed);
+            var inferred = new List<Type>();
+            var found = new[] { (MethodBase)mi }.FindOverload(Array.Empty<Type>(), returnType: typeof(string), checkGeneric: true, genericParameters: inferred);
+            Assert.Same(mi, found);
+            Assert.Equal(new[] { typeof(string) }, inferred);
+        }
+
+        [Fact]
+        public void FindOverload_ContradictoryInference_SkipsOverload()
+        {
+            // Echo<T>(T a, T b) with (int, string): T cannot be both - the overload
+            // is inapplicable instead of silently keeping the last inference
+            var mi = typeof(Helper).GetMethod(nameof(Helper.Echo));
+            var inferred = new List<Type>();
+            var found = new[] { (MethodBase)mi }.FindOverload(new[] { typeof(int), typeof(string) }, checkGeneric: true, genericParameters: inferred);
+            Assert.Null(found);
+        }
+
+        [Fact]
+        public void FindOverload_ConstrainedGeneric_NoLongerHangs()
+        {
+            // regression for the `goto BeginStrictCheckMethod` infinite loop: a
+            // constrained generic (where T : IComparable<T>) used to spin forever
+            // when the constraint check failed on the open-generic constraint
+            var mi = typeof(Helper).GetMethod(nameof(Helper.EchoComparable));
+            var inferred = new List<Type>();
+            var found = new[] { (MethodBase)mi }.FindOverload(new[] { typeof(int) }, checkGeneric: true, genericParameters: inferred);
+            Assert.Same(mi, found);                          // int satisfies IComparable<int>
+            Assert.Equal(new[] { typeof(int) }, inferred);
+
+            var rejected = new[] { (MethodBase)mi }.FindOverload(new[] { typeof(object) }, checkGeneric: true, genericParameters: new List<Type>());
+            Assert.Null(rejected);                            // object : IComparable<object>? no
         }
 
         // ---------- MakeGenericMethod / GetMethods / GetGenericMethods ----------
@@ -306,14 +345,18 @@ namespace ModClrExUnsafe.Tests
             Assert.True(UnsafeEx.IsGenericParameterCompatiable(formattableT, typeof(int)));    // int : IFormattable
             Assert.False(UnsafeEx.IsGenericParameterCompatiable(formattableT, typeof(object)));
 
-            // KNOWN LIMITATION (DelegateEx.cs TODO): a *generic* interface constraint
-            // (where T : IComparable<T>) is returned open by GetGenericParameterConstraints,
-            // and IsAssignableFrom does not substitute the generic parameter - so even a
-            // satisfying type (int : IComparable<int>) reports false. Locked as-is; flip
-            // both assertions when the TODO is fixed.
+            // FIXED (was the DelegateEx.cs TODO): generic interface constraints
+            // (where T : IComparable<T>) are now instantiated with the candidate
+            // before the IsAssignableFrom check - int : IComparable<int> matches.
             var ifaceT = typeof(Helper).GetMethod(nameof(Helper.EchoComparable)).GetGenericArguments()[0];
-            Assert.False(UnsafeEx.IsGenericParameterCompatiable(ifaceT, typeof(int)));         // TODO: should be true
+            Assert.True(UnsafeEx.IsGenericParameterCompatiable(ifaceT, typeof(int)));
             Assert.False(UnsafeEx.IsGenericParameterCompatiable(ifaceT, typeof(object)));
+
+            // open-generic interface pattern vs an implementing type: the closed
+            // form is resolved through the interface list (IComparable<int> on int)
+            var openIface = typeof(IComparable<>).MakeGenericType(ifaceT);   // IComparable<T> (still open)
+            Assert.True(UnsafeEx.IsGenericParameterCompatiable(openIface, typeof(int)));
+            Assert.False(UnsafeEx.IsGenericParameterCompatiable(openIface, typeof(object)));
         }
 
         // ---------- IsInInterpter ----------
@@ -332,14 +375,16 @@ namespace ModClrExUnsafe.Tests
         [Fact]
         public void Integration_GenericOverloadDiscoveryToDelegateInvocation()
         {
-            // The canonical pipeline this API family serves: find a generic overload,
-            // guess its parameters from argument types, instantiate, bind, invoke.
+            // The canonical pipeline this API family serves: find a generic overload
+            // AND infer its parameters in one FindOverload call, instantiate, bind,
+            // invoke (the old two-step FindOverload + GuessGenericParameters is gone).
             var overloads = typeof(Helper).GetGenericMethods(nameof(Helper.Echo));
-            var found = overloads.FindOverload(new[] { typeof(int) }, typeof(int), checkGeneric: true);
+            var inferred = new List<Type>();
+            var found = overloads.FindOverload(new[] { typeof(int) }, typeof(int), checkGeneric: true, genericParameters: inferred);
             Assert.NotNull(found);
+            Assert.Equal(new[] { typeof(int) }, inferred);
 
-            var guessed = found.GuessGenericParameters(new[] { typeof(int) });
-            var concrete = found.MakeGenericMethod(guessed);
+            var concrete = found.MakeGenericMethod(inferred.ToArray());
 
             var del = concrete.CreateDelegateUnsafe<Func<int, int>>();
             Assert.Equal(99, del(99));

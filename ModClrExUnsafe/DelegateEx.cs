@@ -695,63 +695,221 @@ namespace Mod.LowLevel
             return (T)ChangeDelegateType(del, typeof(T));
         }
 
-        public static bool IsGenericParameterCompatiable(Type gtype, Type itype)
+        /// <summary>
+        /// Checks the declared constraints of a generic parameter against a candidate
+        /// instantiation. Open-generic constraints (e.g. where T : IComparable<T>,
+        /// where T : IAdditionOperators<T,T,T>) are instantiated with the candidate
+        /// type before the IsAssignableFrom check - GetGenericParameterConstraints
+        /// returns them open and IsAssignableFrom never matches an open generic.
+        /// Constraint arguments that are not the parameter itself (cross-referenced
+        /// constraints like where T2 : List<T1>) cannot be substituted here and fail.
+        /// </summary>
+        private static bool CheckGenericParameterConstraints(Type gpar, Type itype)
         {
-            if (gtype.IsGenericParameter)
+            var attrs = gpar.GenericParameterAttributes;
+            if ((attrs & GenericParameterAttributes.NotNullableValueTypeConstraint) != 0 && !itype.IsValueType)
             {
-                if ((gtype.GenericParameterAttributes & GenericParameterAttributes.NotNullableValueTypeConstraint) != 0 && !itype.IsValueType)
+                return false;
+            }
+            if ((attrs & GenericParameterAttributes.ReferenceTypeConstraint) != 0 && itype.IsValueType)
+            {
+                return false;
+            }
+            if (gpar.GetGenericParameterConstraints() is Type[] gparents && gparents.Length > 0)
+            {
+                foreach (var gparent in gparents)
                 {
-                    return false;
-                }
-                if ((gtype.GenericParameterAttributes & GenericParameterAttributes.ReferenceTypeConstraint) != 0 && itype.IsValueType)
-                {
-                    return false;
-                }
-                if (gtype.GetGenericParameterConstraints() is Type[] gparents && gparents.Length > 0)
-                {
-                    foreach (var gparent in gparents)
+                    Type check = gparent;
+                    if (gparent.IsGenericType && gparent.ContainsGenericParameters)
                     {
-                        if (!gparent.IsAssignableFrom(itype))
+                        // instantiate the open-generic constraint with the candidate:
+                        // every generic argument that is the parameter itself becomes itype
+                        try
+                        {
+                            var args = gparent.GetGenericArguments();
+                            var inst = new Type[args.Length];
+                            for (int i = 0; i < args.Length; ++i)
+                            {
+                                inst[i] = args[i].IsGenericParameter ? itype : args[i];
+                            }
+                            check = gparent.GetGenericTypeDefinition().MakeGenericType(inst);
+                        }
+                        catch (ArgumentException)
                         {
                             return false;
                         }
                     }
+                    if (!check.IsAssignableFrom(itype))
+                    {
+                        return false;
+                    }
                 }
-                // TODO: recursively check generic parameter if gtype and itype themselves are generics.
-                return true;
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// Finds the instantiation of an open-generic interface or base class that
+        /// itype implements/derives from (e.g. IComparable<int> on an int argument
+        /// for the pattern IComparable<T>), or null when there is none.
+        /// </summary>
+        private static Type FindClosedForm(Type openGeneric, Type itype)
+        {
+            if (openGeneric.IsInterface)
+            {
+                foreach (var itf in itype.GetInterfaces())
+                {
+                    if (itf.IsGenericType && itf.GetGenericTypeDefinition() == openGeneric.GetGenericTypeDefinition())
+                    {
+                        return itf;
+                    }
+                }
+                return null;
+            }
+            for (var bt = itype; bt != null; bt = bt.BaseType)
+            {
+                if (bt.IsGenericType && bt.GetGenericTypeDefinition() == openGeneric.GetGenericTypeDefinition())
+                {
+                    return bt;
+                }
+            }
+            return null;
+        }
+
+        public static bool IsGenericParameterCompatiable(Type gtype, Type itype)
+        {
+            if (gtype.IsGenericParameter)
+            {
+                return CheckGenericParameterConstraints(gtype, itype);
             }
             else if (gtype.ContainsGenericParameters)
             {
                 if (gtype.HasElementType != itype.HasElementType) return false;
                 if (gtype.HasElementType) return IsGenericParameterCompatiable(gtype.GetElementType(), itype.GetElementType());
-                var gpars = gtype.GetGenericArguments();
-                var ipars = itype.GetGenericArguments();
-                if (gpars.Length != ipars.Length) return false;
-                for (int i = 0; i < gpars.Length; ++i)
+                if (itype.IsGenericType && gtype.GetGenericTypeDefinition() == itype.GetGenericTypeDefinition())
                 {
-                    if (!IsGenericParameterCompatiable(gpars[i], ipars[i])) return false;
+                    // same generic definition: compare arguments pairwise
+                    var gpars = gtype.GetGenericArguments();
+                    var ipars = itype.GetGenericArguments();
+                    if (gpars.Length != ipars.Length) return false;
+                    for (int i = 0; i < gpars.Length; ++i)
+                    {
+                        if (!IsGenericParameterCompatiable(gpars[i], ipars[i])) return false;
+                    }
+                    return true;
                 }
-                return true;
+                // gtype is an open-generic interface/base while itype is an
+                // instantiation or a subtype of one: resolve the closed form first
+                var closed = FindClosedForm(gtype, itype);
+                if (closed == null) return false;
+                return IsGenericParameterCompatiable(gtype, closed);
             }
             else
             {
                 return RawSize(gtype) == RawSize(itype);
             }
         }
-        public static MethodBase FindOverload(this IEnumerable<MethodBase> methods, Type[] paramTypes, Type returnType = null, bool withThis = false, bool checkGeneric = false)
+        /// <summary>
+        /// Infers the generic arguments of a method from one (signature type, argument
+        /// type) pair. Fills <paramref name="guessed"/> (indexed via
+        /// <paramref name="gparmap"/>); returns false when the pair is structurally
+        /// incompatible, the candidate violates the parameter constraints, or two
+        /// arguments infer contradictory types for the same generic parameter (the
+        /// overload is not applicable then, instead of silently overwriting).
+        /// </summary>
+        private static bool InferGenericArguments(Dictionary<Type, int> gparmap, Type[] guessed, Type gtype, Type itype)
         {
-            List<(MethodBase, Type[])> pendingMethods = new List<(MethodBase, Type[])>();
+            if (gtype.IsGenericParameter)
+            {
+                if (!CheckGenericParameterConstraints(gtype, itype)) return false;
+                var idx = gparmap[gtype];
+                if (guessed[idx] == null)
+                {
+                    guessed[idx] = itype;
+                    return true;
+                }
+                return guessed[idx] == itype;   // contradiction -> not applicable
+            }
+            if (gtype.ContainsGenericParameters)
+            {
+                if (gtype.HasElementType)
+                {
+                    if (!itype.HasElementType) return false;
+                    return InferGenericArguments(gparmap, guessed, gtype.GetElementType(), itype.GetElementType());
+                }
+                if (itype.IsGenericType && gtype.GetGenericTypeDefinition() == itype.GetGenericTypeDefinition())
+                {
+                    var gpars = gtype.GetGenericArguments();
+                    var ipars = itype.GetGenericArguments();
+                    if (gpars.Length != ipars.Length) return false;
+                    for (int i = 0; i < gpars.Length; ++i)
+                    {
+                        if (!InferGenericArguments(gparmap, guessed, gpars[i], ipars[i])) return false;
+                    }
+                    return true;
+                }
+                // open-generic interface/base vs an implementing/derived type:
+                // resolve the closed form (IList<T> vs List<int> -> T = int) first
+                var closed = FindClosedForm(gtype, itype);
+                if (closed == null) return false;
+                return InferGenericArguments(gparmap, guessed, gtype, closed);
+            }
+            // non-generic part: structural correspondence only (size compatibility
+            // for non-generic parameters is handled by the lenient stages outside)
+            return gtype == itype;
+        }
+
+        private static void FillGenericParameters(List<Type> genericParameters, Type[] guessed)
+        {
+            if (genericParameters == null || guessed == null) return;
+            genericParameters.Clear();
+            foreach (var t in guessed)
+            {
+                genericParameters.Add(t);
+            }
+        }
+
+        /// <summary>
+        /// Picks the overload matching the given argument types from a set of
+        /// candidates. When <paramref name="genericParameters"/> is not null and the
+        /// matched method is generic, the inferred MakeGenericMethod arguments are
+        /// appended there (uninferred ones stay null) - one call does the whole
+        /// discovery + inference job (this replaces the old GuessGenericParameters).
+        ///
+        /// Stages: (1) strict - exact/assignable for non-generic parameters,
+        /// constraint-checked inference for generic ones; a candidate whose generic
+        /// inference fails is skipped entirely (constraints/contradictions make it
+        /// inapplicable). (2)/(3) lenient - RawSize compatibility for the
+        /// NON-generic parameters only (public candidates first).
+        /// </summary>
+        public static MethodBase FindOverload(this IEnumerable<MethodBase> methods, Type[] paramTypes, Type returnType = null, bool withThis = false, bool checkGeneric = false, List<Type> genericParameters = null)
+        {
+            List<(MethodBase m, Type[] mparTypes, Type[] guessed)> pendingMethods = new List<(MethodBase, Type[], Type[])>();
 
             // 1, strict
             foreach (var m in methods)
             {
-            BeginStrictCheckMethod:
                 var mpars = m.GetParameters();
                 var mparlen = mpars.Length;
                 bool isInstance = !m.IsStatic;
                 if (isInstance && withThis) ++mparlen;
                 if (paramTypes.Length != mparlen)
                     continue;
+
+                // per-candidate inference state
+                Type[] guessed = null;
+                Dictionary<Type, int> gparmap = null;
+                if (checkGeneric && m.IsGenericMethod)
+                {
+                    var gpars = m.GetGenericArguments();
+                    gparmap = new Dictionary<Type, int>();
+                    for (int i = 0; i < gpars.Length; ++i)
+                    {
+                        gparmap[gpars[i]] = i;
+                    }
+                    guessed = new Type[gpars.Length];
+                }
+
                 if (returnType != null)
                 {
                     Type mrtype;
@@ -772,7 +930,7 @@ namespace Mod.LowLevel
                     }
                     if (checkGeneric && (mrtype.IsGenericParameter || mrtype.ContainsGenericParameters))
                     {
-                        if (!IsGenericParameterCompatiable(mrtype, returnType))
+                        if (guessed == null || !InferGenericArguments(gparmap, guessed, mrtype, returnType))
                         {
                             continue;
                         }
@@ -785,8 +943,10 @@ namespace Mod.LowLevel
                         }
                     }
                 }
+
                 var mparTypes = new Type[mparlen];
                 bool nomatch = false;
+                bool genericInapplicable = false;
                 for (int i = 0; i < paramTypes.Length; ++i)
                 {
                     var par = paramTypes[i];
@@ -805,29 +965,36 @@ namespace Mod.LowLevel
                     }
                     if (checkGeneric && (mpar.IsGenericParameter || mpar.ContainsGenericParameters))
                     {
-                        if (IsGenericParameterCompatiable(mpar, par))
+                        if (guessed == null || !InferGenericArguments(gparmap, guessed, mpar, par))
                         {
-                            mparTypes[i] = par;
-                            continue;
+                            // constraints violated or contradictory inference:
+                            // this overload is not applicable - move on to the next
+                            // candidate (the old `goto BeginStrictCheckMethod` looped
+                            // forever on exactly this path)
+                            genericInapplicable = true;
+                            break;
                         }
-                        else
-                        {
-                            goto BeginStrictCheckMethod;
-                        }
+                        mparTypes[i] = par;
+                        continue;
                     }
                     if (!mpar.IsAssignableFrom(par))
                     {
                         nomatch = true;
                     }
                 }
+                if (genericInapplicable)
+                {
+                    continue;
+                }
                 if (!nomatch)
                 {
+                    FillGenericParameters(genericParameters, guessed);
                     return m;
                 }
-                pendingMethods.Add((m, mparTypes));
+                pendingMethods.Add((m, mparTypes, guessed));
             }
             // 2, public compatible
-            foreach (var (m, mpars) in pendingMethods)
+            foreach (var (m, mpars, guessed) in pendingMethods)
             {
                 if (!m.IsPublic)
                     continue;
@@ -844,11 +1011,12 @@ namespace Mod.LowLevel
                 }
                 if (!nomatch)
                 {
+                    FillGenericParameters(genericParameters, guessed);
                     return m;
                 }
             }
             // 3, non-public compatible
-            foreach (var (m, mpars) in pendingMethods)
+            foreach (var (m, mpars, guessed) in pendingMethods)
             {
                 if (m.IsPublic)
                     continue;
@@ -865,6 +1033,7 @@ namespace Mod.LowLevel
                 }
                 if (!nomatch)
                 {
+                    FillGenericParameters(genericParameters, guessed);
                     return m;
                 }
             }
@@ -913,61 +1082,6 @@ namespace Mod.LowLevel
             if (!(method is MethodInfo mi)) return method;
             if (!mi.ContainsGenericParameters) return method;
             return mi.MakeGenericMethod(types);
-        }
-        public static Type[] GuessGenericParameters(this MethodBase method, Type[] paramTypes, Type returnType = null, bool withThis = false)
-        {
-            if (!method.IsGenericMethod) return Array.Empty<Type>();
-            var gpars = method.GetGenericArguments();
-            Dictionary<Type, int> gparmap = new Dictionary<Type, int>();
-            for (int i = 0; i < gpars.Length; ++i)
-            {
-                gparmap[gpars[i]] = i;
-            }
-            var guessed = new Type[gpars.Length];
-            if (returnType != null)
-            {
-                GuessGenericParameters(gparmap, guessed, ((MethodInfo)method).ReturnType, returnType);
-            }
-            var mpars = method.GetParameters();
-            bool isInstance = !method.IsStatic;
-            for (int i = 0; i < paramTypes.Length; ++i)
-            {
-                var par = paramTypes[i];
-                Type mpar;
-                if (i == 0 && isInstance && withThis)
-                {
-                    mpar = method.ReflectedType;
-                    if (mpar.IsGenericType) mpar = mpar.MakeByRefType();
-                    GuessGenericParameters(gparmap, guessed, mpar, par);
-                }
-                else
-                {
-                    var index = i;
-                    if (isInstance && withThis) --index;
-                    GuessGenericParameters(gparmap, guessed, mpars[index].ParameterType, par);
-                }
-            }
-            return guessed;
-        }
-        private static void GuessGenericParameters(Dictionary<Type, int> gparmap, Type[] guessed, Type gtype, Type itype)
-        {
-            if (gtype.IsGenericParameter)
-            {
-                guessed[gparmap[gtype]] = itype;
-            }
-            else if (gtype.ContainsGenericParameters)
-            {
-                if (gtype.HasElementType && itype.HasElementType)
-                {
-                    GuessGenericParameters(gparmap, guessed, gtype.GetElementType(), itype.GetElementType());
-                }
-                var gpars = gtype.GetGenericArguments();
-                var ipars = itype.GetGenericArguments();
-                for (int i = 0; i < gpars.Length && i < ipars.Length; ++i)
-                {
-                    GuessGenericParameters(gparmap, guessed, gpars[i], ipars[i]);
-                }
-            }
         }
 
         public static bool IsInInterpter(this MethodBase method)
