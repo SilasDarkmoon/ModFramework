@@ -43,7 +43,7 @@ namespace Mod.LowLevel
             {
                 r.SetRef(ref from);
                 var preaddr = r.Address;
-                var temprv = r.GetRefObj();
+                object temprv = r.GetRefObj();
                 r.SetRef(ref from);
                 var postaddr = r.Address;
                 if (postaddr == preaddr)
@@ -80,12 +80,13 @@ namespace Mod.LowLevel
         public static T ConvertToOuterObject<F, T>(ref F from)
         {
             RawRef r = new RawRef();
+            var headerSize = GetObjectHeaderSize();
             for (; ; )
             {
                 r.SetRef(ref from);
                 var preaddr = r.Address;
-                r.Address -= GetObjectHeaderSize();
-                var temprv = r.GetRefObj();
+                r.Address -= headerSize;
+                object temprv = r.GetRefObj();
                 r.SetRef(ref from);
                 var postaddr = r.Address;
                 if (postaddr == preaddr)

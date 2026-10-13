@@ -108,6 +108,117 @@ namespace ModClrExUnsafe.Tests
             Assert.Same(box, container);                // header subtracted, container recovered
         }
 
+        [Fact]
+        public void ConvertToOuterObject_GcCompactionStress()
+        {
+            // Reproduces the intermittent failure of FromFieldRefRecoversContainer:
+            // the double-read retry loop in ConvertToOuterObject must survive
+            // objects being MOVED by compacting GCs while the interior pointer
+            // is being converted. Churn + forced compacting collections run in
+            // parallel with a tight conversion loop; any mismatch dumps the
+            // iteration number and both addresses.
+            int stop = 0;
+            var failures = new System.Collections.Concurrent.ConcurrentQueue<string>();
+
+            var churn = System.Threading.Tasks.Task.Run(() =>
+            {
+                while (System.Threading.Volatile.Read(ref stop) == 0)
+                {
+                    var arr = new byte[64 * 1024];      // SOH storm -> frequent gen0/1 GCs
+                    arr[0] = 1;
+                }
+            });
+            var compact = System.Threading.Tasks.Task.Run(() =>
+            {
+                while (System.Threading.Volatile.Read(ref stop) == 0)
+                {
+                    GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
+                    System.Threading.Thread.Sleep(5);
+                }
+            });
+
+            try
+            {
+                for (int i = 0; i < 200_000; ++i)
+                {
+                    var box = new Box();
+                    ref int fieldRef = ref box.X;
+                    var container = UnsafeEx.ConvertToOuterObject<int, Box>(ref fieldRef);
+                    if (!ReferenceEquals(box, container))
+                    {
+                        var boxAddr = RawRef.Of(box).Address;
+                        var containerAddr = RawRef.Of(container).Address;
+                        failures.Enqueue(
+                            $"iter {i}: mismatch - box@0x{boxAddr:X} (gen {GC.GetGeneration(box)}), " +
+                            $"container@0x{containerAddr:X} (type {container.GetType().Name}, " +
+                            $"gen {GC.GetGeneration(container)})");
+                    }
+                }
+            }
+            finally
+            {
+                System.Threading.Volatile.Write(ref stop, 1);
+                System.Threading.Tasks.Task.WaitAll(churn, compact);
+            }
+
+            Assert.Empty(failures);
+        }
+
+        [Fact]
+        public void ConvertPretend_ObjectToRefByte_BackToObject_GcCompactionStress()
+        {
+            // Round-trip under compaction pressure: object -> ref byte (the
+            // byref-returning ConvertPretend, GC-tracked so it survives moves),
+            // then ref byte -> object again (the ref-taking ConvertPretend with
+            // its double-read loop). The recovered "object" is the field address
+            // reinterpreted as a Box reference - its X must still read the live
+            // value, proving the byref (not a stale snapshot) was used.
+            int stop = 0;
+            var failures = new System.Collections.Concurrent.ConcurrentQueue<string>();
+
+            var churn = System.Threading.Tasks.Task.Run(() =>
+            {
+                while (System.Threading.Volatile.Read(ref stop) == 0)
+                {
+                    var arr = new byte[64 * 1024];
+                    arr[0] = 1;
+                }
+            });
+            var compact = System.Threading.Tasks.Task.Run(() =>
+            {
+                while (System.Threading.Volatile.Read(ref stop) == 0)
+                {
+                    GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
+                    System.Threading.Thread.Sleep(5);
+                }
+            });
+
+            try
+            {
+                for (int i = 0; i < 200_000; ++i)
+                {
+                    var box = new Box { X = 123, Y = 45 };
+                    // 1) object -> ref byte: a GC-tracked byref into the first field
+                    ref byte rb = ref UnsafeEx.ConvertPretend<byte>(box);
+                    // 2) ref byte -> object: the double-read ConvertPretend
+                    var recovered = UnsafeEx.ConvertPretend<byte, Box>(ref rb);
+                    // the recovered reference points AT the field slot, so reading
+                    // X through it must observe the live (possibly moved) box
+                    if (recovered == null || recovered.X != 123 || recovered.Y != 45)
+                    {
+                        failures.Enqueue($"iter {i}: recovered.X={recovered?.X ?? -1}, recovered.Y={recovered?.Y ?? -1}");
+                    }
+                }
+            }
+            finally
+            {
+                System.Threading.Volatile.Write(ref stop, 1);
+                System.Threading.Tasks.Task.WaitAll(churn, compact);
+            }
+
+            Assert.Empty(failures);
+        }
+
         // =====================================================================
         // ConvertedClone family: cross-type memory clones
         // =====================================================================
