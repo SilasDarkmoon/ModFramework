@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+      <TargetFrameworks>netstandard2.0</TargetFrameworks>
+      <RootNamespace>Mod.Lua</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ModClrEx\ModClrEx.csproj" />
+    <ProjectReference Include="..\ModLua.PlatDep\ModLua.PlatDep.csproj" />
+    <ProjectReference Include="..\ModClrExUnsafe\ModClrExUnsafe.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="ModLua.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="ByRefUtils">
+      <HintPath>..\ModClrExUnsafe\ByRefUtils.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

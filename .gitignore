@@ -8,6 +8,7 @@
 # Build output
 bin/
 obj/
+ModLua.PlatDep/dist/
 
 # NuGet
 packages/

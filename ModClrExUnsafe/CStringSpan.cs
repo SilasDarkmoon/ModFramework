@@ -369,6 +369,29 @@ namespace Mod.LowLevel
             }
             return _ConvertedString;
         }
+        public string ToString(Encoding encoding, bool ignoreCache = false)
+        {
+            if (!ignoreCache && _ConvertedString != null)
+            {
+                return _ConvertedString;
+            }
+            if (IsEmpty())
+            {
+                return _ConvertedString = string.Empty;
+            }
+            string convstr;
+            unsafe
+            {
+                fixed (byte* ptr = _Address)
+                {
+                    convstr = (encoding ?? Encoding.Default).GetString(ptr, _Length);
+                }
+            }
+            if (ignoreCache)
+                return convstr;
+            else
+                return _ConvertedString = convstr;
+        }
 
         public CStringSpanEnumerator GetEnumerator()
         {
@@ -699,6 +722,14 @@ namespace Mod.LowLevel
             return _Length >= value.Length && _Address.Slice(0, _Length).EndsWith(value);
         }
 
+        public bool IsNullTerminated()
+        {
+            return _Length < _Address.Length && _Address[_Length] == 0;
+        }
+        public bool IsNull()
+        {
+            return LowLevel.Ref.IsEmpty(ref _Address.GetRef()); 
+        }
         public static bool IsWhiteSpace(byte value)
         {
             return value == 0x20 || (value >= 0x09 && value <= 0x0D);

@@ -135,6 +135,18 @@ namespace Mod.LowLevel
             }
         }
 
+        public static bool IsNull<T>(this Span<T> span)
+        {
+            unsafe
+            {
+#pragma warning disable CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
+                fixed (T* ptr = span)
+                {
+                    return ptr == null;
+                }
+#pragma warning restore CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
+            }
+        }
         public static ref T GetRef<T>(this Span<T> span)
         {
             unsafe
@@ -156,6 +168,18 @@ namespace Mod.LowLevel
                 fixed (T* ptr = span)
                 {
                     return ref RawRef.Of((IntPtr)ptr).GetRef<T>();
+                }
+#pragma warning restore CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
+            }
+        }
+        public static bool IsNull<T>(this ReadOnlySpan<T> span)
+        {
+            unsafe
+            {
+#pragma warning disable CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
+                fixed (T* ptr = span)
+                {
+                    return ptr == null;
                 }
 #pragma warning restore CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
             }

@@ -1,0 +1,102 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    ModLua.PlatDep - platform-dependent LuaImport binding layer
+    (DllImport declarations for the Lua 5.5 C API).
+
+    Per-platform builds (Configuration selects the flavor; AssemblyName is
+    always "ModLua.PlatDep"):
+      Debug / Release            -> dynamic-library mode: DllImport("lua55")
+                                    (.NET/NuGet and desktop dynamic-library scenarios)
+      Release.Win64 / Release.Mac / Release.Linux / Release.Android
+                                 -> dynamic-library mode + platform define
+                                    (DllImport("lua55"), Unity desktop/Android)
+      Release.iOS                -> static-linking mode: DllImport("__Internal")
+                                    (MODLUA_IOS define; the Lua static library must
+                                    be linked into the main binary - iOS platform rule)
+
+    MSBuild integration:
+      * Native flow: natives/win-x64/lua55.dll is declared as <None
+        CopyToOutputDirectory>, so it flows automatically to referencing
+        projects (GetCopyToOutputDirectoryItems) and to `dotnet publish`
+        output. It is also packed into the NuGet package under
+        runtimes/win-x64/native/ (resolved automatically by .NET Core 3.0+
+        via deps.json).
+      * Unity export: pass /p:UnityAssetsDir=<path-to-Assets> to any build
+        and the ModLuaExportUnity target (AfterTargets="Build") invokes
+        tools/export-unity.ps1 with -NoBuild.
+      * NuGet packaging: `dotnet pack -c Release` (see Pack items below).
+
+    Unity distribution (UPM package, produced by tools/pack.ps1):
+      * All platform flavors share the same AssemblyName (ModLua.PlatDep.dll)
+        and live in platform-exclusive folders; the .meta PluginImporter
+        platform checkboxes must be mutually exclusive (exactly one variant
+        active per build target, so ModLua.dll's assembly reference resolves
+        on every platform). pack.ps1 generates .meta files with deterministic
+        GUIDs, and the package ships an Editor script (fallback) that fixes
+        the platform checkboxes via PluginImporter APIs.
+      * Native layout: Android: libs/<abi>/liblua55.so (meta: Android + CPU);
+        iOS: liblua55.a (meta: iOS - Unity auto-links it into the Xcode
+        project); desktop: lua55.dll / liblua55.dylib / liblua55.so
+        (meta: Standalone sub-platform + CPU).
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <RootNamespace>Mod.Lua</RootNamespace>
+    <Configurations>Debug;Release;Release.iOS;Release.Android;Release.Win64;Release.Mac;Release.Linux</Configurations>
+    <Version>0.1.2</Version>
+    <Description>Platform-dependent LuaImport binding layer for the Lua 5.5 C API (per-platform DllImport flavors + native libraries).</Description>
+  </PropertyGroup>
+
+  <!-- LuaImport is internal; ModLua (the LuaLib facade) and its tests are the
+       only consumers. Unity users go through ModLua.dll exclusively. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="ModLua" />
+    <InternalsVisibleTo Include="ModLua.Tests" />
+  </ItemGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release.iOS'">
+    <DefineConstants>$(DefineConstants);MODLUA_IOS</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Release.Android'">
+    <DefineConstants>$(DefineConstants);MODLUA_ANDROID</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Release.Win64'">
+    <DefineConstants>$(DefineConstants);MODLUA_WIN64</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Release.Mac'">
+    <DefineConstants>$(DefineConstants);MODLUA_MAC</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Release.Linux'">
+    <DefineConstants>$(DefineConstants);MODLUA_LINUX</DefineConstants>
+  </PropertyGroup>
+
+  <!--
+    Native library flow:
+      * CopyToOutputDirectory: flows to referencing projects and publish output
+        (the dynamic-library flavor needs lua55.dll next to the host).
+        Windows x64 only for now - the current dev machine; extend per RID as needed.
+      * Pack/PackagePath: NuGet runtimes/<rid>/native/ layout.
+    NOTE: the iOS flavor (static linking) does not need a native dll next to it;
+    the condition keeps the copy out of the iOS output.
+  -->
+  <ItemGroup Condition="'$(Configuration)' != 'Release.iOS'">
+    <None Include="natives\win-x64\lua55.dll"
+          CopyToOutputDirectory="PreserveNewest"
+          Link="lua55.dll"
+          Pack="true"
+          PackagePath="runtimes/win-x64/native/lua55.dll" />
+  </ItemGroup>
+
+  <!--
+    Optional Unity export hook: pass /p:UnityAssetsDir="D:\MyUnityProject\Assets"
+    to any build of this project and the artifacts are copied into
+    <UnityAssetsDir>\Plugins\ModLua\ right after the build.
+  -->
+  <Target Name="ModLuaExportUnity" AfterTargets="Build" Condition="'$(UnityAssetsDir)' != ''">
+    <Message Importance="high" Text="ModLua: exporting to Unity at $(UnityAssetsDir)" />
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)tools\export-unity.ps1&quot; -UnityAssets &quot;$(UnityAssetsDir)&quot; -NoBuild" />
+  </Target>
+
+</Project>

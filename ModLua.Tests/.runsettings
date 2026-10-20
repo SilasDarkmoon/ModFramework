@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <!-- Session-level timeout (ms): kills the whole test session if it exceeds the
+       budget. Auto-loaded by `dotnet test` via <RunSettingsFilePath> in the csproj. -->
+  <RunConfiguration>
+    <TestSessionTimeout>120000</TestSessionTimeout>
+  </RunConfiguration>
+</RunSettings>

@@ -1,8 +1,11 @@
 <Solution>
   <Project Path="ModClrEx.Tests/ModClrEx.Tests.csproj" />
   <Project Path="ModClrEx/ModClrEx.csproj" />
-  <Project Path="ModClrExPlatDep/ModClrExPlatDep.csproj" Id="233af316-823d-41ce-8093-7583d68ef58a" />
+  <Project Path="ModClrEx.PlatDep/ModClrEx.PlatDep.csproj" Id="233af316-823d-41ce-8093-7583d68ef58a" />
   <Project Path="ModClrExUnsafe.Tests/ModClrExUnsafe.Tests.csproj" />
   <Project Path="ModClrExUnsafe/ModClrExUnsafe.csproj" />
   <Project Path="ModFramework/ModFramework.csproj" />
+  <Project Path="ModLua/ModLua.csproj" />
+  <Project Path="ModLua.PlatDep/ModLua.PlatDep.csproj" />
+  <Project Path="ModLua.Tests/ModLua.Tests.csproj" />
 </Solution>

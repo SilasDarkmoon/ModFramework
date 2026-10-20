@@ -286,6 +286,29 @@ namespace Mod
             }
             return _ConvertedString;
         }
+        public string ToString(Encoding encoding, bool ignoreCache = false)
+        {
+            if (!ignoreCache && _ConvertedString != null)
+            {
+                return _ConvertedString;
+            }
+            if (IsEmpty())
+            {
+                return _ConvertedString = string.Empty;
+            }
+            string convstr;
+            unsafe
+            {
+                fixed (byte* ptr = &_Address.GetRef())
+                {
+                    convstr = (encoding ?? Encoding.Default).GetString(ptr, _Length);
+                }
+            }
+            if (ignoreCache)
+                return convstr;
+            else
+                return _ConvertedString = convstr;
+        }
 
         public struct Enumerator : IEnumerator<byte>
         {
@@ -1032,9 +1055,18 @@ namespace Mod
             return EndsWith((ReadOnlySpan<byte>)value);
         }
 
+        public bool IsNullTerminated()
+        {
+            return _Length < _Size && this[_Length] == 0;
+        }
+        public bool IsNull()
+        {
+            return _Address.Address == IntPtr.Zero;
+        }
         public static bool IsWhiteSpace(byte value)
         {
-            return value == 0x20 || (value >= 0x09 && value <= 0x0D);
+            //return value == 0x20 || (value >= 0x09 && value <= 0x0D);
+            return CStringSpan.IsWhiteSpace(value);
         }
         public bool IsEmpty()
         {
