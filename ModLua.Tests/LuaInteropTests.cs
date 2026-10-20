@@ -252,7 +252,9 @@ namespace Mod.Lua.Tests
             // luaL_Stream: 2*8 = 16
             Assert.Equal(144, Marshal.SizeOf<lua.Debug>());
             Assert.Equal(16, Marshal.SizeOf<lua.Reg>());
-            Assert.Equal(1056, Marshal.SizeOf<lua.Buffer>());
+            // Buffer is a ref struct (compile-time stack-local enforcement);
+            // the layout lives in the internal blittable BufferL.
+            Assert.Equal(1056, Marshal.SizeOf<lua.BufferL>());
             Assert.Equal(16, Marshal.SizeOf<lua.Stream>());
         }
 
@@ -298,10 +300,10 @@ namespace Mod.Lua.Tests
             IntPtr L = LuaTestUtil.NewOpenState();
             try
             {
-                IntPtr bufPtr = Marshal.AllocHGlobal(Marshal.SizeOf<lua.Buffer>());
+                IntPtr bufPtr = Marshal.AllocHGlobal(Marshal.SizeOf<lua.BufferL>());
                 try
                 {
-                    lua.Buffer buf = default;
+                    lua.BufferL buf = default;
                     Marshal.StructureToPtr(buf, bufPtr, false);
                     LuaImport.luaL_buffinit(L, bufPtr);
 
@@ -310,8 +312,8 @@ namespace Mod.Lua.Tests
                     finally { LuaTestUtil.FreeUtf8(s); }
                     LuaImport.luaL_pushresult(bufPtr);
 
-                    buf = Marshal.PtrToStructure<lua.Buffer>(bufPtr);
-                    Assert.Equal(L, buf.L);                 // lua_State* round-trip
+                    buf = Marshal.PtrToStructure<lua.BufferL>(bufPtr);
+                    Assert.Equal(L, buf.L._L);              // lua_State* round-trip
                     Assert.Equal((UIntPtr)5, buf.n);        // 5 chars buffered
                     Assert.True(buf.size.ToUInt64() >= 5);  // capacity
                     Assert.Equal("hello", LuaTestUtil.ToClrString(L, -1));
@@ -739,6 +741,211 @@ namespace Mod.Lua.Tests
                 Assert.Equal(lua.OK, lua.dostring(L, new Mod.LowLevel.CStringSpan(code)));
                 Assert.Equal(50, lua.tointeger(L, -1));
                 lua.pop(L, 1);
+            }
+            finally { lua.close(L); }
+        }
+
+        // -------- luaL_Buffer 变长机制（5.5：placeholder → to-be-closed UBox → external string 零拷贝） --------
+
+        [Fact]
+        public void Buffer_Growth_BeyondInitial()
+        {
+            // > LUAL_BUFFERSIZE (1024 on x64) forces the placeholder to become
+            // a to-be-closed box; b is repointed, content preserved, the stack
+            // stays at buffinit level + 1, pushresult nets +1 (result string).
+            lua.State L = lua.newstate();
+            try
+            {
+                int top0 = lua.gettop(L);
+                lua.Buffer b = default;
+                lua.buffinit(L, ref b);
+                Assert.Equal(top0 + 1, lua.gettop(L)); // placeholder slot pushed
+
+                IntPtr initAddr = RawRef.Of(ref b.init).Address;
+                Assert.Equal(initAddr, lua.buffaddr(ref b)); // still the embedded init area
+
+                // 5000 bytes -> several growths (1024 -> 1537 -> 2306 -> 3460 -> 5191)
+                const int N = 5000;
+                IntPtr src = Marshal.AllocHGlobal(N);
+                try
+                {
+                    for (int i = 0; i < N; i++) Marshal.WriteByte(src, i, (byte)(i % 127 + 1));
+                    lua.addlstring(ref b, new CStringSpan(src, N, N));
+                }
+                finally { Marshal.FreeHGlobal(src); }
+
+                Assert.Equal((UIntPtr)N, lua.bufflen(ref b));
+                Assert.NotEqual(initAddr, lua.buffaddr(ref b)); // box owns the memory now
+                Assert.True(b.size.ToUInt64() > 1024);          // grew past the initial size
+                Assert.Equal(top0 + 1, lua.gettop(L));          // box replaced the placeholder slot
+
+                lua.pushresult(ref b);
+                Assert.Equal(top0 + 1, lua.gettop(L));          // pre-buffinit level + result string
+                Assert.Equal((long)N, (long)lua.rawlen(L, -1));
+                string s = LuaTestUtil.ToClrString(L._L, -1)!;
+                Assert.Equal(N, s.Length);
+                Assert.Equal((char)(0 % 127 + 1), s[0]);
+                Assert.Equal((char)(2499 % 127 + 1), s[2499]);
+                Assert.Equal((char)(4999 % 127 + 1), s[4999]);
+                lua.pop(L, 1);
+            }
+            finally { lua.close(L); }
+        }
+
+        [Fact]
+        public void Buffer_Addchar_Growth()
+        {
+            // addchar (macro facade) crosses the 1024 boundary byte by byte.
+            lua.State L = lua.newstate();
+            try
+            {
+                lua.Buffer b = default;
+                lua.buffinit(L, ref b);
+                const int N = 1500;
+                for (int i = 0; i < N; i++) lua.addchar(ref b, (byte)(i % 127 + 1));
+                Assert.Equal((UIntPtr)N, lua.bufflen(ref b));
+                Assert.NotEqual(RawRef.Of(ref b.init).Address, lua.buffaddr(ref b)); // grew
+                lua.pushresult(ref b);
+                string s = LuaTestUtil.ToClrString(L._L, -1)!;
+                Assert.Equal(N, s.Length);
+                for (int i = 0; i < N; i += 137) Assert.Equal((char)(i % 127 + 1), s[i]);
+                lua.pop(L, 1);
+            }
+            finally { lua.close(L); }
+        }
+
+        [Fact]
+        public void Buffer_Buffinitsize_Pushresultsize()
+        {
+            // Known-size path: preallocate 2000 (> 1024: immediate box), write
+            // through the returned region, finish with the actual size (<= sz).
+            lua.State L = lua.newstate();
+            try
+            {
+                int top0 = lua.gettop(L);
+                lua.Buffer b = default;
+                CStringRef r = lua.buffinitsize(L, ref b, 2000);
+                Assert.Equal(top0 + 1, lua.gettop(L)); // placeholder/box slot
+                Assert.NotEqual(RawRef.Of(ref b.init).Address, lua.buffaddr(ref b)); // box right away
+
+                const int W = 1500; // actual written size, less than the preallocation
+                for (int i = 0; i < W; i++) r[i] = (byte)(i % 127 + 1);
+                lua.pushresultsize(ref b, (UIntPtr)W);
+                Assert.Equal(top0 + 1, lua.gettop(L));
+                Assert.Equal((long)W, (long)lua.rawlen(L, -1));
+                string s = LuaTestUtil.ToClrString(L._L, -1)!;
+                Assert.Equal(W, s.Length);
+                Assert.Equal((char)(749 % 127 + 1), s[749]);
+                lua.pop(L, 1);
+            }
+            finally { lua.close(L); }
+        }
+
+        [Fact]
+        public void Buffer_AddValue_StackDiscipline()
+        {
+            // addvalue: the only buffer call allowed with an extra element on
+            // the stack (the value, above the placeholder/box); it pops it.
+            lua.State L = lua.newstate();
+            try
+            {
+                int top0 = lua.gettop(L);
+                lua.Buffer b = default;
+                lua.buffinit(L, ref b);
+                lua.addstring(ref b, new CStringSpan("a="));
+                lua.pushinteger(L, 42);                 // value above the placeholder
+                Assert.Equal(top0 + 2, lua.gettop(L));
+                lua.addvalue(ref b);                   // converts + adds + pops
+                Assert.Equal(top0 + 1, lua.gettop(L));  // value gone
+                lua.addstring(ref b, new CStringSpan("!"));
+                lua.pushresult(ref b);
+                Assert.Equal(top0 + 1, lua.gettop(L));
+                Assert.Equal("a=42!", LuaTestUtil.ToClrString(L._L, -1));
+                lua.pop(L, 1);
+            }
+            finally { lua.close(L); }
+        }
+
+        [Fact]
+        public void Buffer_Addgsub_IntoBuffer()
+        {
+            lua.State L = lua.newstate();
+            try
+            {
+                lua.Buffer b = default;
+                lua.buffinit(L, ref b);
+                lua.addstring(ref b, new CStringSpan("prefix:"));
+                lua.addgsub(ref b, new CStringSpan("hello world hello"),
+                            new CStringSpan("hello"), new CStringSpan("hi"));
+                lua.pushresult(ref b);
+                Assert.Equal("prefix:hi world hi", LuaTestUtil.ToClrString(L._L, -1));
+                lua.pop(L, 1);
+            }
+            finally { lua.close(L); }
+        }
+
+        [Fact]
+        public void Buffer_Prepbuffer_ManualWrite()
+        {
+            // prepbuffer: LUAL_BUFFERSIZE writable region + addsize commit.
+            lua.State L = lua.newstate();
+            try
+            {
+                lua.Buffer b = default;
+                lua.buffinit(L, ref b);
+                lua.addstring(ref b, new CStringSpan("ab"));
+                CStringRef r = lua.prepbuffer(ref b);
+                r[0] = (byte)'c';
+                r[1] = (byte)'d';
+                lua.addsize(ref b, (UIntPtr)2);
+                lua.pushresult(ref b);
+                Assert.Equal("abcd", LuaTestUtil.ToClrString(L._L, -1));
+                lua.pop(L, 1);
+            }
+            finally { lua.close(L); }
+        }
+
+        [Fact]
+        public void BufferBox_HeapHolder_And_DisposeSemantics()
+        {
+            // BufferBox: the struct lives in native memory (stable address on
+            // every host, including compacting-GC runtimes), so the whole
+            // sequence works with the holder on the heap. After Dispose every
+            // accessor throws ObjectDisposedException (uniform semantics).
+            lua.State L = lua.newstate();
+            try
+            {
+                int top0 = lua.gettop(L);
+                lua.BufferBox box = new lua.BufferBox();
+                lua.buffinit(L, box);
+                Assert.Equal(top0 + 1, lua.gettop(L)); // placeholder slot
+
+                // growth path through the heap holder: > 1024 forces the box
+                const int N = 3000;
+                IntPtr src = Marshal.AllocHGlobal(N);
+                try
+                {
+                    for (int i = 0; i < N; i++) Marshal.WriteByte(src, i, (byte)(i % 127 + 1));
+                    lua.addlstring(box, new CStringSpan(src, N, N));
+                }
+                finally { Marshal.FreeHGlobal(src); }
+                Assert.Equal((UIntPtr)N, lua.bufflen(box));
+                Assert.NotEqual(RawRef.Of(ref box.init).Address, lua.buffaddr(box)); // grew
+
+                lua.pushresult(box);
+                Assert.Equal(top0 + 1, lua.gettop(L));
+                string s = LuaTestUtil.ToClrString(L._L, -1)!;
+                Assert.Equal(N, s.Length);
+                Assert.Equal((char)(2999 % 127 + 1), s[2999]);
+                lua.pop(L, 1);
+
+                // sequence finished -> safe to Dispose
+                box.Dispose();
+                Assert.Throws<ObjectDisposedException>(() => lua.addstring(box, new CStringSpan("x")));
+                Assert.Throws<ObjectDisposedException>(() => _ = box.b);
+                Assert.Throws<ObjectDisposedException>(() => _ = box.n);
+                Assert.Throws<ObjectDisposedException>(() => _ = box.Value);
+                box.Dispose(); // double-Dispose stays a no-op (idempotent)
             }
             finally { lua.close(L); }
         }

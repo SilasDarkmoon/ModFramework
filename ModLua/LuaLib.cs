@@ -1337,14 +1337,36 @@ namespace Mod.Lua
         // multiple calls, so a per-call copy would leave b pointing at a dead
         // stack frame. The stack-local contract is the only safe usage on
         // every host.
+        //
+        // Lua 5.5 growth mechanism (lauxlib.c): buffinit pushes a PLACEHOLDER
+        // slot (a light userdata holding B's own address - one more reason the
+        // address must stay stable). On the first growth the placeholder is
+        // replaced by a to-be-closed userdata "box" that owns a raw block
+        // (resized through the state's lua_Alloc; new size = old * 1.5, at
+        // least n + sz + 1); the current content is memcpy'd over and B.b is
+        // repointed to it, so the returned writable region and buffaddr()
+        // move - do not cache them across buffer calls. pushresult hands the
+        // box memory to Lua as an external string with zero copies
+        // (lua_pushexternalstring) and removes the slot.
+        //
+        // Stack discipline while the buffer is open (manual, luaL_Buffer):
+        // keep every push/pop balanced between buffer calls - the
+        // placeholder/box must stay on top (gettop stays at buffinit's level
+        // + 1). addvalue is the only exception: the value to add sits ABOVE
+        // the slot and is popped by the call. After pushresult the stack is
+        // back to its pre-buffinit level plus the final string on top.
 
-        public static void buffinit(this State L, ref Buffer B) => LuaImport.luaL_buffinit(Ptr(L), Ptr(ref B)); // NOTE: B must be a stack local
-        public static CStringRef prepbuffsize(ref Buffer B, UIntPtr sz)
+        internal static void buffinit(this State L, ref BufferL B) => LuaImport.luaL_buffinit(Ptr(L), Ptr(ref B)); // NOTE: B must be a stack local
+        public static void buffinit(this State L, ref Buffer B) => buffinit(L, ref B.Inner); // NOTE: B must be a stack local
+        public static void buffinit(this State L, BufferBox B) => buffinit(L, ref B.Inner);
+        internal static CStringRef prepbuffsize(ref BufferL B, UIntPtr sz)
         {
             var addr = LuaImport.luaL_prepbuffsize(Ptr(ref B), sz);
             return new CStringRef(addr, (int)sz, 0);   // len 0: writable region, content not yet written
         } // NOTE: B must be a stack local; returns a writable char* region
-        public static void addlstring(ref Buffer B, CStringSpan s)
+        public static CStringRef prepbuffsize(ref Buffer B, UIntPtr sz) => prepbuffsize(ref B.Inner, sz); // NOTE: B must be a stack local; returns a writable char* region
+        public static CStringRef prepbuffsize(BufferBox B, UIntPtr sz) => prepbuffsize(ref B.Inner, sz); // returns a writable char* region
+        internal static void addlstring(ref BufferL B, CStringSpan s)
         {
             using (NativeBuffer bs = default)
             {
@@ -1362,16 +1384,28 @@ namespace Mod.Lua
                 LuaImport.luaL_addlstring(Ptr(ref B), ps, (UIntPtr)s.Length);
             }
         } // NOTE: B must be a stack local;
-        public static void addstring(ref Buffer B, CStringSpan s) => addlstring(ref B, s); // NOTE: B must be a stack local;
-        public static void addvalue(ref Buffer B) => LuaImport.luaL_addvalue(Ptr(ref B)); // NOTE: B must be a stack local
-        public static void pushresult(ref Buffer B) => LuaImport.luaL_pushresult(Ptr(ref B)); // NOTE: B must be a stack local
-        public static void pushresultsize(ref Buffer B, UIntPtr sz) => LuaImport.luaL_pushresultsize(Ptr(ref B), sz); // NOTE: B must be a stack local
-        public static CStringRef buffinitsize(this State L, ref Buffer B, UIntPtr sz)
+        public static void addlstring(ref Buffer B, CStringSpan s) => addlstring(ref B.Inner, s); // NOTE: B must be a stack local;
+        public static void addlstring(BufferBox B, CStringSpan s) => addlstring(ref B.Inner, s);
+        internal static void addstring(ref BufferL B, CStringSpan s) => addlstring(ref B, s); // NOTE: B must be a stack local;
+        public static void addstring(ref Buffer B, CStringSpan s) => addstring(ref B.Inner, s); // NOTE: B must be a stack local;
+        public static void addstring(BufferBox B, CStringSpan s) => addstring(ref B.Inner, s);
+        internal static void addvalue(ref BufferL B) => LuaImport.luaL_addvalue(Ptr(ref B)); // NOTE: B must be a stack local
+        public static void addvalue(ref Buffer B) => addvalue(ref B.Inner); // NOTE: B must be a stack local
+        public static void addvalue(BufferBox B) => addvalue(ref B.Inner);
+        internal static void pushresult(ref BufferL B) => LuaImport.luaL_pushresult(Ptr(ref B)); // NOTE: B must be a stack local
+        public static void pushresult(ref Buffer B) => pushresult(ref B.Inner); // NOTE: B must be a stack local
+        public static void pushresult(BufferBox B) => pushresult(ref B.Inner);
+        internal static void pushresultsize(ref BufferL B, UIntPtr sz) => LuaImport.luaL_pushresultsize(Ptr(ref B), sz); // NOTE: B must be a stack local
+        public static void pushresultsize(ref Buffer B, UIntPtr sz) => pushresultsize(ref B.Inner, sz); // NOTE: B must be a stack local
+        public static void pushresultsize(BufferBox B, UIntPtr sz) => pushresultsize(ref B.Inner, sz);
+        internal static CStringRef buffinitsize(this State L, ref BufferL B, UIntPtr sz)
         {
             var addr = LuaImport.luaL_buffinitsize(Ptr(L), Ptr(ref B), sz);
             return new CStringRef(addr, (int)sz, 0);   // len 0: writable region, content not yet written
         } // NOTE: B must be a stack local; returns a writable char* region
-        public static void addgsub(ref Buffer B, CStringSpan s, CStringSpan p, CStringSpan r)
+        public static CStringRef buffinitsize(this State L, ref Buffer B, UIntPtr sz) => buffinitsize(L, ref B.Inner, sz);  // NOTE: B must be a stack local; returns a writable char* region
+        public static CStringRef buffinitsize(this State L, BufferBox B, UIntPtr sz) => buffinitsize(L, ref B.Inner, sz);  // returns a writable char* region
+        internal static void addgsub(ref BufferL B, CStringSpan s, CStringSpan p, CStringSpan r)
         {
             using (NativeBuffer bs = default, bp = default(NativeBuffer), br = default)
             {
@@ -1414,6 +1448,8 @@ namespace Mod.Lua
                 LuaImport.luaL_addgsub(Ptr(ref B), ps, pp, pr);
             }
         } // NOTE: B must be a stack local;
+        public static void addgsub(ref Buffer B, CStringSpan s, CStringSpan p, CStringSpan r) => addgsub(ref B.Inner, s, p, r); // NOTE: B must be a stack local;
+        public static void addgsub(BufferBox B, CStringSpan s, CStringSpan p, CStringSpan r) => addgsub(ref B.Inner, s, p, r);
 
         #endregion
 
@@ -1645,24 +1681,36 @@ namespace Mod.Lua
         public static void pushfail(this State L) => LuaImport.lua_pushnil(Ptr(L));
 
         // luaL_bufflen(bf) / luaL_buffaddr(bf) -> field reads.
+        internal static UIntPtr bufflen(ref BufferL B) => B.n;
         public static UIntPtr bufflen(ref Buffer B) => B.n;
+        public static UIntPtr bufflen(BufferBox B) => B.n;
+        internal static IntPtr buffaddr(ref BufferL B) => B.b;
         public static IntPtr buffaddr(ref Buffer B) => B.b;
+        public static IntPtr buffaddr(BufferBox B) => B.b;
 
         // luaL_addchar(B,c): grow by 1 if full, write the byte, advance n.
         // NOTE: B must be a stack local (see the buffer region above).
-        public static void addchar(ref Buffer B, byte c)
+        internal static void addchar(ref BufferL B, byte c)
         {
             if (B.n.ToUInt64() >= B.size.ToUInt64()) LuaImport.luaL_prepbuffsize(Ptr(ref B), (UIntPtr)1);
             Marshal.WriteByte(B.b, (int)B.n, c);
             B.n = (UIntPtr)(B.n.ToUInt64() + 1);
         }
+        public static void addchar(ref Buffer B, byte c) => addchar(ref B.Inner, c); // luaL_addchar(B,c): grow by 1 if full, write the byte, advance n. // NOTE: B must be a stack local (see the buffer region above).
+        public static void addchar(BufferBox B, byte c) => addchar(ref B.Inner, c); // luaL_addchar(B,c): grow by 1 if full, write the byte, advance n.
 
         // luaL_addsize(B,s) / luaL_buffsub(B,s) -> n += s / n -= s.
+        internal static void addsize(ref BufferL B, UIntPtr s) => B.n = (UIntPtr)(B.n.ToUInt64() + s.ToUInt64());
         public static void addsize(ref Buffer B, UIntPtr s) => B.n = (UIntPtr)(B.n.ToUInt64() + s.ToUInt64());
+        public static void addsize(BufferBox B, UIntPtr s) => B.n = (UIntPtr)(B.n.ToUInt64() + s.ToUInt64());
+        internal static void buffsub(ref BufferL B, UIntPtr s) => B.n = (UIntPtr)(B.n.ToUInt64() - s.ToUInt64());
         public static void buffsub(ref Buffer B, UIntPtr s) => B.n = (UIntPtr)(B.n.ToUInt64() - s.ToUInt64());
+        public static void buffsub(BufferBox B, UIntPtr s) => B.n = (UIntPtr)(B.n.ToUInt64() - s.ToUInt64());
 
         // luaL_prepbuffer(B) -> prepbuffsize(B, LUAL_BUFFERSIZE).
-        public static CStringRef prepbuffer(ref Buffer B) => prepbuffsize(ref B, BUFFERSIZE); // NOTE: B must be a stack local
+        internal static CStringRef prepbuffer(ref BufferL B) => prepbuffsize(ref B, BUFFERSIZE); // NOTE: B must be a stack local
+        public static CStringRef prepbuffer(ref Buffer B) => prepbuffer(ref B.Inner); // NOTE: B must be a stack local
+        public static CStringRef prepbuffer(BufferBox B) => prepbuffer(ref B.Inner); // NOTE: B must be a stack local
 
         // luaL_argcheck / luaL_argexpected: cond || argerror/typeerror.
         public static void argcheck(this State L, bool cond, int arg, CStringSpan extramsg)

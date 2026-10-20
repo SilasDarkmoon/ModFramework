@@ -1,3 +1,4 @@
+using Mod.LowLevel;
 using System;
 using System.Runtime.InteropServices;
 
@@ -135,18 +136,134 @@ namespace Mod.Lua
         /// by luaL_prepbuffsize, not through 'init'.
         /// </summary>
         [StructLayout(LayoutKind.Sequential)]
-        public struct Buffer
+        internal struct BufferL
         {
             public IntPtr b;        // char* b - buffer address
             public UIntPtr size;    // size_t size - buffer size
             public UIntPtr n;       // size_t n - number of characters in buffer
-            public IntPtr L;        // lua_State* L
+            public State L;        // lua_State* L
             // C: union { LUAI_MAXALIGN; char b[LUAL_BUFFERSIZE]; } init;
             // LUAL_BUFFERSIZE = 16 * sizeof(void*) * sizeof(lua_Number):
             // 1024 bytes on 64-bit, 512 on 32-bit. We reserve the maximum;
             // on 32-bit Lua only writes the first 512 bytes, which stays in bounds.
             public Buffer1024 init;
         }
+        /// <summary>
+        /// Heap-resident holder for a luaL_Buffer. The struct itself lives
+        /// in native memory (NativeMapper), so its address never moves on
+        /// any host - including compacting-GC runtimes - and the buffer's
+        /// placeholder/box contract holds even when this holder is a heap
+        /// object or a field of one.
+        ///
+        /// Lifetime: finish the buffer sequence (buffinit ... pushresult),
+        /// or abandon it by letting a Lua error unwind the stack, BEFORE
+        /// Dispose (or finalization). Disposing mid-sequence frees the
+        /// native struct while the Lua stack still holds a placeholder
+        /// pointing at it (a light userdata): Lua never dereferences the
+        /// placeholder by itself, so the consequence is one leaked stack
+        /// slot until lua_close - not a crash - but the disposed buffer
+        /// must not be used again: every accessor throws
+        /// ObjectDisposedException after Dispose.
+        /// </summary>
+        public class BufferBox : IDisposable
+        {
+            private NativeMapper<BufferL> _Inner;
+            internal ref BufferL Inner
+            {
+                get
+                {
+                    if (!_Inner.IsValid) throw new ObjectDisposedException(nameof(BufferBox));
+                    return ref _Inner.Inner;
+                }
+            }
+            internal BufferL Value
+            {
+                get
+                {
+                    if (!_Inner.IsValid) throw new ObjectDisposedException(nameof(BufferBox));
+                    return _Inner.Value;
+                }
+                set
+                {
+                    if (!_Inner.IsValid) throw new ObjectDisposedException(nameof(BufferBox));
+                    _Inner.Value = value;
+                }
+            }
+
+            public BufferBox()
+            {
+                _Inner = new NativeMapper<BufferL>();
+                _Inner.Init();
+            }
+            public void Dispose()
+            {
+                _Inner.Dispose();
+                GC.SuppressFinalize(this);
+            }
+            ~BufferBox()
+            {
+                _Inner.Dispose();
+            }
+
+            // Uniform "disposed means disposed" semantics: every accessor
+            // throws ObjectDisposedException after Dispose (no silent
+            // empty-ref fallbacks, no silent drops) - the facades all go
+            // through Inner, so a use-after-Dispose surfaces as a managed
+            // exception with a full stack trace instead of a NULL pointer
+            // handed to native code.
+            public ref IntPtr b
+            {
+                get
+                {
+                    if (!_Inner.IsValid) throw new ObjectDisposedException(nameof(BufferBox));
+                    return ref _Inner.Inner.b;
+                }
+            }
+            public ref UIntPtr size
+            {
+                get
+                {
+                    if (!_Inner.IsValid) throw new ObjectDisposedException(nameof(BufferBox));
+                    return ref _Inner.Inner.size;
+                }
+            }
+            public ref UIntPtr n
+            {
+                get
+                {
+                    if (!_Inner.IsValid) throw new ObjectDisposedException(nameof(BufferBox));
+                    return ref _Inner.Inner.n;
+                }
+            }
+            public ref State L
+            {
+                get
+                {
+                    if (!_Inner.IsValid) throw new ObjectDisposedException(nameof(BufferBox));
+                    return ref _Inner.Inner.L;
+                }
+            }
+            public ref Buffer1024 init
+            {
+                get
+                {
+                    if (!_Inner.IsValid) throw new ObjectDisposedException(nameof(BufferBox));
+                    return ref _Inner.Inner.init;
+                }
+            }
+        }
+        public ref struct Buffer
+        {
+            private BufferL _Inner;
+            internal ref BufferL Inner => ref RawRef.Of(ref _Inner).GetRef<BufferL>();
+
+            public ref IntPtr b => ref RawRef.Of(ref _Inner.b).GetRef<IntPtr>();
+            public ref UIntPtr size => ref RawRef.Of(ref _Inner.size).GetRef<UIntPtr>();
+            public ref UIntPtr n => ref RawRef.Of(ref _Inner.n).GetRef<UIntPtr>();
+            public ref State L => ref RawRef.Of(ref _Inner.L).GetRef<State>();
+            public ref Buffer1024 init => ref RawRef.Of(ref _Inner.init).GetRef<Buffer1024>();
+        }
+
 
         /// <summary>
         /// luaL_Stream (lauxlib.h): initial structure of a file-handle userdata

@@ -49,12 +49,15 @@ namespace Mod
         {
             return buffer.ToSpan<byte>();
         }
+
+        public bool IsNull => _Ptr == IntPtr.Zero;
+        public bool IsValid => _Ptr != IntPtr.Zero && _Size > 0;
     }
     public struct NativeOrStackBuffer : IDisposable
     {
         private NativeBuffer _NativeBuffer;
         private NativeBuffer _StackBuffer;
-        public bool IsNative => _StackBuffer.Ptr == IntPtr.Zero;
+        public bool IsNative => !_NativeBuffer.IsNull;
 
         public NativeOrStackBuffer(int size)
         {
@@ -93,6 +96,69 @@ namespace Mod
         public static implicit operator Span<byte>(NativeOrStackBuffer buffer)
         {
             return buffer.ToSpan<byte>();
+        }
+    }
+    public struct NativeMapper<T> : IDisposable
+    {
+        private NativeBuffer _Buffer;
+        public ref T Inner => ref UnsafeEx.ToRef<T>(_Buffer.Ptr);
+        public T Value
+        {
+            get => _Buffer.IsNull ? default(T) : Inner;
+            set => Init(value);
+        }
+        public bool IsValid => !_Buffer.IsNull;
+        public void Init()
+        {
+            if (_Buffer.IsNull)
+            {
+                _Buffer = new NativeBuffer(UnsafeEx.Size<T>());
+            }
+        }
+        public void Init(T value)
+        {
+            Init();
+            Inner = value;
+        }
+        public NativeMapper(T value)
+        {
+            _Buffer = new NativeBuffer(UnsafeEx.Size<T>());
+            Inner = value;
+        }
+        public void Dispose()
+        {
+            _Buffer.Dispose();
+        }
+    }
+    public class NativeBox<T> : IDisposable
+    {
+        private NativeMapper<T> _Mapper;
+        public ref T Inner => ref _Mapper.Inner;
+        public T Value
+        {
+            get => _Mapper.Value;
+            set
+            {
+                if (_Mapper.IsValid)
+                {
+                    _Mapper.Value = value;
+                }
+            }
+        }
+        public bool IsValid => _Mapper.IsValid;
+        public NativeBox()
+        {
+            _Mapper = new NativeMapper<T>();
+            _Mapper.Init();
+        }
+        public void Dispose()
+        {
+            _Mapper.Dispose();
+            GC.SuppressFinalize(this);
+        }
+        ~NativeBox()
+        {
+            _Mapper.Dispose();
         }
     }
 }

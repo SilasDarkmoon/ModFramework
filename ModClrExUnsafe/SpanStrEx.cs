@@ -135,6 +135,15 @@ namespace Mod.LowLevel
             }
         }
 
+        public static IntPtr GetAddress<T>(ref T r)
+        {
+            return RawRef.Of(ref r).Address;
+        }
+        public static ref T ToRef<T>(IntPtr addr)
+        {
+            return ref RawRef.Of(addr).GetRef<T>();
+        }
+
         public static bool IsNull<T>(this Span<T> span)
         {
             unsafe
