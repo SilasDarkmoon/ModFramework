@@ -6,7 +6,7 @@ namespace Mod.LowLevel
 {
     public static partial class UnsafeEx
     {
-        public static ref T ConvertRefCommon<F, T>(ref F from)
+        public static ref T ConvertRef<F, T>(ref F from)
         {
             RawRef r = new RawRef();
             for (; ; )
@@ -22,7 +22,7 @@ namespace Mod.LowLevel
                 }
             }
         }
-        public static T ConvertObjectRef<T>(this object source)
+        public static T ConvertObjectTypeForcibly<T>(this object source)
         {
             RawRef r = new RawRef();
             r.SetRef(ref source);
@@ -31,7 +31,7 @@ namespace Mod.LowLevel
         }
         public static ref T ConvertStructRef<F, T>(this ref F source) where F : struct
         {
-            return ref ConvertRefCommon<F, T>(ref source);
+            return ref ConvertRef<F, T>(ref source);
         }
         /// <summary>
         /// Pretend that the ref of a struct is an object
@@ -39,17 +39,15 @@ namespace Mod.LowLevel
         public static T ConvertPretend<F, T>(ref F from)
         {
             RawRef r = new RawRef();
-            for (; ; )
+            unsafe
             {
-                r.SetRef(ref from);
-                var preaddr = r.Address;
-                object temprv = r.GetRefObj();
-                r.SetRef(ref from);
-                var postaddr = r.Address;
-                if (postaddr == preaddr)
+#pragma warning disable CS8500 // Taking the address of a managed type
+                fixed (F* fp = &from)
                 {
-                    return ConvertObjectRef<T>(temprv);
+                    r.Address = (IntPtr)fp;
+                    return r.GetRefObj().ConvertObjectTypeForcibly<T>();
                 }
+#pragma warning restore CS8500 // Taking the address of a managed type
             }
         }
         /// <summary>
@@ -79,20 +77,17 @@ namespace Mod.LowLevel
         /// </remarks>
         public static T ConvertToOuterObject<F, T>(ref F from)
         {
-            RawRef r = new RawRef();
             var headerSize = GetObjectHeaderSize();
-            for (; ; )
+            RawRef r = new RawRef();
+            unsafe
             {
-                r.SetRef(ref from);
-                var preaddr = r.Address;
-                r.Address -= headerSize;
-                object temprv = r.GetRefObj();
-                r.SetRef(ref from);
-                var postaddr = r.Address;
-                if (postaddr == preaddr)
+#pragma warning disable CS8500 // Taking the address of a managed type
+                fixed (F* fp = &from)
                 {
-                    return ConvertObjectRef<T>(temprv);
+                    r.Address = (IntPtr)fp - headerSize;
+                    return r.GetRefObj().ConvertObjectTypeForcibly<T>();
                 }
+#pragma warning restore CS8500 // Taking the address of a managed type
             }
         }
         /// <summary>

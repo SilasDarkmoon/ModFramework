@@ -342,7 +342,7 @@ namespace Mod.LowLevel
                 val = default;
                 if (!typeof(T).IsValueType)
                 {
-                    ref var obj = ref ConvertRefCommon<T, object>(ref val);
+                    ref var obj = ref ConvertRef<T, object>(ref val);
                     return ref Alloc(out obj);
                 }
                 RawRef r = new RawRef();

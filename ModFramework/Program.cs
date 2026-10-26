@@ -24,6 +24,8 @@ class Program
         //TestScript.Test();
         //TestScript_UnsafeInstanceDelegate.Test();
         //TestScript_DelegateCurry.Test();
-        TestScript_WeakEvent.Test();
+        //TestScript_WeakEvent.Test();
+        //TestScript_RefStructs.Test();
+        TestScript_RefInvoker.Test();
     }
 }

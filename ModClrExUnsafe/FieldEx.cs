@@ -12,7 +12,6 @@ namespace Mod.LowLevel
             public int StubField;
         }
         private static int _ObjectHeaderSize;
-
         public static int GetObjectHeaderSize()
         {
             if (_ObjectHeaderSize <= 0)
@@ -38,6 +37,34 @@ namespace Mod.LowLevel
                 }
             }
             return _ObjectHeaderSize;
+        }
+
+        private static int _ArrayFirstElementOffset;
+        public static int GetArrayFirstElementOffset()
+        {
+            if (_ArrayFirstElementOffset <= 0)
+            {
+                var arr = new int[1];
+                for (; ; )
+                {
+                    RawRef refArr = default;
+                    refArr.SetRefObj(arr);
+                    var addArr = refArr.Address;
+                    RawRef refElem = default;
+                    refElem.SetRef(ref arr[0]);
+                    var addElem = refElem.Address;
+                    var offset = (int)((ulong)addElem - (ulong)addArr);
+                    RawRef refCheck = default;
+                    refCheck.SetRefObj(arr);
+                    var addCheck = refCheck.Address;
+                    if (addCheck == addArr)
+                    {
+                        _ArrayFirstElementOffset = offset - GetObjectHeaderSize();
+                        break;
+                    }
+                }
+            }
+            return _ArrayFirstElementOffset;
         }
 
         //public static ref IntPtr GetTypeHandleRef(this object obj)
@@ -243,6 +270,24 @@ namespace Mod.LowLevel
         public static ref byte GetHeadRefCommon<S>(ref S obj)
         {
             return ref GetFieldRefCommon<S, byte>(ref obj, 0);
+        }
+
+        public static ref byte GetFirstElementRef(this Array arr)
+        {
+            if (arr == null)
+            {
+                return ref Ref.GetEmptyRef<byte>();
+            }
+            return ref GetFieldRef<byte>(arr, GetArrayFirstElementOffset());
+        }
+        public static ref T GetFirstElementRef<T>(this Array arr)
+        {
+            ref byte firstElemRef = ref GetFirstElementRef(arr);
+            return ref ConvertRef<byte, T>(ref firstElemRef);
+        }
+        public static ref T GetFirstElementRef<T>(this T[] arr)
+        {
+            return ref GetFirstElementRef<T>((Array)arr);
         }
 
         private static class SizeMeasurer

@@ -26,7 +26,7 @@ namespace ModClrExUnsafe.Tests
         private class Box { public int X = 5; public int Y = 6; }
 
         // =====================================================================
-        // ConvertRefCommon / ConvertStructRef: same-address reinterpretation
+        // ConvertRef / ConvertStructRef: same-address reinterpretation
         // =====================================================================
 
         [Fact]
@@ -34,7 +34,7 @@ namespace ModClrExUnsafe.Tests
         {
             var a = new StructA { X = 1, Y = 2 };
 
-            ref StructB b = ref UnsafeEx.ConvertRefCommon<StructA, StructB>(ref a);
+            ref StructB b = ref UnsafeEx.ConvertRef<StructA, StructB>(ref a);
 
             Assert.Equal(1, b.X);
             Assert.Equal(2, b.Y);
@@ -55,7 +55,7 @@ namespace ModClrExUnsafe.Tests
         }
 
         // =====================================================================
-        // ConvertObjectRef: read the object slot as another reference type
+        // ConvertObjectTypeForcibly: read the object slot as another reference type
         // =====================================================================
 
         [Fact]
@@ -64,7 +64,7 @@ namespace ModClrExUnsafe.Tests
             var list = new System.Collections.Generic.List<int> { 1, 2, 3 };
             object o = list;                            // the slot now holds the List reference
 
-            var back = o.ConvertObjectRef<System.Collections.Generic.List<int>>();
+            var back = o.ConvertObjectTypeForcibly<System.Collections.Generic.List<int>>();
 
             Assert.Same(list, back);                    // same reference, re-typed
         }

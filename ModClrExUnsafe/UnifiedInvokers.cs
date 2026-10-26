@@ -47,7 +47,7 @@ namespace Mod.LowLevel
     {
         public static ref T ToRef<T>(this ref ByRefParam r)
         {
-            return ref ConvertRefCommon<ByRefParam, T>(ref r);
+            return ref ConvertRef<ByRefParam, T>(ref r);
         }
 
         public static R Invoke<R>(this UnifiedRefFunc<R> ufunc) { return ufunc(out _); }
