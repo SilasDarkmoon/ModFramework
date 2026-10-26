@@ -256,7 +256,10 @@ namespace Mod.Lua
         #region state manipulation
 
         /// <summary><c>[-0, +0, -]</c> Creates a new state with a custom allocator and a random seed (lua_newstate).</summary>
-        /// <remarks>Returns default(State) on allocation failure.</remarks>
+        /// <param name="ud">A C <c>void*</c>: an opaque cookie of your choice that native code
+        /// never dereferences - it is passed back verbatim as the first argument of every Alloc
+        /// callback (e.g. a GCHandle.ToIntPtr root).</param>
+        /// <returns>default(State) on allocation failure.</returns>
         public static State newstate(Alloc f, IntPtr ud, uint seed) => new State { _L = LuaImport.lua_newstate(Keep(f), ud, seed) };
         /// <summary><c>[-0, +0, -]</c> Creates a new state with the default allocator (luaL_newstate).</summary>
         /// <remarks>Installs the default panic and warn functions (lauxlib).</remarks>
@@ -266,13 +269,13 @@ namespace Mod.Lua
         /// <summary><c>[-0, +1, m]</c> Creates a new coroutine thread sharing the global environment (lua_newthread).</summary>
         public static State newthread(this State L) => new State { _L = LuaImport.lua_newthread(Ptr(L)) };
         /// <summary><c>[-0, +?, -]</c> Resets a thread, closing its pending variables to be closed, and returns its status (lua_closethread).</summary>
-        /// <remarks>from may be default(State) (NULL) to close only the given thread.</remarks>
+        /// <param name="from">may be default(State) (NULL) to close only the given thread.</param>
         public static int closethread(this State L, State from) => LuaImport.lua_closethread(Ptr(L), Ptr(from));
         /// <summary><c>[-0, +0, -]</c> Sets a new panic function; returns the old one (lua_atpanic).</summary>
         /// <remarks>The returned delegate is the previous panic function wrapped via GetDelegateForFunctionPointer.</remarks>
         public static CFunction atpanic(this State L, CFunction panicf) => ToDel<CFunction>(LuaImport.lua_atpanic(Ptr(L), Keep(panicf)));
         /// <summary><c>[-0, +0, -]</c> Returns the version number of the core (lua_version).</summary>
-        /// <remarks>L may be default(State) (NULL) to query the linked core without a state.</remarks>
+        /// <param name="L">may be default(State) (NULL) to query the linked core without a state.</param>
         public static double version(this State L) => LuaImport.lua_version(Ptr(L));
 
         #endregion
@@ -290,8 +293,7 @@ namespace Mod.Lua
         /// <summary><c>[-0, +1, -]</c> Pushes a copy of the element at idx onto the stack (lua_pushvalue).</summary>
         public static void pushvalue(this State L, int idx) => LuaImport.lua_pushvalue(Ptr(L), idx);
         /// <summary><c>[-0, +0, -]</c> Rotates the stack elements between idx and the top by n positions (lua_rotate).</summary>
-        /// <remarks>Positive n rotates towards the top; n == 1 is equivalent to insert; n == -1 to
-        /// remove (followed by pop). Zeroed by raising an error on bad input.</remarks>
+        /// <param name="n">Positive rotates towards the top; n == 1 is equivalent to insert; n == -1 to remove (followed by pop).</param>
         public static void rotate(this State L, int idx, int n) => LuaImport.lua_rotate(Ptr(L), idx, n);
         /// <summary><c>[-0, +0, -]</c> Copies the element at fromidx to toidx (lua_copy).</summary>
         public static void copy(this State L, int fromidx, int toidx) => LuaImport.lua_copy(Ptr(L), fromidx, toidx);
@@ -339,7 +341,7 @@ namespace Mod.Lua
         /// <summary><c>[-0, +0, -]</c> Returns the type of the value at idx, or TNONE for a bad index (lua_type).</summary>
         public static int type(this State L, int idx) => LuaImport.lua_type(Ptr(L), idx);
         /// <summary><c>[-0, +0, -]</c> Returns the name of the type tag tp (lua_typename).</summary>
-        /// <remarks>The returned CStringRef is backed by a static literal - permanently valid.</remarks>
+        /// <returns>A CStringRef backed by a static literal - permanently valid.</returns>
         public static CStringRef typename(this State L, int tp) => new CStringRef(LuaImport.lua_typename(Ptr(L), tp));
         /// <summary><c>[-0, +0, -]</c> Converts the value at idx to a double; isnum reports success (lua_tonumberx).</summary>
         public static double tonumberx(this State L, int idx, out bool isnum)
@@ -371,8 +373,8 @@ namespace Mod.Lua
             return new CStringRef(pstr, (int)len + 1, (int)len);
         }
         /// <summary><c>[-0, +1, e]</c> Converts any value to a string honouring __tostring; the result is pushed and returned (luaL_tolstring).</summary>
-        /// <remarks>Raises an error when __tostring fails (hence 'e'). The pushed string's pointer is
-        /// valid while the value stays on the stack.</remarks>
+        /// <remarks>Raises an error when __tostring fails (hence 'e').</remarks>
+        /// <returns>The pushed string - valid while the value stays on the stack.</returns>
         public static CStringRef tolstringL(this State L, int idx)
         {
             IntPtr len = default;
@@ -385,10 +387,17 @@ namespace Mod.Lua
         /// <summary><c>[-0, +0, -]</c> Returns the C function at idx as a delegate, or null (lua_tocfunction).</summary>
         public static CFunction tocfunction(this State L, int idx) => ToDel<CFunction>(LuaImport.lua_tocfunction(Ptr(L), idx));
         /// <summary><c>[-0, +0, -]</c> Returns the memory block of the userdata at idx (lua_touserdata).</summary>
+        /// <returns>A C <c>void*</c> to the raw memory block of a FULL userdata (the size you
+        /// allocated with newuserdatauv - Lua does not record it). NULL for light userdata (use
+        /// topointer) or non-userdata values. The block lives until the userdata is collected;
+        /// write your own blittable layout through it (e.g. UnsafeEx.ToRef&lt;T&gt;).</returns>
         public static IntPtr touserdata(this State L, int idx) => LuaImport.lua_touserdata(Ptr(L), idx);
         /// <summary><c>[-0, +0, -]</c> Returns the thread at idx (lua_tothread).</summary>
         public static State tothread(this State L, int idx) => new State { _L = LuaImport.lua_tothread(Ptr(L), idx) };
         /// <summary><c>[-0, +0, -]</c> Returns a light-internal pointer to the value at idx (lua_topointer).</summary>
+        /// <remarks>WARNING (manual): the value has no predictable lifetime and MUST NOT be
+        /// dereferenced or used as a table key - only for hashing/debugging/comparing values
+        /// by identity. Different value kinds return different internal addresses.</remarks>
         public static IntPtr topointer(this State L, int idx) => LuaImport.lua_topointer(Ptr(L), idx);
 
         #endregion
@@ -397,7 +406,8 @@ namespace Mod.Lua
 
         /// <summary><c>[-(2|1), +1, e]</c> Performs an arithmetic operation over the top values (lua_arith).</summary>
         /// <remarks>Pops two operands (unary ops use only the top one) and pushes the result;
-        /// may trigger metamethods ('e'). op is one of OPADD..OPBNOT.</remarks>
+        /// may trigger metamethods ('e').</remarks>
+        /// <param name="op">One of OPADD..OPBNOT.</param>
         public static void arith(this State L, int op) => LuaImport.lua_arith(Ptr(L), op);
         /// <summary><c>[-0, +0, -]</c> Raw equality (no metamethods) of the two values (lua_rawequal).</summary>
         public static int rawequal(this State L, int idx1, int idx2) => LuaImport.lua_rawequal(Ptr(L), idx1, idx2);
@@ -415,8 +425,8 @@ namespace Mod.Lua
         /// <summary><c>[-0, +1, -]</c> Pushes an integer number (lua_pushinteger).</summary>
         public static void pushinteger(this State L, long n) => LuaImport.lua_pushinteger(Ptr(L), n);
         /// <summary><c>[-0, +1, v]</c> Pushes the string s (length-prefixed by the span) onto the stack (lua_pushlstring).</summary>
-        /// <remarks>Embedded zeros are allowed. Returns the CStringRef of the pushed (interned) copy -
-        /// valid while the value stays on the stack. An empty span pushes an empty string.</remarks>
+        /// <remarks>Embedded zeros are allowed. An empty span pushes an empty string.</remarks>
+        /// <returns>The CStringRef of the pushed (interned) copy - valid while the value stays on the stack.</returns>
         public static CStringRef pushlstring(this State L, CStringSpan s)
         {
             using (NativeBuffer bs = default)
@@ -440,7 +450,8 @@ namespace Mod.Lua
         /// <remarks>The buffer is NOT copied: Lua stores the pointer and calls falloc(ud, s, len+1, 0)
         /// when the string is collected. s[len] must be '\0' (the native api_check dereferences it) -
         /// an empty CStringRef is an invalid argument, same as in C. falloc = null marks the string
-        /// as fixed (never deallocated). Returns the input reference (the string's identity).</remarks>
+        /// as fixed (never deallocated). ud is a C <c>void*</c>: an opaque cookie of your choice
+        /// passed back verbatim to falloc. Returns the input reference (the string's identity).</remarks>
         public static CStringRef pushexternalstring(this State L, CStringRef s, Alloc falloc, IntPtr ud)
         {
             // Empty span -> NULL, but an external string REQUIRES s[len] == '\0'
@@ -451,8 +462,8 @@ namespace Mod.Lua
             return s;
         }
         /// <summary><c>[-0, +1, m]</c> Pushes the NUL-terminated string s onto the stack (lua_pushstring).</summary>
-        /// <remarks>A null span pushes nil. Returns the CStringRef of the pushed copy - valid while
-        /// the value stays on the stack.</remarks>
+        /// <param name="s">A null span pushes nil.</param>
+        /// <returns>The CStringRef of the pushed copy - valid while the value stays on the stack.</returns>
         public static CStringRef pushstring(this State L, CStringSpan s)
         {
             using (NativeBuffer bs = default)
@@ -518,6 +529,10 @@ namespace Mod.Lua
             }
         }
         /// <summary><c>[-0, +1, v]</c> Pushes a formatted string with a single conversion argument (lua_pushfstring).</summary>
+        /// <remarks>arg1 is the single C vararg after default argument promotion: for %s a
+        /// <c>char*</c> (CStringSpan/CStringRef address), for %d/%I an integer widened to
+        /// pointer width, for %p a pointer, for %f a double (not passable here - use the
+        /// native-va_list pushvfstring or format in C# instead).</remarks>
         public static CStringRef pushfstring(this State L, CStringSpan fmt, IntPtr arg1)
         {
             using (NativeBuffer bfmt = default)
@@ -539,12 +554,16 @@ namespace Mod.Lua
             }
         }
         /// <summary><c>[-n, +1, m]</c> Pushes a C function with n upvalues as a closure (lua_pushcclosure).</summary>
-        /// <remarks>The n upvalues are popped from the stack. The delegate is kept alive for the
-        /// lifetime of the process (Keep registry - Lua holds a raw thunk pointer).</remarks>
+        /// <remarks>The delegate is kept alive for the lifetime of the process (Keep registry -
+        /// Lua holds a raw thunk pointer).</remarks>
+        /// <param name="n">Number of upvalues to pop from the stack.</param>
         public static void pushcclosure(this State L, CFunction fn, int n) => LuaImport.lua_pushcclosure(Ptr(L), Keep(fn), n);
         /// <summary><c>[-0, +1, -]</c> Pushes a boolean with the given truth value (lua_pushboolean).</summary>
         public static void pushboolean(this State L, int b) => LuaImport.lua_pushboolean(Ptr(L), b);
         /// <summary><c>[-0, +1, -]</c> Pushes a light userdata with the given pointer (lua_pushlightuserdata).</summary>
+        /// <param name="p">A C <c>void*</c> payload: Lua stores it as an opaque value and never
+        /// dereferences it - only equality comparisons and topointer retrieval. Put any native
+        /// handle or GCHandle.ToIntPtr root here.</param>
         public static void pushlightuserdata(this State L, IntPtr p) => LuaImport.lua_pushlightuserdata(Ptr(L), p);
         /// <summary><c>[-0, +1, -]</c> Pushes the running thread; returns 1 if it is the main thread (lua_pushthread).</summary>
         public static int pushthread(this State L) => LuaImport.lua_pushthread(Ptr(L));
@@ -606,6 +625,9 @@ namespace Mod.Lua
         /// <summary><c>[-0, +1, m]</c> Creates a new empty table with array/hash hints (lua_createtable).</summary>
         public static void createtable(this State L, int narr, int nrec) => LuaImport.lua_createtable(Ptr(L), narr, nrec);
         /// <summary><c>[-0, +1, m]</c> Creates a full userdata block of sz bytes with nuvalue user values (lua_newuserdatauv).</summary>
+        /// <returns>A C <c>void*</c> to the freshly zeroed sz-byte block - write your own blittable
+        /// layout through it (e.g. UnsafeEx.ToRef&lt;T&gt;); the memory is managed by the Lua GC
+        /// (freed when the userdata is collected; pair with a __gc metamethod for native sub-resources).</returns>
         public static IntPtr newuserdatauv(this State L, UIntPtr sz, int nuvalue) => LuaImport.lua_newuserdatauv(Ptr(L), sz, nuvalue);
         /// <summary><c>[-0, +(0|1), -]</c> Pushes the metatable of the value at objindex if it has one (lua_getmetatable).</summary>
         public static int getmetatable(this State L, int objindex) => LuaImport.lua_getmetatable(Ptr(L), objindex);
@@ -665,6 +687,7 @@ namespace Mod.Lua
         /// <summary><c>[-1, +0, m]</c> Raw set of t[n] = value (pops the value) (lua_rawseti).</summary>
         public static void rawseti(this State L, int idx, long n) => LuaImport.lua_rawseti(Ptr(L), idx, n);
         /// <summary><c>[-1, +0, m]</c> Raw set of t[p] = value with a light userdata key (lua_rawsetp).</summary>
+        /// <param name="p">A C <c>const void*</c> table key (pointer VALUE, no dereference - see rawgetp).</param>
         public static void rawsetp(this State L, int idx, IntPtr p) => LuaImport.lua_rawsetp(Ptr(L), idx, p);
         /// <summary><c>[-1, +0, -]</c> Pops a table and sets it as the metatable of the value at objindex (lua_setmetatable).</summary>
         public static int setmetatable(this State L, int objindex) => LuaImport.lua_setmetatable(Ptr(L), objindex);
@@ -698,14 +721,21 @@ namespace Mod.Lua
         /// <summary><c>[-(nargs+1), +nresults, e]</c> Calls a function with a continuation (lua_callk).</summary>
         /// <remarks>WARNING: longjmps out on error (never returns normally); do not rely on
         /// finally/using semantics on this call path.</remarks>
+        /// <param name="ctx">A C <c>lua_KContext</c> (intptr_t): an INTEGER context of your
+        /// choice, not a pointer - it is passed back verbatim to the KFunction continuation
+        /// (e.g. a GCHandle.ToIntPtr root, or any small value).</param>
         public static void callk(this State L, int nargs, int nresults, IntPtr ctx, KFunction k) => LuaImport.lua_callk(Ptr(L), nargs, nresults, ctx, Keep(k));
         /// <summary><c>[-(nargs+1), +(nresults|1), -]</c> Protected call with a continuation; errors come back as return codes (lua_pcallk).</summary>
         /// <remarks>On error pushes the error object (hence +(nresults|1)). Does not longjmp for
         /// called-code errors; memory errors still longjmp.</remarks>
+        /// <param name="ctx">A C <c>lua_KContext</c> (intptr_t): an INTEGER context of your
+        /// choice, not a pointer - passed back verbatim to the KFunction continuation.</param>
         public static int pcallk(this State L, int nargs, int nresults, int errfunc, IntPtr ctx, KFunction k) => LuaImport.lua_pcallk(Ptr(L), nargs, nresults, errfunc, ctx, Keep(k));
         /// <summary><c>[-0, +1, -]</c> Loads a chunk with a reader callback; errors come back as return codes (lua_load).</summary>
-        /// <remarks>mode: "b"/"t"/"bt" (null span = "bt"); chunkname is the source name for
-        /// error messages and debug info.</remarks>
+        /// <param name="mode">"b"/"t"/"bt" (null span = "bt").</param>
+        /// <param name="chunkname">The source name for error messages and debug info.</param>
+        /// <param name="dt">A C <c>void*</c>: an opaque cookie of your choice passed back
+        /// verbatim to every Reader callback.</param>
         public static int load(this State L, Reader reader, IntPtr dt, CStringSpan chunkname, CStringSpan mode)
         {
             using (NativeBuffer bchunkname = default, bmode = default)
@@ -738,7 +768,10 @@ namespace Mod.Lua
             }
         }
         /// <summary><c>[-0, +0, -]</c> Dumps the function on top as a binary chunk via a writer callback (lua_dump).</summary>
-        /// <remarks>strip removes debug information. The writer's return value controls abort.</remarks>
+        /// <remarks>The writer's return value controls abort.</remarks>
+        /// <param name="strip">Removes debug information when nonzero.</param>
+        /// <param name="data">A C <c>void*</c>: an opaque cookie of your choice passed back
+        /// verbatim to every Writer callback.</param>
         public static int dump(this State L, Writer writer, IntPtr data, int strip) => LuaImport.lua_dump(Ptr(L), Keep(writer), data, strip);
 
         #endregion
@@ -748,6 +781,8 @@ namespace Mod.Lua
         /// <summary><c>[-?, +?, v]</c> Yields from a C function with a continuation (lua_yieldk).</summary>
         /// <remarks>WARNING: longjmps if the thread is not yieldable; never returns normally
         /// in the successful case either (control goes back to the resumer).</remarks>
+        /// <param name="ctx">A C <c>lua_KContext</c> (intptr_t): an INTEGER context of your
+        /// choice, not a pointer - passed back verbatim to the KFunction continuation when resumed.</param>
         public static int yieldk(this State L, int nresults, IntPtr ctx, KFunction k) => LuaImport.lua_yieldk(Ptr(L), nresults, ctx, Keep(k));
         /// <summary><c>[-?, +?, -]</c> Starts/resumes a coroutine; nres receives the number of transferred values (lua_resume).</summary>
         public static int resume(this State L, State from, int narg, out int nres)
@@ -767,6 +802,8 @@ namespace Mod.Lua
         #region warning-related functions
 
         /// <summary><c>[-0, +0, -]</c> Sets the warning function (lua_setwarnf).</summary>
+        /// <param name="ud">A C <c>void*</c>: an opaque cookie of your choice passed back
+        /// verbatim to every WarnFunction callback.</param>
         public static void setwarnf(this State L, WarnFunction f, IntPtr ud) => LuaImport.lua_setwarnf(Ptr(L), Keep(f), ud);
         /// <summary><c>[-0, +0, -]</c> Emits a warning; tocont marks a continued warning sequence (lua_warning).</summary>
         public static void warning(this State L, CStringSpan msg, int tocont)
@@ -798,14 +835,16 @@ namespace Mod.Lua
         public static int gc(this State L, int what) => LuaImport.lua_gc(Ptr(L), what, UIntPtr.Zero, 0);
 
         /// <summary><c>[-0, +0, -]</c> GCSTEP: performs an incremental GC step (lua_gc).</summary>
-        /// <remarks>data = step size in bytes; 0 forces one basic step. Returns 1 when the cycle
-        /// finished (back to pause state).</remarks>
+        /// <param name="data">Step size in bytes; 0 forces one basic step.</param>
+        /// <returns>1 when the cycle finished (back to pause state).</returns>
         public static int gc(this State L, int what, UIntPtr data) => LuaImport.lua_gc(Ptr(L), what, data, 0);
 
         /// <summary><c>[-0, +0, -]</c> GCPARAM: gets/sets generational GC parameters (lua_gc).</summary>
-        /// <remarks>param 0..6 (GCPMINORMUL/GCPMAJORMINOR/GCPMINORMAJOR/GCPPAUSE/GCPSTEPMUL/
-        /// GCPSTEPSIZE/GCPN); value >= 0 sets, value < 0 (convention: -1) queries. Returns the
-        /// previous value (percent-scaled; log-encoded internally, so round-trips are approximate).</remarks>
+        /// <param name="param">0..6 (GCPMINORMUL/GCPMAJORMINOR/GCPMINORMAJOR/GCPPAUSE/GCPSTEPMUL/
+        /// GCPSTEPSIZE/GCPN).</param>
+        /// <param name="value">value >= 0 sets, value < 0 (convention: -1) queries.</param>
+        /// <returns>The previous value (percent-scaled; log-encoded internally, so round-trips
+        /// are approximate).</returns>
         public static int gc(this State L, int what, int param, int value) => LuaImport.lua_gc(Ptr(L), what, (UIntPtr)(uint)param, value);
 
         #endregion
@@ -817,8 +856,8 @@ namespace Mod.Lua
         /// finally/using semantics on this call path.</remarks>
         public static int error(this State L) => LuaImport.lua_error(Ptr(L));
         /// <summary><c>[-0, +0, v]</c> Raises a formatted error message (luaL_error).</summary>
-        /// <remarks>WARNING: longjmps out (never returns normally). fmt must contain no
-        /// conversion specifiers.</remarks>
+        /// <remarks>WARNING: longjmps out (never returns normally).</remarks>
+        /// <param name="fmt">Must contain no conversion specifiers.</param>
         public static int error(this State L, CStringSpan fmt)
         {
             using (NativeBuffer bfmt = default)
@@ -840,6 +879,8 @@ namespace Mod.Lua
         }
         /// <summary><c>[-0, +0, v]</c> Raises a formatted error message with a single conversion argument (luaL_error).</summary>
         /// <remarks>WARNING: longjmps out (never returns normally).</remarks>
+        /// <param name="arg1">The single C vararg after default argument promotion (same rules
+        /// as the pushfstring single-argument form).</param>
         public static int error(this State L, CStringSpan fmt, IntPtr arg1)
         {
             using (NativeBuffer bfmt = default)
@@ -860,9 +901,9 @@ namespace Mod.Lua
             }
         }
         /// <summary><c>[-1, +(2|0), v]</c> Pops a key and pushes the next key-value pair (lua_next).</summary>
-        /// <remarks>Traverse order is unspecified. Returns 0 at the end of the table (pushes
-        /// nothing). The key stays on the stack between calls - do not use tolstring on it
-        /// (in-place number conversion corrupts the traversal).</remarks>
+        /// <remarks>Traverse order is unspecified. The key stays on the stack between calls - do
+        /// not use tolstring on it (in-place number conversion corrupts the traversal).</remarks>
+        /// <returns>0 at the end of the table (pushes nothing).</returns>
         public static int next(this State L, int idx) => LuaImport.lua_next(Ptr(L), idx);
         /// <summary><c>[-n, +1, e]</c> Concatenates the n top values and pushes the result (lua_concat).</summary>
         public static void concat(this State L, int n) => LuaImport.lua_concat(Ptr(L), n);
@@ -872,10 +913,10 @@ namespace Mod.Lua
         /// <remarks>WARNING: longjmps on error (calls the __length metamethod).</remarks>
         public static long len(this State L, int idx) => LuaImport.luaL_len(Ptr(L), idx);
         /// <summary><c>[-0, +0, -]</c> Converts the number at idx to its canonical string form into buff (lua_numbertocstring).</summary>
-        /// <remarks>buff must hold N2SBUFFSZ (64) bytes - Buffer64 matches exactly. Returns the
-        /// number of flags used to represent the number (0 if not a number). The same
-        /// stack-local bounce as getstack is applied on compacting-GC hosts (single-shot
-        /// call, no self-referencing fields - the bounce is safe).</remarks>
+        /// <remarks>The same stack-local bounce as getstack is applied on compacting-GC hosts
+        /// (single-shot call, no self-referencing fields - the bounce is safe).</remarks>
+        /// <param name="buff">Must hold N2SBUFFSZ (64) bytes - Buffer64 matches exactly.</param>
+        /// <returns>The number of flags used to represent the number (0 if not a number).</returns>
         public static uint numbertocstring(this State L, int idx, ref Buffer64 buff)
         {
             if (RuntimeInfo.IsUnity)
@@ -906,6 +947,8 @@ namespace Mod.Lua
             }
         }
         /// <summary><c>[-0, +0, -]</c> Returns the allocation function of the state; ud receives its user data (lua_getallocf).</summary>
+        /// <remarks>ud receives the C <c>void*</c> cookie that was registered alongside the
+        /// allocator (the out shape of the C <c>void**</c> parameter).</remarks>
         public static Alloc getallocf(this State L, out IntPtr ud)
         {
             IntPtr lud = default;
@@ -914,6 +957,8 @@ namespace Mod.Lua
             return result;
         }
         /// <summary><c>[-0, +0, -]</c> Replaces the allocation function of the state (lua_setallocf).</summary>
+        /// <param name="ud">A C <c>void*</c>: an opaque cookie of your choice passed back
+        /// verbatim to every Alloc callback.</param>
         public static void setallocf(this State L, Alloc f, IntPtr ud) => LuaImport.lua_setallocf(Ptr(L), Keep(f), ud);
         /// <summary><c>[-0, +0, v]</c> Marks the value at idx to be closed when leaving the current block (lua_toclose).</summary>
         /// <remarks>WARNING: longjmps on a bad argument (index must be at most -2 or a special
@@ -927,13 +972,13 @@ namespace Mod.Lua
         #region debug API
 
         /// <summary><c>[-0, +0, -]</c> Fills ar with debug info for the function at the given level (lua_getstack).</summary>
-        /// <remarks>Returns 0 when the level is too deep. The following NOTE applies to every
-        /// 'ref Debug' function in this region: on Unity the referent's address never moves
-        /// (Boehm GC does not compact), so the ref address is passed directly. On compacting-GC
-        /// hosts (CoreCLR / standalone Mono) a heap-field referent could move during the call,
-        /// so the struct is bounced through a stack local and copied back afterwards (the
-        /// managed byref is GC-tracked and already points at the new location when the
-        /// copy-back runs).</remarks>
+        /// <remarks>The following NOTE applies to every 'ref Debug' function in this region: on
+        /// Unity the referent's address never moves (Boehm GC does not compact), so the ref
+        /// address is passed directly. On compacting-GC hosts (CoreCLR / standalone Mono) a
+        /// heap-field referent could move during the call, so the struct is bounced through a
+        /// stack local and copied back afterwards (the managed byref is GC-tracked and already
+        /// points at the new location when the copy-back runs).</remarks>
+        /// <returns>0 when the level is too deep.</returns>
         public static int getstack(this State L, int level, ref Debug ar)
         {
             if (RuntimeInfo.IsUnity)
@@ -970,9 +1015,9 @@ namespace Mod.Lua
             }
         }
         /// <summary><c>[-0, +(0|1), -]</c> Pushes the n-th local variable of the frame and returns its name (lua_getlocal).</summary>
-        /// <remarks>Returns an empty CStringRef when the index is out of range. The returned name
-        /// lives in the function's debug info - valid while the function exists. Same
-        /// stack-local bounce as getstack on compacting-GC hosts.</remarks>
+        /// <remarks>Same stack-local bounce as getstack on compacting-GC hosts.</remarks>
+        /// <returns>An empty CStringRef when the index is out of range. The name lives in the
+        /// function's debug info - valid while the function exists.</returns>
         public static CStringRef getlocal(this State L, in Debug ar, int n)
         {
             if (RuntimeInfo.IsUnity)
@@ -996,6 +1041,9 @@ namespace Mod.Lua
         /// <summary><c>[-(0|1), +0, -]</c> Sets the n-th upvalue from the top value; returns its name (lua_setupvalue).</summary>
         public static CStringRef setupvalue(this State L, int funcindex, int n) => new CStringRef(LuaImport.lua_setupvalue(Ptr(L), funcindex, n));
         /// <summary><c>[-0, +0, -]</c> Returns a unique identifier for the n-th upvalue (lua_upvalueid).</summary>
+        /// <returns>A C <c>void*</c> that is unique and stable for the upvalue's cell: two
+        /// upvalues share an id if and only if they share the cell (see upvaluejoin). Use for
+        /// == / != comparisons ONLY - never dereference it.</returns>
         public static IntPtr upvalueid(this State L, int fidx, int n) => LuaImport.lua_upvalueid(Ptr(L), fidx, n);
         /// <summary><c>[-0, +0, -]</c> Makes the n1-th upvalue of fidx1 share its cell with the n2-th of fidx2 (lua_upvaluejoin).</summary>
         public static void upvaluejoin(this State L, int fidx1, int n1, int fidx2, int n2) => LuaImport.lua_upvaluejoin(Ptr(L), fidx1, n1, fidx2, n2);
@@ -1098,8 +1146,8 @@ namespace Mod.Lua
             }
         }
         /// <summary><c>[-0, +0, v]</c> Checks the argument is a string/number and returns it as a C string (luaL_checklstring).</summary>
-        /// <remarks>WARNING: longjmps on a bad argument. The returned pointer is valid while the
-        /// value stays on the stack.</remarks>
+        /// <remarks>WARNING: longjmps on a bad argument.</remarks>
+        /// <returns>Valid while the value stays on the stack.</returns>
         public static CStringRef checklstring(this State L, int arg)
         {
             IntPtr l = default;
@@ -1138,8 +1186,8 @@ namespace Mod.Lua
         /// <remarks>WARNING: longjmps on a bad argument.</remarks>
         public static void checkany(this State L, int arg) => LuaImport.luaL_checkany(Ptr(L), arg);
         /// <summary><c>[-0, +1, m]</c> Creates/looks up the metatable tname in the registry (luaL_newmetatable).</summary>
-        /// <remarks>Returns true when created and registered, false when it already existed
-        /// (the previous value is left on top in that case).</remarks>
+        /// <returns>True when created and registered; false when it already existed (the
+        /// previous value is left on top in that case).</returns>
         public static bool newmetatable(this State L, CStringSpan tname)
         {
             using (NativeBuffer btname = default)
@@ -1161,6 +1209,8 @@ namespace Mod.Lua
             }
         }
         /// <summary><c>[-0, +0, m]</c> Returns the userdata at ud if it has metatable tname, otherwise null (luaL_testudata).</summary>
+        /// <returns>A C <c>void*</c> to the raw userdata block (same semantics as touserdata; the
+        /// size is the one your newuserdatauv call used - Lua does not record it).</returns>
         public static IntPtr testudata(this State L, int ud, CStringSpan tname)
         {
             using (NativeBuffer btname = default)
@@ -1182,6 +1232,7 @@ namespace Mod.Lua
         }
         /// <summary><c>[-0, +0, v]</c> Checks the userdata at ud has metatable tname and returns it (luaL_checkudata).</summary>
         /// <remarks>WARNING: longjmps on a bad argument.</remarks>
+        /// <returns>A C <c>void*</c> to the raw userdata block (same semantics as touserdata).</returns>
         public static IntPtr checkudata(this State L, int ud, CStringSpan tname)
         {
             using (NativeBuffer btname = default)
@@ -1294,14 +1345,19 @@ namespace Mod.Lua
         /// <summary><c>[-0, +3, m]</c> Turns a C system-call result into a Lua return tuple (luaL_execresult).</summary>
         public static int execresult(this State L, int stat) => LuaImport.luaL_execresult(Ptr(L), stat);
         /// <summary><c>[-0, +0, m]</c> The default allocator export (realloc-based, no state involved) (luaL_alloc).</summary>
+        /// <param name="ud">A C <c>void*</c> cookie (unused by this allocator).</param>
+        /// <param name="ptr">The C <c>void*</c> block being realloc'd/freed (NULL = allocate).</param>
+        /// <remarks>Signature-compatible with the Alloc delegate, so it can be passed to
+        /// newstate/setallocf.</remarks>
         public static IntPtr alloc(IntPtr ud, IntPtr ptr, UIntPtr osize, UIntPtr nsize) => LuaImport.luaL_alloc(ud, ptr, osize, nsize);
         /// <summary><c>[-1, +0, m]</c> Stores the popped value in table t and returns its reference number (luaL_ref).</summary>
-        /// <remarks>Named 'refer' because 'ref' is a C# keyword. Returns NOREF when storing nil.</remarks>
+        /// <remarks>Named 'refer' because 'ref' is a C# keyword.</remarks>
+        /// <returns>NOREF when storing nil.</returns>
         public static int refer(this State L, int t) => LuaImport.luaL_ref(Ptr(L), t);
         /// <summary><c>[-0, +0, -]</c> Releases reference from table t (luaL_unref).</summary>
         public static void unref(this State L, int t, int reference) => LuaImport.luaL_unref(Ptr(L), t, reference);
         /// <summary><c>[-0, +1, m]</c> Loads a file as a chunk; errors come back as return codes (luaL_loadfilex).</summary>
-        /// <remarks>mode: "b"/"t"/"bt" (null span = "bt").</remarks>
+        /// <param name="mode">"b"/"t"/"bt" (null span = "bt").</param>
         public static int loadfilex(this State L, CStringSpan filename, CStringSpan mode)
         {
             using (NativeBuffer bfilename = default, bmode = default)
@@ -1334,7 +1390,8 @@ namespace Mod.Lua
             }
         }
         /// <summary><c>[-0, +1, -]</c> Loads a memory buffer as a chunk; errors come back as return codes (luaL_loadbufferx).</summary>
-        /// <remarks>mode: "b"/"t"/"bt" (null span = "bt"). name is the chunk name for debug info.</remarks>
+        /// <param name="name">The chunk name for debug info.</param>
+        /// <param name="mode">"b"/"t"/"bt" (null span = "bt").</param>
         public static int loadbufferx(this State L, CStringSpan buff, CStringSpan name, CStringSpan mode)
         {
             using (NativeBuffer bbuff = default, bname = default(NativeBuffer), bmode = default)
@@ -1400,7 +1457,8 @@ namespace Mod.Lua
         /// <summary><c>[-0, +0, -]</c> Returns a seed for lua_newstate derived from the state's addresses (luaL_makeseed).</summary>
         public static uint makeseed(this State L) => LuaImport.luaL_makeseed(Ptr(L));
         /// <summary><c>[-0, +1, m]</c> Pushes a copy of s with every occurrence of p replaced by r (luaL_gsub).</summary>
-        /// <remarks>The result is pushed AND returned - the pointer is valid while the value stays on the stack.</remarks>
+        /// <returns>The result is pushed AND returned - the pointer is valid while the value
+        /// stays on the stack.</returns>
         public static CStringRef gsub(this State L, CStringSpan s, CStringSpan p, CStringSpan r)
         {
             using (NativeBuffer bs = default, bp = default(NativeBuffer), br = default)
@@ -1446,10 +1504,10 @@ namespace Mod.Lua
             }
         }
         /// <summary><c>[-nup, +0, m]</c> Registers the Reg list into the table on top, popping nup upvalues (luaL_setfuncs).</summary>
-        /// <remarks>The Span may omit the {NULL,NULL} terminator - it is appended automatically.
-        /// The span is copied to a non-movable stack/native buffer (terminator included) before
-        /// its address is handed to Lua; only under Unity a span that already ends with the
-        /// all-zero terminator entry is passed directly (Boehm GC does not move it).</remarks>
+        /// <remarks>The span is copied to a non-movable stack/native buffer (terminator included)
+        /// before its address is handed to Lua; only under Unity a span that already ends with
+        /// the all-zero terminator entry is passed directly (Boehm GC does not move it).</remarks>
+        /// <param name="l">May omit the {NULL,NULL} terminator - it is appended automatically.</param>
         public static void setfuncs(this State L, Span<Reg> l, int nup)
         {
             if (l.Length == 0)
@@ -1518,8 +1576,9 @@ namespace Mod.Lua
             }
         }
         /// <summary><c>[-0, +1, e]</c> Calls openf to open modname and registers the result per package rules (luaL_requiref).</summary>
-        /// <remarks>glb != 0 also sets the module as a global. WARNING: openf is called
-        /// unprotected - an error raised inside it longjmps out (hence 'e').</remarks>
+        /// <remarks>WARNING: openf is called unprotected - an error raised inside it longjmps
+        /// out (hence 'e').</remarks>
+        /// <param name="glb">Nonzero also sets the module as a global.</param>
         public static void requiref(this State L, CStringSpan modname, CFunction openf, int glb)
         {
             using (NativeBuffer bmodname = default)
@@ -1577,7 +1636,7 @@ namespace Mod.Lua
         /// <remarks>B must be a stack local (see the region note above).</remarks>
         internal static void buffinit(this State L, ref BufferL B) => LuaImport.luaL_buffinit(Ptr(L), Ptr(ref B));
         /// <summary><c>[-0, +?, -]</c> Initializes the buffer and pushes its placeholder slot (luaL_buffinit).</summary>
-        public static void buffinit(this State L, ref Buffer B) => buffinit(L, ref B.Inner);
+        public static void buffinit(this State L, ref Buffer B) => buffinit(L, ref B._Inner);
         /// <summary><c>[-0, +?, -]</c> Initializes the buffer and pushes its placeholder slot (luaL_buffinit).</summary>
         public static void buffinit(this State L, BufferBox B) => buffinit(L, ref B.Inner);
         /// <summary><c>[-?, +?, m]</c> Returns an address with at least sz writable bytes in the buffer (luaL_prepbuffsize).</summary>
@@ -1589,7 +1648,7 @@ namespace Mod.Lua
             return new CStringRef(addr, (int)sz, 0);   // len 0: writable region, content not yet written
         }
         /// <summary><c>[-?, +?, m]</c> Returns an address with at least sz writable bytes in the buffer (luaL_prepbuffsize).</summary>
-        public static CStringRef prepbuffsize(ref Buffer B, UIntPtr sz) => prepbuffsize(ref B.Inner, sz);
+        public static CStringRef prepbuffsize(ref Buffer B, UIntPtr sz) => prepbuffsize(ref B._Inner, sz);
         /// <summary><c>[-?, +?, m]</c> Returns an address with at least sz writable bytes in the buffer (luaL_prepbuffsize).</summary>
         public static CStringRef prepbuffsize(BufferBox B, UIntPtr sz) => prepbuffsize(ref B.Inner, sz);
         /// <summary><c>[-?, +?, m]</c> Adds the string s (with embedded-zero-safe length) to the buffer (luaL_addlstring).</summary>
@@ -1612,32 +1671,32 @@ namespace Mod.Lua
             }
         }
         /// <summary><c>[-?, +?, m]</c> Adds the string s (with embedded-zero-safe length) to the buffer (luaL_addlstring).</summary>
-        public static void addlstring(ref Buffer B, CStringSpan s) => addlstring(ref B.Inner, s);
+        public static void addlstring(ref Buffer B, CStringSpan s) => addlstring(ref B._Inner, s);
         /// <summary><c>[-?, +?, m]</c> Adds the string s (with embedded-zero-safe length) to the buffer (luaL_addlstring).</summary>
         public static void addlstring(BufferBox B, CStringSpan s) => addlstring(ref B.Inner, s);
         /// <summary><c>[-?, +?, m]</c> Adds the NUL-terminated string s to the buffer (luaL_addstring).</summary>
         internal static void addstring(ref BufferL B, CStringSpan s) => addlstring(ref B, s);
         /// <summary><c>[-?, +?, m]</c> Adds the NUL-terminated string s to the buffer (luaL_addstring).</summary>
-        public static void addstring(ref Buffer B, CStringSpan s) => addstring(ref B.Inner, s);
+        public static void addstring(ref Buffer B, CStringSpan s) => addstring(ref B._Inner, s);
         /// <summary><c>[-?, +?, m]</c> Adds the NUL-terminated string s to the buffer (luaL_addstring).</summary>
         public static void addstring(BufferBox B, CStringSpan s) => addstring(ref B.Inner, s);
         /// <summary><c>[-?, +?, m]</c> Adds the value on top of the stack to the buffer and pops it (luaL_addvalue).</summary>
         /// <remarks>The only buffer call allowed with an extra element above the placeholder/box slot.</remarks>
         internal static void addvalue(ref BufferL B) => LuaImport.luaL_addvalue(Ptr(ref B));
         /// <summary><c>[-?, +?, m]</c> Adds the value on top of the stack to the buffer and pops it (luaL_addvalue).</summary>
-        public static void addvalue(ref Buffer B) => addvalue(ref B.Inner);
+        public static void addvalue(ref Buffer B) => addvalue(ref B._Inner);
         /// <summary><c>[-?, +?, m]</c> Adds the value on top of the stack to the buffer and pops it (luaL_addvalue).</summary>
         public static void addvalue(BufferBox B) => addvalue(ref B.Inner);
         /// <summary><c>[-?, +1, m]</c> Finishes the buffer, leaving the final string on the stack (luaL_pushresult).</summary>
         internal static void pushresult(ref BufferL B) => LuaImport.luaL_pushresult(Ptr(ref B));
         /// <summary><c>[-?, +1, m]</c> Finishes the buffer, leaving the final string on the stack (luaL_pushresult).</summary>
-        public static void pushresult(ref Buffer B) => pushresult(ref B.Inner);
+        public static void pushresult(ref Buffer B) => pushresult(ref B._Inner);
         /// <summary><c>[-?, +1, m]</c> Finishes the buffer, leaving the final string on the stack (luaL_pushresult).</summary>
         public static void pushresult(BufferBox B) => pushresult(ref B.Inner);
         /// <summary><c>[-?, +1, m]</c> Adds sz already-written bytes and finishes the buffer (luaL_pushresultsize).</summary>
         internal static void pushresultsize(ref BufferL B, UIntPtr sz) => LuaImport.luaL_pushresultsize(Ptr(ref B), sz);
         /// <summary><c>[-?, +1, m]</c> Adds sz already-written bytes and finishes the buffer (luaL_pushresultsize).</summary>
-        public static void pushresultsize(ref Buffer B, UIntPtr sz) => pushresultsize(ref B.Inner, sz);
+        public static void pushresultsize(ref Buffer B, UIntPtr sz) => pushresultsize(ref B._Inner, sz);
         /// <summary><c>[-?, +1, m]</c> Adds sz already-written bytes and finishes the buffer (luaL_pushresultsize).</summary>
         public static void pushresultsize(BufferBox B, UIntPtr sz) => pushresultsize(ref B.Inner, sz);
         /// <summary><c>[-?, +?, m]</c> buffinit + prepbuffsize: initializes and preallocates sz writable bytes (luaL_buffinitsize).</summary>
@@ -1647,7 +1706,7 @@ namespace Mod.Lua
             return new CStringRef(addr, (int)sz, 0);   // len 0: writable region, content not yet written
         }
         /// <summary><c>[-?, +?, m]</c> buffinit + prepbuffsize: initializes and preallocates sz writable bytes (luaL_buffinitsize).</summary>
-        public static CStringRef buffinitsize(this State L, ref Buffer B, UIntPtr sz) => buffinitsize(L, ref B.Inner, sz);
+        public static CStringRef buffinitsize(this State L, ref Buffer B, UIntPtr sz) => buffinitsize(L, ref B._Inner, sz);
         /// <summary><c>[-?, +?, m]</c> buffinit + prepbuffsize: initializes and preallocates sz writable bytes (luaL_buffinitsize).</summary>
         public static CStringRef buffinitsize(this State L, BufferBox B, UIntPtr sz) => buffinitsize(L, ref B.Inner, sz);
         /// <summary><c>[-?, +?, m]</c> Adds a copy of s with every occurrence of p replaced by r (luaL_addgsub).</summary>
@@ -1695,7 +1754,7 @@ namespace Mod.Lua
             }
         }
         /// <summary><c>[-?, +?, m]</c> Adds a copy of s with every occurrence of p replaced by r (luaL_addgsub).</summary>
-        public static void addgsub(ref Buffer B, CStringSpan s, CStringSpan p, CStringSpan r) => addgsub(ref B.Inner, s, p, r);
+        public static void addgsub(ref Buffer B, CStringSpan s, CStringSpan p, CStringSpan r) => addgsub(ref B._Inner, s, p, r);
         /// <summary><c>[-?, +?, m]</c> Adds a copy of s with every occurrence of p replaced by r (luaL_addgsub).</summary>
         public static void addgsub(BufferBox B, CStringSpan s, CStringSpan p, CStringSpan r) => addgsub(ref B.Inner, s, p, r);
 
@@ -1724,7 +1783,9 @@ namespace Mod.Lua
         /// <summary><c>[-0, +1, e]</c> Opens the utf8 library (luaopen_utf8; inferred).</summary>
         public static int open_utf8(this State L) => LuaImport.luaopen_utf8(Ptr(L));
         /// <summary><c>[-0, +0, e]</c> Opens the libraries selected by the load/preload bit masks (luaL_openselectedlibs).</summary>
-        /// <remarks>Lua 5.5: luaL_openlibs(L) is openselectedlibs(L, ~0, 0). Masks: GLIBK..UTF8LIBK.</remarks>
+        /// <param name="load">Bitwise OR of GLIBK..UTF8LIBK: which libraries to open.</param>
+        /// <param name="preload">Same masks: which libraries to register into package.preload
+        /// instead of opening. Lua 5.5: luaL_openlibs(L) is openselectedlibs(L, ~0, 0).</param>
         public static void openselectedlibs(this State L, int load, int preload) => LuaImport.luaL_openselectedlibs(Ptr(L), load, preload);
 
         #endregion
@@ -1824,6 +1885,8 @@ namespace Mod.Lua
         }
 
         /// <summary><c>[-0, +1, m]</c> lua_newuserdata: allocates a userdata with one user value (newuserdatauv with nuvalue=1).</summary>
+        /// <returns>A C <c>void*</c> to the freshly zeroed sz-byte block (same semantics as
+        /// newuserdatauv).</returns>
         public static IntPtr newuserdata(this State L, UIntPtr sz) => LuaImport.lua_newuserdatauv(Ptr(L), sz, 1);
 
         /// <summary><c>[-0, +1, -]</c> lua_getuservalue: pushes the (single) user value (getiuservalue with n=1).</summary>
@@ -1838,6 +1901,9 @@ namespace Mod.Lua
         public static int upvalueindex(int i) => REGISTRYINDEX - i;
 
         /// <summary><c>[-0, +0, -]</c> lua_getextraspace: the EXTRASPACE-sized scratch area before the state pointer.</summary>
+        /// <returns>A C <c>void*</c> to the pointer-sized scratch slot located EXTRASPACE bytes
+        /// before the lua_State. Read/write it freely (e.g. stash a GCHandle.ToIntPtr root or a
+        /// native context per state) - Lua never touches this memory.</returns>
         public static IntPtr getextraspace(this State L) => (IntPtr)(Ptr(L).ToInt64() - EXTRASPACE);
 
         #endregion
@@ -1952,17 +2018,21 @@ namespace Mod.Lua
         /// <summary><c>[-0, +1, -]</c> luaL_pushfail: pushes fail (nil under the default configuration - no LUA_FAILISFALSE).</summary>
         public static void pushfail(this State L) => LuaImport.lua_pushnil(Ptr(L));
 
-        /// <summary><c>[-0, +0, -]</c> luaL_bufflen: the number of bytes currently in the buffer.</summary>
-        internal static UIntPtr bufflen(ref BufferL B) => B.n;
-        /// <summary><c>[-0, +0, -]</c> luaL_bufflen: the number of bytes currently in the buffer.</summary>
-        public static UIntPtr bufflen(ref Buffer B) => B.n;
-        /// <summary><c>[-0, +0, -]</c> luaL_bufflen: the number of bytes currently in the buffer.</summary>
+        /// <summary><c>[-0, +0, -]</c> luaL_bufflen: the number of bytes currently in the buffer (pure read).</summary>
+        internal static UIntPtr bufflen(in BufferL B) => B.n;
+        /// <summary><c>[-0, +0, -]</c> luaL_bufflen: the number of bytes currently in the buffer (pure read).</summary>
+        /// <remarks>'in' documents the read-only nature; the field is read directly (property access
+        /// through an in parameter would make a hidden defensive copy of the whole 1056-byte struct).</remarks>
+        public static UIntPtr bufflen(in Buffer B) => B.n;
+        /// <summary><c>[-0, +0, -]</c> luaL_bufflen: the number of bytes currently in the buffer (pure read).</summary>
         public static UIntPtr bufflen(BufferBox B) => B.n;
-        /// <summary><c>[-0, +0, -]</c> luaL_buffaddr: the address of the current buffer content (moves on growth).</summary>
-        internal static IntPtr buffaddr(ref BufferL B) => B.b;
-        /// <summary><c>[-0, +0, -]</c> luaL_buffaddr: the address of the current buffer content (moves on growth).</summary>
-        public static IntPtr buffaddr(ref Buffer B) => B.b;
-        /// <summary><c>[-0, +0, -]</c> luaL_buffaddr: the address of the current buffer content (moves on growth).</summary>
+        /// <summary><c>[-0, +0, -]</c> luaL_buffaddr: the address of the current buffer content (moves on growth; pure read).</summary>
+        internal static IntPtr buffaddr(in BufferL B) => B.b;
+        /// <summary><c>[-0, +0, -]</c> luaL_buffaddr: the address of the current buffer content (moves on growth; pure read).</summary>
+        /// <remarks>'in' documents the read-only nature; the field is read directly (property access
+        /// through an in parameter would make a hidden defensive copy of the whole 1056-byte struct).</remarks>
+        public static IntPtr buffaddr(in Buffer B) => B.b;
+        /// <summary><c>[-0, +0, -]</c> luaL_buffaddr: the address of the current buffer content (moves on growth; pure read).</summary>
         public static IntPtr buffaddr(BufferBox B) => B.b;
 
         /// <summary><c>[-?, +?, m]</c> luaL_addchar: grows the buffer by 1 if full, writes the byte, advances n.</summary>
@@ -1973,27 +2043,27 @@ namespace Mod.Lua
             B.n = (UIntPtr)(B.n.ToUInt64() + 1);
         }
         /// <summary><c>[-?, +?, m]</c> luaL_addchar: grows the buffer by 1 if full, writes the byte, advances n.</summary>
-        public static void addchar(ref Buffer B, byte c) => addchar(ref B.Inner, c);
+        public static void addchar(ref Buffer B, byte c) => addchar(ref B._Inner, c);
         /// <summary><c>[-?, +?, m]</c> luaL_addchar: grows the buffer by 1 if full, writes the byte, advances n.</summary>
         public static void addchar(BufferBox B, byte c) => addchar(ref B.Inner, c);
 
         /// <summary><c>[-?, +?, -]</c> luaL_addsize: advances n by s after bytes were written into the prep area.</summary>
         internal static void addsize(ref BufferL B, UIntPtr s) => B.n = (UIntPtr)(B.n.ToUInt64() + s.ToUInt64());
         /// <summary><c>[-?, +?, -]</c> luaL_addsize: advances n by s after bytes were written into the prep area.</summary>
-        public static void addsize(ref Buffer B, UIntPtr s) => B.n = (UIntPtr)(B.n.ToUInt64() + s.ToUInt64());
+        public static void addsize(ref Buffer B, UIntPtr s) => B._Inner.n = (UIntPtr)(B.n.ToUInt64() + s.ToUInt64());
         /// <summary><c>[-?, +?, -]</c> luaL_addsize: advances n by s after bytes were written into the prep area.</summary>
         public static void addsize(BufferBox B, UIntPtr s) => B.n = (UIntPtr)(B.n.ToUInt64() + s.ToUInt64());
         /// <summary><c>[-?, +?, -]</c> luaL_buffsub: rewinds n by s bytes (the buffer must have at least that many).</summary>
         internal static void buffsub(ref BufferL B, UIntPtr s) => B.n = (UIntPtr)(B.n.ToUInt64() - s.ToUInt64());
         /// <summary><c>[-?, +?, -]</c> luaL_buffsub: rewinds n by s bytes (the buffer must have at least that many).</summary>
-        public static void buffsub(ref Buffer B, UIntPtr s) => B.n = (UIntPtr)(B.n.ToUInt64() - s.ToUInt64());
+        public static void buffsub(ref Buffer B, UIntPtr s) => B._Inner.n = (UIntPtr)(B.n.ToUInt64() - s.ToUInt64());
         /// <summary><c>[-?, +?, -]</c> luaL_buffsub: rewinds n by s bytes (the buffer must have at least that many).</summary>
         public static void buffsub(BufferBox B, UIntPtr s) => B.n = (UIntPtr)(B.n.ToUInt64() - s.ToUInt64());
 
         /// <summary><c>[-?, +?, m]</c> luaL_prepbuffer: prepbuffsize with LUAL_BUFFERSIZE.</summary>
         internal static CStringRef prepbuffer(ref BufferL B) => prepbuffsize(ref B, BUFFERSIZE);
         /// <summary><c>[-?, +?, m]</c> luaL_prepbuffer: prepbuffsize with LUAL_BUFFERSIZE.</summary>
-        public static CStringRef prepbuffer(ref Buffer B) => prepbuffer(ref B.Inner);
+        public static CStringRef prepbuffer(ref Buffer B) => prepbuffer(ref B._Inner);
         /// <summary><c>[-?, +?, m]</c> luaL_prepbuffer: prepbuffsize with LUAL_BUFFERSIZE.</summary>
         public static CStringRef prepbuffer(BufferBox B) => prepbuffer(ref B.Inner);
 
@@ -2022,8 +2092,8 @@ namespace Mod.Lua
         public static ulong optunsigned(this State L, int n, ulong def) => (ulong)LuaImport.luaL_optinteger(Ptr(L), n, (long)def);
 
         /// <summary><c>[-0, +1, m]</c> luaL_newlibtable: preallocates the library table for the real entries of l.</summary>
-        /// <remarks>Same terminator convention as setfuncs: an explicit all-zero last entry is
-        /// not counted, anything else is.</remarks>
+        /// <param name="l">Same terminator convention as setfuncs: an explicit all-zero last
+        /// entry is not counted, anything else is.</param>
         public static void newlibtable(this State L, Span<Reg> l)
         {
             int count = l.Length;
@@ -2042,18 +2112,18 @@ namespace Mod.Lua
         }
 
         /// <summary><c>[-0, +0, v]</c> luaL_checklong: checkinteger as long.</summary>
-        /// <remarks>WARNING: longjmps on a bad argument. C 'long' is 32-bit on Windows (LLP64),
-        /// where the C macro truncates values outside int32 range; this facade returns the
-        /// full 64-bit lua_Integer (no truncation).</remarks>
+        /// <remarks>WARNING: longjmps on a bad argument.</remarks>
+        /// <returns>C 'long' is 32-bit on Windows (LLP64), where the C macro truncates values
+        /// outside int32 range; this facade returns the full 64-bit lua_Integer (no truncation).</returns>
         public static long checklong(this State L, int n) => LuaImport.luaL_checkinteger(Ptr(L), n);
 
         /// <summary><c>[-0, +0, v]</c> luaL_optlong: optinteger as long. Same LLP64 note as checklong.</summary>
         public static long optlong(this State L, int n, long d) => LuaImport.luaL_optinteger(Ptr(L), n, d);
 
         /// <summary><c>[-0, +0, -]</c> luaL_opt: d when the argument is absent/nil, otherwise f(L, n).</summary>
-        /// <remarks>Generic macro shape: f is any argument checker (checkinteger, checknumber,
-        /// checklstring, ...). The Func parameter allocates on non-cached lambdas - use a
-        /// static lambda (no captures) to get the compiler-cached delegate.</remarks>
+        /// <remarks>The Func parameter allocates on non-cached lambdas - use a static lambda
+        /// (no captures) to get the compiler-cached delegate.</remarks>
+        /// <param name="f">Any argument checker (checkinteger, checknumber, checklstring, ...).</param>
         public static T opt<T>(this State L, Func<State, int, T> f, int n, T d)
             => isnoneornil(L, n) ? d : f(L, n);
 

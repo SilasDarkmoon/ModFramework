@@ -761,8 +761,8 @@ namespace Mod.Lua.Tests
                 lua.buffinit(L, ref b);
                 Assert.Equal(top0 + 1, lua.gettop(L)); // placeholder slot pushed
 
-                IntPtr initAddr = RawRef.Of(ref b.init).Address;
-                Assert.Equal(initAddr, lua.buffaddr(ref b)); // still the embedded init area
+                IntPtr initAddr = RawRef.Of(ref b._Inner.init).Address;
+                Assert.Equal(initAddr, lua.buffaddr(b)); // still the embedded init area
 
                 // 5000 bytes -> several growths (1024 -> 1537 -> 2306 -> 3460 -> 5191)
                 const int N = 5000;
@@ -774,8 +774,8 @@ namespace Mod.Lua.Tests
                 }
                 finally { Marshal.FreeHGlobal(src); }
 
-                Assert.Equal((UIntPtr)N, lua.bufflen(ref b));
-                Assert.NotEqual(initAddr, lua.buffaddr(ref b)); // box owns the memory now
+                Assert.Equal((UIntPtr)N, lua.bufflen(b));
+                Assert.NotEqual(initAddr, lua.buffaddr(b)); // box owns the memory now
                 Assert.True(b.size.ToUInt64() > 1024);          // grew past the initial size
                 Assert.Equal(top0 + 1, lua.gettop(L));          // box replaced the placeholder slot
 
@@ -803,8 +803,8 @@ namespace Mod.Lua.Tests
                 lua.buffinit(L, ref b);
                 const int N = 1500;
                 for (int i = 0; i < N; i++) lua.addchar(ref b, (byte)(i % 127 + 1));
-                Assert.Equal((UIntPtr)N, lua.bufflen(ref b));
-                Assert.NotEqual(RawRef.Of(ref b.init).Address, lua.buffaddr(ref b)); // grew
+                Assert.Equal((UIntPtr)N, lua.bufflen(b));
+                Assert.NotEqual(RawRef.Of(ref b._Inner.init).Address, lua.buffaddr(b)); // grew
                 lua.pushresult(ref b);
                 string s = LuaTestUtil.ToClrString(L._L, -1)!;
                 Assert.Equal(N, s.Length);
@@ -826,7 +826,7 @@ namespace Mod.Lua.Tests
                 lua.Buffer b = default;
                 CStringRef r = lua.buffinitsize(L, ref b, 2000);
                 Assert.Equal(top0 + 1, lua.gettop(L)); // placeholder/box slot
-                Assert.NotEqual(RawRef.Of(ref b.init).Address, lua.buffaddr(ref b)); // box right away
+                Assert.NotEqual(RawRef.Of(ref b._Inner.init).Address, lua.buffaddr(b)); // box right away
 
                 const int W = 1500; // actual written size, less than the preallocation
                 for (int i = 0; i < W; i++) r[i] = (byte)(i % 127 + 1);

@@ -252,16 +252,24 @@ namespace Mod.Lua
                 }
             }
         }
+        /// <summary>
+        /// Stack-local luaL_Buffer (ref struct: the compiler enforces that it
+        /// never escapes to the heap). The properties are VALUE-RETURNING -
+        /// a read-only view: mutating the header fields directly (n, b, size)
+        /// would bypass the buffer's internal invariants, so all writes go
+        /// through the LuaLib facade functions (addsize, addchar, ...), which
+        /// operate on the internal layout struct. Reading 'init' copies the
+        /// 1024-byte block; take its address via the internal field instead.
+        /// </summary>
         public ref struct Buffer
         {
-            private BufferL _Inner;
-            internal ref BufferL Inner => ref RawRef.Of(ref _Inner).GetRef<BufferL>();
+            internal BufferL _Inner;
 
-            public ref IntPtr b => ref RawRef.Of(ref _Inner.b).GetRef<IntPtr>();
-            public ref UIntPtr size => ref RawRef.Of(ref _Inner.size).GetRef<UIntPtr>();
-            public ref UIntPtr n => ref RawRef.Of(ref _Inner.n).GetRef<UIntPtr>();
-            public ref State L => ref RawRef.Of(ref _Inner.L).GetRef<State>();
-            public ref Buffer1024 init => ref RawRef.Of(ref _Inner.init).GetRef<Buffer1024>();
+            public IntPtr b => _Inner.b;
+            public UIntPtr size => _Inner.size;
+            public UIntPtr n => _Inner.n;
+            public State L => _Inner.L;
+            public Buffer1024 init => _Inner.init;
         }
 
 
