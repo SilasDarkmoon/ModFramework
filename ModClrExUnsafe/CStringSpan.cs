@@ -37,9 +37,12 @@ namespace Mod.LowLevel
         private Span<byte> _Address;
         private int _Length;
         internal bool _Readonly;
+        internal bool _IsFixed;
         internal string _ConvertedString;
         internal int _CachedHashCode;
 
+        public IntPtr Address => IsNull() ? IntPtr.Zero : RawRef.Of(ref _Address[0]).Address;
+        public bool IsFixed => _IsFixed;
         public int Length
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -94,7 +97,7 @@ namespace Mod.LowLevel
             }
         }
 
-        public CStringSpan(IntPtr address, int size, int len)
+        public CStringSpan(IntPtr address, int size, int len, bool isfixed = true)
         {
             if (address == IntPtr.Zero)
             {
@@ -111,10 +114,11 @@ namespace Mod.LowLevel
             }
             _Length = len;
             _Readonly = false;
+            _IsFixed = isfixed;
             _ConvertedString = null;
             _CachedHashCode = 0;
         }
-        public CStringSpan(IntPtr address, int size)
+        public CStringSpan(IntPtr address, int size, bool isfixed = true)
         {
             if (address == IntPtr.Zero)
             {
@@ -131,10 +135,11 @@ namespace Mod.LowLevel
             }
             _Length = UnsafeEx.StrLen(_Address);
             _Readonly = false;
+            _IsFixed = isfixed;
             _ConvertedString = null;
             _CachedHashCode = 0;
         }
-        public CStringSpan(IntPtr address)
+        public CStringSpan(IntPtr address, bool isfixed = true)
         {
             if (address == IntPtr.Zero)
             {
@@ -147,6 +152,7 @@ namespace Mod.LowLevel
                 _Address = new Span<byte>(address.ToPointer(), _Length + 1);
             }
             _Readonly = false;
+            _IsFixed = isfixed;
             _ConvertedString = null;
             _CachedHashCode = 0;
         }
@@ -161,6 +167,7 @@ namespace Mod.LowLevel
             _Address = UnsafeEx.AsSpan<byte>(ref address, size);
             _Length = len;
             _Readonly = false;
+            _IsFixed = false;
             _ConvertedString = null;
             _CachedHashCode = 0;
         }
@@ -173,6 +180,7 @@ namespace Mod.LowLevel
             _Address = UnsafeEx.AsSpan<byte>(ref address, size);
             _Length = UnsafeEx.StrLen(_Address);
             _Readonly = false;
+            _IsFixed = false;
             _ConvertedString = null;
             _CachedHashCode = 0;
         }
@@ -181,6 +189,7 @@ namespace Mod.LowLevel
             _Length = UnsafeEx.StrLen(ref address);
             _Address = UnsafeEx.AsSpan<byte>(ref address, _Length + 1);
             _Readonly = false;
+            _IsFixed = false;
             _ConvertedString = null;
             _CachedHashCode = 0;
         }
@@ -189,6 +198,7 @@ namespace Mod.LowLevel
             _Address = data;
             _Length = UnsafeEx.StrLen(data);
             _Readonly = false;
+            _IsFixed = false;
             _ConvertedString = null;
             _CachedHashCode = 0;
         }
@@ -199,6 +209,7 @@ namespace Mod.LowLevel
             _Address = data.Unprotect();
             _Length = UnsafeEx.StrLen(data);
             _Readonly = true;
+            _IsFixed = false;
             _ConvertedString = null;
             _CachedHashCode = 0;
         }
@@ -207,6 +218,7 @@ namespace Mod.LowLevel
             _Address = data;
             _Length = Math.Min(length, _Address.Length);
             _Readonly = false;
+            _IsFixed = false;
             _ConvertedString = null;
             _CachedHashCode = 0;
         }
@@ -215,6 +227,7 @@ namespace Mod.LowLevel
             _Address = data.Unprotect();
             _Length = Math.Min(length, _Address.Length);
             _Readonly = true;
+            _IsFixed = false;
             _ConvertedString = null;
             _CachedHashCode = 0;
         }
@@ -230,6 +243,7 @@ namespace Mod.LowLevel
             _Address = buffer;
             _Length = len;
             _Readonly = false;
+            _IsFixed = false;
             // No pre-caching: external writes (RefIndexer / ToSpan) bypass the
             // indexer setter and would leave a stale _ConvertedString behind.
             _ConvertedString = null;
@@ -248,6 +262,7 @@ namespace Mod.LowLevel
             _Address = buffer;
             _Length = len;
             _Readonly = false;
+            _IsFixed = false;
             _ConvertedString = null;
             _CachedHashCode = 0;
         }
@@ -267,6 +282,7 @@ namespace Mod.LowLevel
             _Address = buffer;
             _Length = len;
             _Readonly = false;
+            _IsFixed = false;
             _ConvertedString = null;
             _CachedHashCode = 0;
         }
@@ -275,6 +291,7 @@ namespace Mod.LowLevel
             _Address = buffer == null ? default : new Span<byte>(buffer);
             _Length = UnsafeEx.StrLen(_Address);
             _Readonly = false;
+            _IsFixed = false;
             _ConvertedString = null;
             _CachedHashCode = 0;
         }
@@ -283,6 +300,7 @@ namespace Mod.LowLevel
             _Address = buffer == null ? default : new Span<byte>(buffer);
             _Length = Math.Min(length, _Address.Length);
             _Readonly = false;
+            _IsFixed = false;
             _ConvertedString = null;
             _CachedHashCode = 0;
         }
@@ -586,7 +604,7 @@ namespace Mod.LowLevel
             }
             else
             {
-                return new CStringSpan(_Address.Slice(startIndex), _Length - startIndex) { _Readonly = _Readonly };
+                return new CStringSpan(_Address.Slice(startIndex), _Length - startIndex) { _Readonly = _Readonly, _IsFixed = _IsFixed };
             }
         }
         public CStringSpan Substring(int startIndex, int length)
@@ -605,11 +623,11 @@ namespace Mod.LowLevel
             }
             if (startIndex + length == _Length)
             {
-                return new CStringSpan(_Address.Slice(startIndex), length) { _Readonly = _Readonly };
+                return new CStringSpan(_Address.Slice(startIndex), length) { _Readonly = _Readonly, _IsFixed = _IsFixed };
             }
             else
             {
-                return new CStringSpan(_Address.Slice(startIndex, length), length) { _Readonly = _Readonly };
+                return new CStringSpan(_Address.Slice(startIndex, length), length) { _Readonly = _Readonly, _IsFixed = _IsFixed };
             }
         }
 
@@ -645,10 +663,10 @@ namespace Mod.LowLevel
         {
             return _Address.Slice(0, _Length).LastIndexOf(value);
         }
-        public int IndexOfAny()
-        {
-            return IndexOfAny(new byte[] { (byte)' ', (byte)'\t', (byte)'\r', (byte)'\n' });
-        }
+        //public int IndexOfAny()
+        //{
+        //    return IndexOfAny(new byte[] { (byte)' ', (byte)'\t', (byte)'\r', (byte)'\n' });
+        //}
         public int IndexOfAny(ReadOnlySpan<byte> anyOf)
         {
             var slice = _Address.Slice(0, _Length);
@@ -728,7 +746,7 @@ namespace Mod.LowLevel
         }
         public bool IsNull()
         {
-            return LowLevel.Ref.IsEmpty(ref _Address.GetRef()); 
+            return UnsafeEx.IsNull(_Address); 
         }
         public static bool IsWhiteSpace(byte value)
         {
@@ -1126,6 +1144,7 @@ namespace Mod.LowLevel
         private bool _consumedSeparator;   // whether the previous yield consumed a separator (decides the trailing empty field)
         private bool _finished;
         private CStringSpan _current;
+        private bool _IsFixed;              // inherited from the source span: fields land on the same memory
 
         internal CStringSpanSplitEnumerator(CStringSpan s, byte separator)
         {
@@ -1137,6 +1156,7 @@ namespace Mod.LowLevel
             _consumedSeparator = false;
             _finished = false;
             _current = default;
+            _IsFixed = s._IsFixed;
         }
 
         internal CStringSpanSplitEnumerator(CStringSpan s, int whitespaceMarker)
@@ -1149,6 +1169,7 @@ namespace Mod.LowLevel
             _consumedSeparator = false;
             _finished = false;
             _current = default;
+            _IsFixed = s._IsFixed;
         }
 
         internal CStringSpanSplitEnumerator(CStringSpan s, ReadOnlySpan<byte> separators)
@@ -1161,6 +1182,7 @@ namespace Mod.LowLevel
             _consumedSeparator = false;
             _finished = false;
             _current = default;
+            _IsFixed = s._IsFixed;
         }
 
         // CStringRef entry points: the source converts to a CStringSpan view (no
@@ -1221,12 +1243,12 @@ namespace Mod.LowLevel
             int sepIndex = _remaining.IndexOf(_singleSep);
             if (sepIndex < 0)
             {
-                _current = new CStringSpan(_remaining, _remaining.Length);
+                _current = new CStringSpan(_remaining, _remaining.Length) { _IsFixed = _IsFixed };
                 _remaining = default;
                 _finished = true;
                 return true;
             }
-            _current = new CStringSpan(_remaining.Slice(0, sepIndex), sepIndex);
+            _current = new CStringSpan(_remaining.Slice(0, sepIndex), sepIndex) { _IsFixed = _IsFixed };
             _remaining = _remaining.Slice(sepIndex + 1);
             _consumedSeparator = true;
             return true;
@@ -1248,7 +1270,7 @@ namespace Mod.LowLevel
             {
                 ++end;
             }
-            _current = new CStringSpan(_remaining.Slice(0, end), end);
+            _current = new CStringSpan(_remaining.Slice(0, end), end) { _IsFixed = _IsFixed };
             _remaining = _remaining.Slice(end);
             return true;
         }
@@ -1274,12 +1296,12 @@ namespace Mod.LowLevel
             int sepIndex = FindAny(_remaining);
             if (sepIndex < 0)
             {
-                _current = new CStringSpan(_remaining, _remaining.Length);
+                _current = new CStringSpan(_remaining, _remaining.Length) { _IsFixed = _IsFixed };
                 _remaining = default;
                 _finished = true;
                 return true;
             }
-            _current = new CStringSpan(_remaining.Slice(0, sepIndex), sepIndex);
+            _current = new CStringSpan(_remaining.Slice(0, sepIndex), sepIndex) { _IsFixed = _IsFixed };
             _remaining = _remaining.Slice(sepIndex + 1);
             _consumedSeparator = true;
             return true;

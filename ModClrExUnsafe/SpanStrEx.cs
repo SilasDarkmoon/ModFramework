@@ -149,10 +149,8 @@ namespace Mod.LowLevel
             unsafe
             {
 #pragma warning disable CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
-                fixed (T* ptr = span)
-                {
-                    return ptr == null;
-                }
+                Span<T>* pspan = &span;
+                return *(IntPtr*)(void*)pspan == IntPtr.Zero;
 #pragma warning restore CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
             }
         }
@@ -186,10 +184,8 @@ namespace Mod.LowLevel
             unsafe
             {
 #pragma warning disable CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
-                fixed (T* ptr = span)
-                {
-                    return ptr == null;
-                }
+                ReadOnlySpan<T>* pspan = &span;
+                return *(IntPtr*)(void*)pspan == IntPtr.Zero;
 #pragma warning restore CS8500 // 这会获取托管类型的地址、获取其大小或声明指向它的指针
             }
         }

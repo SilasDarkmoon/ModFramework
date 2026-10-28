@@ -36,6 +36,19 @@ namespace Mod
                 _Size = 0;
             }
         }
+        public void Resize(int size)
+        {
+            if (_Ptr == IntPtr.Zero)
+            {
+                throw new ObjectDisposedException(nameof(NativeBuffer));
+            }
+            if (size < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(size), "Size must be greater than or equal to 0.");
+            }
+            _Ptr = System.Runtime.InteropServices.Marshal.ReAllocHGlobal(_Ptr, (IntPtr)size);
+            _Size = size;
+        }
 
         public Span<T> ToSpan<T>()
         {

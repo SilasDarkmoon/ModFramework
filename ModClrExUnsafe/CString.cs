@@ -12,9 +12,12 @@ namespace Mod
         private int _Size;
         private int _Length;
         private bool _Readonly;
+        private bool _IsSelfManagedNative;
         private string _ConvertedString;
         private int _CachedHashCode;
 
+        public IntPtr Address => _Address.Address;
+        public bool IsFixed => _Address.Type == UnionRef.RefType.Raw;
         public int Length
         {
             get => _Length;
@@ -71,33 +74,36 @@ namespace Mod
         public static readonly CStringRef Empty = default;
 
         private static UnionRef.RefType _RefType = RuntimeInfo.Runtime == RuntimeInfo.RuntimeCategory.NetFramework || RuntimeInfo.Runtime == RuntimeInfo.RuntimeCategory.NetCore ? UnionRef.RefType.Tracking : UnionRef.RefType.Raw;
-        public CStringRef(IntPtr address, int size, int len)
+        public CStringRef(IntPtr address, int size, int len, bool isSelfManaged = false)
         {
             _Address = new UnionRef<byte>(UnionRef.RefType.Raw); // Native address -> Raw
             _Address.Address = address;
             _Size = size;
             _Length = len;
             _Readonly = false;
+            _IsSelfManagedNative = isSelfManaged;
             _ConvertedString = null;
             _CachedHashCode = 0;
         }
-        public CStringRef(IntPtr address, int size)
+        public CStringRef(IntPtr address, int size, bool isSelfManaged = false)
         {
             _Address = new UnionRef<byte>(UnionRef.RefType.Raw); // Native address -> Raw
             _Address.Address = address;
             _Size = size;
             _Length = UnsafeEx.StrLen(address, size);
             _Readonly = false;
+            _IsSelfManagedNative = isSelfManaged;
             _ConvertedString = null;
             _CachedHashCode = 0;
         }
-        public CStringRef(IntPtr address)
+        public CStringRef(IntPtr address, bool isSelfManaged = false)
         {
             _Address = new UnionRef<byte>(UnionRef.RefType.Raw); // Native address -> Raw
             _Address.Address = address;
             _Length = UnsafeEx.StrLen(address);
             _Size = _Length + 1;
             _Readonly = false;
+            _IsSelfManagedNative = isSelfManaged;
             _ConvertedString = null;
             _CachedHashCode = 0;
         }
@@ -108,6 +114,7 @@ namespace Mod
             _Size = size;
             _Length = len;
             _Readonly = false;
+            _IsSelfManagedNative = false;
             _ConvertedString = null;
             _CachedHashCode = 0;
         }
@@ -118,6 +125,7 @@ namespace Mod
             _Size = size;
             _Length = UnsafeEx.StrLen(ref address, size);
             _Readonly = false;
+            _IsSelfManagedNative = false;
             _ConvertedString = null;
             _CachedHashCode = 0;
         }
@@ -128,6 +136,7 @@ namespace Mod
             _Length = UnsafeEx.StrLen(ref address);
             _Size = _Length + 1;
             _Readonly = false;
+            _IsSelfManagedNative = false;
             _ConvertedString = null;
             _CachedHashCode = 0;
         }
@@ -138,6 +147,7 @@ namespace Mod
             _Size = data.Length;
             _Length = UnsafeEx.StrLen(data);
             _Readonly = false;
+            _IsSelfManagedNative = false;
             _ConvertedString = null;
             _CachedHashCode = 0;
         }
@@ -148,6 +158,7 @@ namespace Mod
             _Size = data.Length;
             _Length = UnsafeEx.StrLen(data);
             _Readonly = true;
+            _IsSelfManagedNative = false;
             _ConvertedString = null;
             _CachedHashCode = 0;
         }
@@ -158,6 +169,7 @@ namespace Mod
             _Size = data.Length;
             _Length = Math.Min(length, _Size);
             _Readonly = false;
+            _IsSelfManagedNative = false;
             _ConvertedString = null;
             _CachedHashCode = 0;
         }
@@ -168,6 +180,7 @@ namespace Mod
             _Size = data.Length;
             _Length = Math.Min(length, _Size);
             _Readonly = true;
+            _IsSelfManagedNative = false;
             _ConvertedString = null;
             _CachedHashCode = 0;
         }
@@ -179,6 +192,14 @@ namespace Mod
         }
         public void Dispose()
         {
+            if (_IsSelfManagedNative)
+            {
+                var addr = _Address.Address;
+                if (addr != IntPtr.Zero)
+                {
+                    System.Runtime.InteropServices.Marshal.FreeHGlobal(addr);
+                }
+            }
             _Address.Dispose();
         }
 
@@ -193,12 +214,17 @@ namespace Mod
 
         /// <summary>
         /// Growth path shared by all mutators: re-points the owned slot at a fresh
-        /// (larger) managed buffer instead of returning a new CStringRef. Mutators
-        /// always return this, so a whole mutation chain shares one slot and
-        /// Dispose happens exactly once, on the final handle.
+        /// (larger) buffer instead of returning a new CStringRef. Mutators always
+        /// return this, so a whole mutation chain shares one slot and Dispose happens
+        /// exactly once, on the final handle.
+        /// The terminating NUL is written here once for every growth path: a managed
+        /// buffer is zeroed anyway, but the self-managed native block comes from
+        /// (Re)AllocHGlobal, which leaves garbage behind the copied content - and the
+        /// in-capacity Append path scans for that NUL (Span.Append -> StrLen).
         /// </summary>
-        private void RebindToNewBuffer(byte[] newbuffer, int newLength)
+        private void RebindToNewBuffer(Span<byte> newbuffer, int newLength)
         {
+            newbuffer[newLength] = 0;   // every caller allocates newLength + 1 bytes
             _Address.SetRef(ref newbuffer[0]);
             _Size = newbuffer.Length;
             _Length = newLength;
@@ -387,7 +413,15 @@ namespace Mod
         }
         public CStringRef Clone()
         {
-            var newCStr = new CStringRef(new Span<byte>(new byte[_Length + 1]));
+            CStringRef newCStr;
+            if (_IsSelfManagedNative)
+            {
+                newCStr = new CStringRef(System.Runtime.InteropServices.Marshal.AllocHGlobal(_Length + 1), _Length + 1, _Length, true);
+            }
+            else
+            {
+                newCStr = new CStringRef(new Span<byte>(new byte[_Length + 1]), _Length);
+            }
             CopyTo(ref newCStr);
             return newCStr;
         }
@@ -554,12 +588,25 @@ namespace Mod
             return new CStringSpan(ref thiz._Address.GetRef(), thiz._Size, thiz._Length)
             {
                 _Readonly = thiz._Readonly,
+                _IsFixed = thiz.IsFixed,
                 _ConvertedString = thiz._ConvertedString,
                 _CachedHashCode = thiz._CachedHashCode,
             };
         }
         public static explicit operator CStringRef(CStringSpan thiz)
         {
+            if (thiz._IsFixed)
+            {
+                // The span wraps non-movable native memory: keep the Raw shape so
+                // the resulting CStringRef stays IsFixed (a Span ctor would make it
+                // a tracked managed ref on CoreCLR and lose the flag).
+                return new CStringRef(thiz.Address, thiz.Length + 1, thiz.Length)
+                {
+                    _Readonly = thiz._Readonly,
+                    _ConvertedString = thiz._ConvertedString,
+                    _CachedHashCode = thiz._CachedHashCode,
+                };
+            }
             return new CStringRef(thiz.ToSpan(), thiz.Length)
             {
                 _Readonly = thiz._Readonly,
@@ -596,6 +643,7 @@ namespace Mod
                 return new CStringSpan(ref UnsafeEx.AddByteOffset(ref _Address.GetRef(), (IntPtr)startIndex), _Size - startIndex, _Length - startIndex)
                 {
                     _Readonly = _Readonly,
+                    _IsFixed = IsFixed,
                 };
             }
         }
@@ -620,6 +668,7 @@ namespace Mod
                 return new CStringSpan(ref UnsafeEx.AddByteOffset(ref _Address.GetRef(), (IntPtr)startIndex), _Size - startIndex, length)
                 {
                     _Readonly = _Readonly,
+                    _IsFixed = IsFixed,
                 };
             }
             else
@@ -627,6 +676,7 @@ namespace Mod
                 return new CStringSpan(ref UnsafeEx.AddByteOffset(ref _Address.GetRef(), (IntPtr)startIndex), length, length)
                 {
                     _Readonly = _Readonly,
+                    _IsFixed = IsFixed,
                 };
             }
         }
@@ -1123,8 +1173,17 @@ namespace Mod
             }
             if (_Length >= _Size)
             {
-                var newbuffer = new byte[_Length + 2];
-                UnsafeEx.MemCopy(ref newbuffer[0], 0, ref _Address.GetRef(), 0, _Length);
+                Span<byte> newbuffer;
+                var newbuffersize = _Length + 2;
+                if (_IsSelfManagedNative)
+                {
+                    newbuffer = UnsafeEx.AsSpan<byte>(System.Runtime.InteropServices.Marshal.ReAllocHGlobal(_Address.Address, (IntPtr)newbuffersize), newbuffersize);
+                }
+                else
+                {
+                    newbuffer = new byte[newbuffersize];
+                    UnsafeEx.MemCopy(ref newbuffer[0], 0, ref _Address.GetRef(), 0, _Length);
+                }
                 newbuffer[_Length] = value;
                 RebindToNewBuffer(newbuffer, _Length + 1);
                 return this;
@@ -1146,8 +1205,17 @@ namespace Mod
             }
             if (_Length + other._Length > _Size)
             {
-                var newbuffer = new byte[_Length + other._Length + 1];
-                UnsafeEx.MemCopy(ref newbuffer[0], 0, ref _Address.GetRef(), 0, _Length);
+                Span<byte> newbuffer;
+                var newbuffersize = _Length + other._Length + 1;
+                if (_IsSelfManagedNative)
+                {
+                    newbuffer = UnsafeEx.AsSpan<byte>(System.Runtime.InteropServices.Marshal.ReAllocHGlobal(_Address.Address, (IntPtr)newbuffersize), newbuffersize);
+                }
+                else
+                {
+                    newbuffer = new byte[newbuffersize];
+                    UnsafeEx.MemCopy(ref newbuffer[0], 0, ref _Address.GetRef(), 0, _Length);
+                }
                 UnsafeEx.MemCopy(ref newbuffer[0], _Length, ref other._Address.GetRef(), 0, other._Length);
                 RebindToNewBuffer(newbuffer, _Length + other._Length);
                 return this;
@@ -1322,11 +1390,23 @@ namespace Mod
             int newLength = _Length + repeat;
             if (newLength > _Size)
             {
-                var buffer = new byte[newLength + 1];
-                UnsafeEx.MemCopy(ref buffer[0], 0, ref _Address.GetRef(), 0, index);
-                UnsafeEx.MemSet(ref buffer[0], index, ch, repeat);
-                UnsafeEx.MemCopy(ref buffer[0], index + repeat, ref _Address.GetRef(), index, _Length - index);
-                RebindToNewBuffer(buffer, newLength);
+                Span<byte> newbuffer;
+                if (_IsSelfManagedNative)
+                {
+                    newbuffer = UnsafeEx.AsSpan<byte>(System.Runtime.InteropServices.Marshal.AllocHGlobal(newLength + 1), newLength + 1);
+                }
+                else
+                {
+                    newbuffer = new byte[newLength + 1];
+                }
+                UnsafeEx.MemCopy(ref newbuffer[0], 0, ref _Address.GetRef(), 0, index);
+                UnsafeEx.MemSet(ref newbuffer[0], index, ch, repeat);
+                UnsafeEx.MemCopy(ref newbuffer[0], index + repeat, ref _Address.GetRef(), index, _Length - index);
+                if (_IsSelfManagedNative)
+                {
+                    System.Runtime.InteropServices.Marshal.FreeHGlobal(_Address.Address);
+                }
+                RebindToNewBuffer(newbuffer, newLength);
                 return this;
             }
             UnsafeEx.MemCopy(ref _Address.GetRef(), index + repeat, ref _Address.GetRef(), index, _Length - index);
@@ -1370,14 +1450,26 @@ namespace Mod
             int newLength = _Length + addLength;
             if (newLength > _Size)
             {
-                var buffer = new byte[newLength + 1];
-                UnsafeEx.MemCopy(ref buffer[0], 0, ref _Address.GetRef(), 0, index);
+                Span<byte> newbuffer;
+                if (_IsSelfManagedNative)
+                {
+                    newbuffer = UnsafeEx.AsSpan<byte>(System.Runtime.InteropServices.Marshal.AllocHGlobal(newLength + 1), newLength + 1);
+                }
+                else
+                {
+                    newbuffer = new byte[newLength + 1];
+                }
+                UnsafeEx.MemCopy(ref newbuffer[0], 0, ref _Address.GetRef(), 0, index);
                 for (int i = 0; i < repeat; ++i)
                 {
-                    UnsafeEx.MemCopy(ref buffer[0], index + i * sub._Length, ref sub._Address.GetRef(), 0, sub._Length);
+                    UnsafeEx.MemCopy(ref newbuffer[0], index + i * sub._Length, ref sub._Address.GetRef(), 0, sub._Length);
                 }
-                UnsafeEx.MemCopy(ref buffer[0], index + addLength, ref _Address.GetRef(), index, _Length - index);
-                RebindToNewBuffer(buffer, newLength);
+                UnsafeEx.MemCopy(ref newbuffer[0], index + addLength, ref _Address.GetRef(), index, _Length - index);
+                if (_IsSelfManagedNative)
+                {
+                    System.Runtime.InteropServices.Marshal.FreeHGlobal(_Address.Address);
+                }
+                RebindToNewBuffer(newbuffer, newLength);
                 return this;
             }
             // In-place insertion: snapshot sub first so it survives the shift when sub shares the same underlying buffer as this view
@@ -1553,7 +1645,15 @@ namespace Mod
 
             if (newTotal > _Size)
             {
-                var buffer = new byte[newTotal + 1];
+                Span<byte> newbuffer;
+                if (_IsSelfManagedNative)
+                {
+                    newbuffer = UnsafeEx.AsSpan<byte>(System.Runtime.InteropServices.Marshal.AllocHGlobal(newTotal + 1), newTotal + 1);
+                }
+                else
+                {
+                    newbuffer = new byte[newTotal + 1];
+                }
                 int source = 0;
                 int target = 0;
                 for (int i = 0; i < matchCount; ++i)
@@ -1562,22 +1662,26 @@ namespace Mod
                     if (source < pos)
                     {
                         int segmentLength = pos - source;
-                        UnsafeEx.MemCopy(ref buffer[0], target, ref _Address.GetRef(), source, segmentLength);
+                        UnsafeEx.MemCopy(ref newbuffer[0], target, ref _Address.GetRef(), source, segmentLength);
                         source += segmentLength;
                         target += segmentLength;
                     }
                     if (newLength > 0)
                     {
-                        UnsafeEx.MemCopy(ref buffer[0], target, ref snapshot[0], 0, newLength);
+                        UnsafeEx.MemCopy(ref newbuffer[0], target, ref snapshot[0], 0, newLength);
                         target += newLength;
                     }
                     source += oldLength;
                 }
                 if (source < _Length)
                 {
-                    UnsafeEx.MemCopy(ref buffer[0], target, ref _Address.GetRef(), source, _Length - source);
+                    UnsafeEx.MemCopy(ref newbuffer[0], target, ref _Address.GetRef(), source, _Length - source);
                 }
-                RebindToNewBuffer(buffer, newTotal);
+                if (_IsSelfManagedNative)
+                {
+                    System.Runtime.InteropServices.Marshal.FreeHGlobal(_Address.Address);
+                }
+                RebindToNewBuffer(newbuffer, newTotal);
                 return this;
             }
             else

@@ -1,8 +1,10 @@
 using System;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 using Mod.Lua;
 using Mod.LowLevel;
+using Xunit.Abstractions;
 using lua = Mod.Lua.LuaLib;
 
 // MonoPInvokeCallback 空替身：ModLua 的 internal 版经 InternalsVisibleTo 可见，
@@ -22,6 +24,9 @@ namespace Mod.Lua.Tests
     /// </summary>
     public class LuaInteropTests
     {
+        private readonly ITestOutputHelper _output;
+        public LuaInteropTests(ITestOutputHelper output) { _output = output; }
+
         // ---------------- C# 回调群（静态方法 + 保活字段 + 缓存 thunk 地址） ----------------
 
         [AOT.MonoPInvokeCallback(typeof(lua.CFunction))]
@@ -948,6 +953,283 @@ namespace Mod.Lua.Tests
                 box.Dispose(); // double-Dispose stays a no-op (idempotent)
             }
             finally { lua.close(L); }
+        }
+
+        // -------- xxxn void variants: identical stack effect to their CStringRef-returning twins --------
+
+        [Fact]
+        public void Push_VoidVariants_MatchOriginals()
+        {
+            lua.State L = lua.newstate();
+            try
+            {
+                int top0 = lua.gettop(L);
+
+                // pushlstringn vs pushlstring: same content, same stack effect
+                lua.pushlstringn(L, new CStringSpan("hello\0world", 11));
+                lua.pushlstring(L, new CStringSpan("hello\0world", 11));
+                Assert.Equal(top0 + 2, lua.gettop(L));
+                Assert.True(lua.rawequal(L, -1, -2) != 0);   // both interned -> identical object
+                lua.pop(L, 2);
+
+                // pushstringn vs pushstring
+                lua.pushstringn(L, new CStringSpan("abc"));
+                lua.pushstring(L, new CStringSpan("abc"));
+                Assert.True(lua.rawequal(L, -1, -2) != 0);
+                lua.pop(L, 2);
+
+                // pushfstringn (both overloads) vs pushfstring
+                lua.pushfstringn(L, new CStringSpan("plain"));
+                lua.pushfstring(L, new CStringSpan("plain"));
+                Assert.True(lua.rawequal(L, -1, -2) != 0);
+                lua.pop(L, 2);
+                lua.pushfstringn(L, new CStringSpan("n=%d"), (IntPtr)42);
+                lua.pushfstring(L, new CStringSpan("n=%d"), (IntPtr)42);
+                Assert.True(lua.rawequal(L, -1, -2) != 0);
+                Assert.Equal("n=42", LuaTestUtil.ToClrString(L._L, -1));
+                lua.pop(L, 2);
+
+                // pushvfstringn vs pushvfstring: no conversion specifiers -> argp unread
+                lua.pushvfstringn(L, new CStringSpan("nofmt"), IntPtr.Zero);
+                lua.pushvfstring(L, new CStringSpan("nofmt"), IntPtr.Zero);
+                Assert.True(lua.rawequal(L, -1, -2) != 0);
+                lua.pop(L, 2);
+
+                // pushexternalstringn vs pushexternalstring: fixed native buffer, falloc = null
+                IntPtr ext = LuaTestUtil.AllocUtf8("ext");
+                try
+                {
+                    lua.pushexternalstringn(L, new CStringRef(ext, 4, 3), null, IntPtr.Zero);
+                    lua.pushexternalstring(L, new CStringRef(ext, 4, 3), null, IntPtr.Zero);
+                    Assert.True(lua.rawequal(L, -1, -2) != 0);
+                    Assert.Equal("ext", LuaTestUtil.ToClrString(L._L, -1));
+                    lua.pop(L, 2);
+                }
+                finally { LuaTestUtil.FreeUtf8(ext); }
+
+                Assert.Equal(top0, lua.gettop(L));
+            }
+            finally { lua.close(L); }
+        }
+
+        // ---------------- 短字符串 key 索引性能试验 ----------------
+        // 三种 key 获取路径（表统一为 upvalue 1，差异只在 key 来源）：
+        //   A: pushlstring —— 每次重新 intern 短字符串
+        //   B: rawgeti(REGISTRYINDEX, ref) —— refer 缓存的 key 字符串
+        //   C: pushvalue(upvalueindex(2)) —— key 作为闭包 upvalue
+        //   D: 空回调基准 —— 扣除 Lua 循环 + C 调用开销
+
+        private const string ShortKey = "playerScore";
+        private static IntPtr s_ShortKeyPtr;   // AllocHGlobal UTF8 + NUL
+        private static byte[] s_ShortKeyBytes = Array.Empty<byte>(); // managed UTF8 + NUL (IsFixed=false path)
+        private static int s_ShortKeyRef;      // registry ref of the key string
+
+        private static readonly lua.CFunction s_BenchEmpty = BenchEmpty;
+        private static readonly lua.CFunction s_BenchPushLString = BenchPushLString;
+        private static readonly lua.CFunction s_BenchPushLStringManaged = BenchPushLStringManaged;
+        private static readonly lua.CFunction s_BenchPushLStringN = BenchPushLStringN;
+        private static readonly lua.CFunction s_BenchPushLStringRaw = BenchPushLStringRaw;
+        private static readonly lua.CFunction s_BenchRawGetI = BenchRawGetI;
+        private static readonly lua.CFunction s_BenchUpvalue = BenchUpvalue;
+
+        [AOT.MonoPInvokeCallback(typeof(lua.CFunction))]
+        private static int BenchEmpty(IntPtr L) => 0;
+
+        // A2: LuaImport 直调（跳过 facade 的 CStringSpan/stackalloc 拷贝）——分离 facade 开销与 native interning 开销
+        [AOT.MonoPInvokeCallback(typeof(lua.CFunction))]
+        private static int BenchPushLStringRaw(IntPtr L)
+        {
+            LuaImport.lua_pushlstring(L, s_ShortKeyPtr, (UIntPtr)ShortKey.Length);
+            LuaImport.lua_gettable(L, LuaTestUtil.LuaUpvalueIndex(1));
+            LuaImport.lua_settop(L, -2);
+            return 0;
+        }
+
+        [AOT.MonoPInvokeCallback(typeof(lua.CFunction))]
+        private static int BenchPushLString(IntPtr L)
+        {
+            lua.State s = new lua.State { _L = L };
+            // IntPtr ctor: isfixed defaults to true -> facade passes the native
+            // buffer directly (no copy) on every host.
+            lua.pushlstring(s, new CStringSpan(s_ShortKeyPtr, ShortKey.Length + 1, ShortKey.Length));
+            lua.gettable(s, lua.upvalueindex(1));
+            lua.pop(s, 1);
+            return 0;
+        }
+
+        // A0: facade + managed byte[] span (IsFixed=false -> copy path on non-Unity).
+        // Length-explicit ctor: no StrLen scan (the scan variant would re-derive
+        // a length the caller already knows).
+        [AOT.MonoPInvokeCallback(typeof(lua.CFunction))]
+        private static int BenchPushLStringManaged(IntPtr L)
+        {
+            lua.State s = new lua.State { _L = L };
+            lua.pushlstring(s, new CStringSpan(s_ShortKeyBytes, ShortKey.Length));
+            lua.gettable(s, lua.upvalueindex(1));
+            lua.pop(s, 1);
+            return 0;
+        }
+
+        // An: same as A but the void variant (skips the CStringRef return construction)
+        [AOT.MonoPInvokeCallback(typeof(lua.CFunction))]
+        private static int BenchPushLStringN(IntPtr L)
+        {
+            lua.State s = new lua.State { _L = L };
+            lua.pushlstringn(s, new CStringSpan(s_ShortKeyPtr, ShortKey.Length + 1, ShortKey.Length));
+            lua.gettable(s, lua.upvalueindex(1));
+            lua.pop(s, 1);
+            return 0;
+        }
+
+        [AOT.MonoPInvokeCallback(typeof(lua.CFunction))]
+        private static int BenchRawGetI(IntPtr L)
+        {
+            lua.State s = new lua.State { _L = L };
+            lua.rawgeti(s, lua.REGISTRYINDEX, s_ShortKeyRef);
+            lua.gettable(s, lua.upvalueindex(1));
+            lua.pop(s, 1);
+            return 0;
+        }
+
+        [AOT.MonoPInvokeCallback(typeof(lua.CFunction))]
+        private static int BenchUpvalue(IntPtr L)
+        {
+            lua.State s = new lua.State { _L = L };
+            lua.pushvalue(s, lua.upvalueindex(2));
+            lua.gettable(s, lua.upvalueindex(1));
+            lua.pop(s, 1);
+            return 0;
+        }
+
+        [Fact]
+        public void Bench_ShortStringKey_Indexing()
+        {
+            const int N = 2_000_000;
+            const int Warmup = 50_000;
+
+            s_ShortKeyPtr = LuaTestUtil.AllocUtf8(ShortKey);
+            s_ShortKeyBytes = new byte[ShortKey.Length + 1];
+            Encoding.UTF8.GetBytes(ShortKey, 0, ShortKey.Length, s_ShortKeyBytes, 0);
+            lua.State L = lua.newstate();
+            try
+            {
+                lua.openselectedlibs(L, -1, 0);
+
+                // t[ShortKey] = 42
+                lua.newtable(L);
+                lua.pushlstring(L, new CStringSpan(s_ShortKeyPtr, ShortKey.Length + 1, ShortKey.Length));
+                lua.pushinteger(L, 42);
+                lua.settable(L, -3);
+                int tableRef = lua.refer(L, lua.REGISTRYINDEX);
+
+                // key 字符串 refer 到 registry（B 组用）
+                lua.pushlstring(L, new CStringSpan(s_ShortKeyPtr, ShortKey.Length + 1, ShortKey.Length));
+                s_ShortKeyRef = lua.refer(L, lua.REGISTRYINDEX);
+
+                // 四个闭包：表统一 upvalue 1；C 组 key 额外作 upvalue 2
+                void MakeClosure(lua.CFunction f, int nup, string name)
+                {
+                    lua.pushcclosure(L, f, nup);
+                    IntPtr p = LuaTestUtil.AllocUtf8(name);
+                    try { lua.setglobal(L, new CStringSpan(p)); }
+                    finally { LuaTestUtil.FreeUtf8(p); }
+                }
+                lua.rawgeti(L, lua.REGISTRYINDEX, tableRef);
+                MakeClosure(s_BenchEmpty, 1, "fD");
+                lua.rawgeti(L, lua.REGISTRYINDEX, tableRef);
+                MakeClosure(s_BenchPushLString, 1, "fA");
+                lua.rawgeti(L, lua.REGISTRYINDEX, tableRef);
+                MakeClosure(s_BenchPushLStringManaged, 1, "fA0");
+                lua.rawgeti(L, lua.REGISTRYINDEX, tableRef);
+                MakeClosure(s_BenchPushLStringN, 1, "fAn");
+                lua.rawgeti(L, lua.REGISTRYINDEX, tableRef);
+                MakeClosure(s_BenchPushLStringRaw, 1, "fA2");
+                lua.rawgeti(L, lua.REGISTRYINDEX, tableRef);
+                MakeClosure(s_BenchRawGetI, 1, "fB");
+                lua.rawgeti(L, lua.REGISTRYINDEX, tableRef);
+                lua.rawgeti(L, lua.REGISTRYINDEX, s_ShortKeyRef);
+                MakeClosure(s_BenchUpvalue, 2, "fC");
+
+                long Run(string fname, int n)
+                {
+                    var sw = Stopwatch.StartNew();
+                    IntPtr p = LuaTestUtil.AllocUtf8($"local f = {fname} for i = 1, {n} do f() end");
+                    try { Assert.Equal(lua.OK, lua.dostring(L, new CStringSpan(p))); }
+                    finally { LuaTestUtil.FreeUtf8(p); }
+                    return sw.ElapsedTicks;
+                }
+
+                // 预热（JIT + 缓存）
+                Run("fD", Warmup); Run("fA", Warmup); Run("fA0", Warmup); Run("fAn", Warmup); Run("fA2", Warmup); Run("fB", Warmup); Run("fC", Warmup);
+
+                long tD = Run("fD", N);
+                long tA = Run("fA", N);
+                long tA0 = Run("fA0", N);
+                long tAn = Run("fAn", N);
+                long tA2 = Run("fA2", N);
+                long tB = Run("fB", N);
+                long tC = Run("fC", N);
+
+                double Ms(long ticks) => ticks * 1000.0 / Stopwatch.Frequency;
+                double NsPerOp(long ticks) => ticks * 1_000_000_000.0 / Stopwatch.Frequency / N;
+                _output.WriteLine($"D  empty baseline         : {Ms(tD),8:F1} ms  {NsPerOp(tD),6:F1} ns/op");
+                _output.WriteLine($"A  facade IsFixed         : {Ms(tA),8:F1} ms  {NsPerOp(tA),6:F1} ns/op");
+                _output.WriteLine($"A0 facade managed (copy)  : {Ms(tA0),8:F1} ms  {NsPerOp(tA0),6:F1} ns/op");
+                _output.WriteLine($"An facade void return     : {Ms(tAn),8:F1} ms  {NsPerOp(tAn),6:F1} ns/op");
+                _output.WriteLine($"A2 LuaImport direct       : {Ms(tA2),8:F1} ms  {NsPerOp(tA2),6:F1} ns/op");
+                _output.WriteLine($"B  rawgeti(ref)           : {Ms(tB),8:F1} ms  {NsPerOp(tB),6:F1} ns/op");
+                _output.WriteLine($"C  upvalue                : {Ms(tC),8:F1} ms  {NsPerOp(tC),6:F1} ns/op");
+
+                // 宽松断言：key 获取路径必然慢于空基准；upvalue 不慢于每次 intern
+                Assert.True(tA > tD, "pushlstring path must be slower than the empty baseline");
+                Assert.True(tC < tA, "upvalue path must beat re-interning on every call");
+            }
+            finally
+            {
+                lua.close(L);
+                LuaTestUtil.FreeUtf8(s_ShortKeyPtr);
+            }
+        }
+
+        [Fact]
+        public void CStringSpan_IsFixed_Inheritance()
+        {
+            // Native source (IntPtr ctor -> IsFixed=true): every derived view that
+            // lands on the SAME memory must inherit the flag.
+            IntPtr p = LuaTestUtil.AllocUtf8("hello world");
+            try
+            {
+                var src = new CStringSpan(p, 12, 11);
+                Assert.True(src.IsFixed);
+
+                Assert.True(src.Substring(6).IsFixed);          // tail slice
+                Assert.True(src.Substring(0, 5).IsFixed);      // middle slice
+                Assert.True(src.Substring(6, 5).IsFixed);      // exact-tail slice
+
+                foreach (var f in src.Split((byte)' '))       // split fields
+                    Assert.True(f.IsFixed);
+
+                var r = new CStringRef(p, 12, 11);             // native CStringRef
+                Assert.True(r.IsFixed);
+                Assert.True(((CStringSpan)r).IsFixed);         // ref -> span view
+                Assert.True(((CStringSpan)r).Substring(6).IsFixed);
+                Assert.True(r.Substring(6).IsFixed);           // CStringRef.Substring
+                foreach (var f in r.Split((byte)' '))
+                    Assert.True(f.IsFixed);
+
+                Assert.True(((CStringRef)src).IsFixed);        // span -> ref keeps Raw shape
+
+                // Managed source (byte[] ctor -> IsFixed=false): derived views stay false.
+                var m = new CStringSpan(Encoding.UTF8.GetBytes("hello world"));
+                Assert.False(m.IsFixed);
+                Assert.False(m.Substring(6).IsFixed);
+                Assert.False(m.Substring(0, 5).IsFixed);
+                foreach (var f in m.Split((byte)' '))
+                    Assert.False(f.IsFixed);
+                Assert.False(((CStringRef)m).IsFixed);
+                Assert.False(((CStringSpan)(CStringRef)m).IsFixed);
+            }
+            finally { LuaTestUtil.FreeUtf8(p); }
         }
     }
 }

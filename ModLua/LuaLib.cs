@@ -304,20 +304,18 @@ namespace Mod.Lua
         /// finally/using blocks on the call path may be skipped.</remarks>
         public static void checkstack(this State L, int sz, CStringSpan msg)
         {
+            // Fast path: direct native address (fixed/Unity AND already NUL-terminated).
+            if (msg.IsNull() || ((RuntimeInfo.IsUnity || msg.IsFixed) && msg.IsNullTerminated()))
+            {
+                LuaImport.luaL_checkstack(Ptr(L), sz, msg.Address);
+                return;
+            }
             using (NativeBuffer bmsg = default)
             {
-                IntPtr pmsg;
-                if (!msg.IsNull() && (!RuntimeInfo.IsUnity || !msg.IsNullTerminated()))
-                {
-                    Span<byte> newspan = msg.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bmsg) = new NativeBuffer(msg.Length + 1)) : stackalloc byte[msg.Length + 1];
-                    msg.Slice().CopyTo(newspan);
-                    newspan[msg.Length] = 0;   // terminator: stackalloc is not zeroed
-                    pmsg = RawRef.Of(ref newspan[0]).Address;
-                }
-                else
-                {
-                    pmsg = RawRef.Of(ref msg.ToSpan().GetRef()).Address;
-                }
+                Span<byte> newspan = msg.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bmsg) = new NativeBuffer(msg.Length + 1)) : stackalloc byte[msg.Length + 1];
+                msg.Slice().CopyTo(newspan);
+                newspan[msg.Length] = 0;   // terminator: stackalloc is not zeroed
+                IntPtr pmsg = RawRef.Of(ref newspan[0]).Address;
                 LuaImport.luaL_checkstack(Ptr(L), sz, pmsg);
             }
         }
@@ -429,21 +427,25 @@ namespace Mod.Lua
         /// <returns>The CStringRef of the pushed (interned) copy - valid while the value stays on the stack.</returns>
         public static CStringRef pushlstring(this State L, CStringSpan s)
         {
+            var cloned = pushlstringCore(L, s);
+            return new CStringRef(cloned, s.Length + 1, s.Length);
+        }
+        /// <summary><c>[-0, +1, v]</c> void variant of pushlstring: identical stack effect, skips the CStringRef return construction.</summary>
+        public static void pushlstringn(this State L, CStringSpan s) => pushlstringCore(L, s);
+        private static IntPtr pushlstringCore(this State L, CStringSpan s)
+        {
+            // Fast path: direct native address (fixed/Unity); a null span -> NULL
+            // (lua_pushlstring(L, NULL, 0) is legal - pushes an empty string).
+            if (s.IsNull() || RuntimeInfo.IsUnity || s.IsFixed)
+            {
+                return LuaImport.lua_pushlstring(Ptr(L), s.Address, (UIntPtr)s.Length);
+            }
             using (NativeBuffer bs = default)
             {
-                IntPtr ps;
-                if (!s.IsNull() && !RuntimeInfo.IsUnity)
-                {
-                    Span<byte> newspan = s.Length > _StackAllocMaxElements ? (Ref.Unprotect(in bs) = new NativeBuffer(s.Length)) : stackalloc byte[s.Length];
-                    s.Slice().CopyTo(newspan);
-                    ps = RawRef.Of(ref newspan.GetRef()).Address;   // empty span -> NULL (lua_pushlstring(L, NULL, 0) is legal)
-                }
-                else
-                {
-                    ps = RawRef.Of(ref s.ToSpan().GetRef()).Address; // empty span -> NULL
-                }
-                var cloned = LuaImport.lua_pushlstring(Ptr(L), ps, (UIntPtr)s.Length);
-                return new CStringRef(cloned, s.Length + 1, s.Length);
+                Span<byte> newspan = s.Length > _StackAllocMaxElements ? (Ref.Unprotect(in bs) = new NativeBuffer(s.Length)) : stackalloc byte[s.Length];
+                s.Slice().CopyTo(newspan);
+                IntPtr ps = RawRef.Of(ref newspan.GetRef()).Address;   // empty span -> NULL
+                return LuaImport.lua_pushlstring(Ptr(L), ps, (UIntPtr)s.Length);
             }
         }
         /// <summary><c>[-0, +1, m]</c> Pushes an external string backed by caller-owned memory (lua_pushexternalstring).</summary>
@@ -454,78 +456,92 @@ namespace Mod.Lua
         /// passed back verbatim to falloc. Returns the input reference (the string's identity).</remarks>
         public static CStringRef pushexternalstring(this State L, CStringRef s, Alloc falloc, IntPtr ud)
         {
+            pushexternalstringn(L, s, falloc, ud);
+            return s;
+        }
+        /// <summary><c>[-0, +1, m]</c> void variant of pushexternalstring: identical stack effect, skips returning the input reference.</summary>
+        public static void pushexternalstringn(this State L, CStringRef s, Alloc falloc, IntPtr ud)
+        {
             // Empty span -> NULL, but an external string REQUIRES s[len] == '\0'
             // (native api_check dereferences it) - an empty CStringRef is an
             // invalid argument either way, same as in C.
             IntPtr ps = RawRef.Of(ref s.Slice().GetRef()).Address;
             LuaImport.lua_pushexternalstring(Ptr(L), ps, (UIntPtr)s.Length, Keep(falloc), ud);
-            return s;
         }
         /// <summary><c>[-0, +1, m]</c> Pushes the NUL-terminated string s onto the stack (lua_pushstring).</summary>
         /// <param name="s">A null span pushes nil.</param>
         /// <returns>The CStringRef of the pushed copy - valid while the value stays on the stack.</returns>
         public static CStringRef pushstring(this State L, CStringSpan s)
         {
+            var cloned = pushstringCore(L, s);
+            return new CStringRef(cloned);
+        }
+        /// <summary><c>[-0, +1, m]</c> void variant of pushstring: identical stack effect, skips the CStringRef return construction.</summary>
+        public static void pushstringn(this State L, CStringSpan s) => pushstringCore(L, s);
+        private static IntPtr pushstringCore(this State L, CStringSpan s)
+        {
+            // Fast path: direct native address (fixed/Unity AND already NUL-terminated);
+            // a null span -> NULL (lua_pushstring(L, NULL) pushes nil).
+            if (s.IsNull() || ((RuntimeInfo.IsUnity || s.IsFixed) && s.IsNullTerminated()))
+            {
+                return LuaImport.lua_pushstring(Ptr(L), s.Address);
+            }
             using (NativeBuffer bs = default)
             {
-                IntPtr ps;
-                if (!s.IsNull() && (!RuntimeInfo.IsUnity || !s.IsNullTerminated()))
-                {
-                    Span<byte> newspan = s.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bs) = new NativeBuffer(s.Length + 1)) : stackalloc byte[s.Length + 1];
-                    s.Slice().CopyTo(newspan);
-                    newspan[s.Length] = 0;   // terminator: stackalloc is not zeroed
-                    ps = RawRef.Of(ref newspan[0]).Address;
-                }
-                else
-                {
-                    ps = RawRef.Of(ref s.ToSpan().GetRef()).Address;
-                }
-                var cloned = LuaImport.lua_pushstring(Ptr(L), ps);
-                return new CStringRef(cloned);
+                Span<byte> newspan = s.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bs) = new NativeBuffer(s.Length + 1)) : stackalloc byte[s.Length + 1];
+                s.Slice().CopyTo(newspan);
+                newspan[s.Length] = 0;   // terminator: stackalloc is not zeroed
+                IntPtr ps = RawRef.Of(ref newspan[0]).Address;
+                return LuaImport.lua_pushstring(Ptr(L), ps);
             }
         }
         /// <summary><c>[-0, +1, -]</c> Pushes a formatted string from a va_list argument pointer (lua_pushvfstring).</summary>
         /// <remarks>TODO: argp is a raw va_list - platform-specific, no portable C# shape.</remarks>
         public static CStringRef pushvfstring(this State L, CStringSpan fmt, IntPtr argp)
         {
+            var cloned = pushvfstringCore(L, fmt, argp);
+            return new CStringRef(cloned);
+        }
+        /// <summary><c>[-0, +1, -]</c> void variant of pushvfstring: identical stack effect, skips the CStringRef return construction.</summary>
+        public static void pushvfstringn(this State L, CStringSpan fmt, IntPtr argp) => pushvfstringCore(L, fmt, argp);
+        private static IntPtr pushvfstringCore(this State L, CStringSpan fmt, IntPtr argp)
+        {
+            // Fast path: direct native address (fixed/Unity AND already NUL-terminated).
+            if (fmt.IsNull() || ((RuntimeInfo.IsUnity || fmt.IsFixed) && fmt.IsNullTerminated()))
+            {
+                return LuaImport.lua_pushvfstring(Ptr(L), fmt.Address, argp);
+            }
             using (NativeBuffer bfmt = default)
             {
-                IntPtr pfmt;
-                if (!fmt.IsNull() && (!RuntimeInfo.IsUnity || !fmt.IsNullTerminated()))
-                {
-                    Span<byte> newspan = fmt.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bfmt) = new NativeBuffer(fmt.Length + 1)) : stackalloc byte[fmt.Length + 1];
-                    fmt.Slice().CopyTo(newspan);
-                    newspan[fmt.Length] = 0;   // terminator: stackalloc is not zeroed
-                    pfmt = RawRef.Of(ref newspan[0]).Address;
-                }
-                else
-                {
-                    pfmt = RawRef.Of(ref fmt.ToSpan().GetRef()).Address;
-                }
-    
-                var cloned = LuaImport.lua_pushvfstring(Ptr(L), pfmt, argp);
-                return new CStringRef(cloned);
+                Span<byte> newspan = fmt.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bfmt) = new NativeBuffer(fmt.Length + 1)) : stackalloc byte[fmt.Length + 1];
+                fmt.Slice().CopyTo(newspan);
+                newspan[fmt.Length] = 0;   // terminator: stackalloc is not zeroed
+                IntPtr pfmt = RawRef.Of(ref newspan[0]).Address;
+                return LuaImport.lua_pushvfstring(Ptr(L), pfmt, argp);
             }
         }
         /// <summary><c>[-0, +1, v]</c> Pushes a formatted string, no conversion specifiers in fmt (lua_pushfstring).</summary>
         public static CStringRef pushfstring(this State L, CStringSpan fmt)
         {
+            var cloned = pushfstringCore(L, fmt);
+            return new CStringRef(cloned);
+        }
+        /// <summary><c>[-0, +1, v]</c> void variant of pushfstring: identical stack effect, skips the CStringRef return construction.</summary>
+        public static void pushfstringn(this State L, CStringSpan fmt) => pushfstringCore(L, fmt);
+        private static IntPtr pushfstringCore(this State L, CStringSpan fmt)
+        {
+            // Fast path: direct native address (fixed/Unity AND already NUL-terminated).
+            if (fmt.IsNull() || ((RuntimeInfo.IsUnity || fmt.IsFixed) && fmt.IsNullTerminated()))
+            {
+                return LuaImport.lua_pushfstring(Ptr(L), fmt.Address);
+            }
             using (NativeBuffer bfmt = default)
             {
-                IntPtr pfmt;
-                if (!fmt.IsNull() && (!RuntimeInfo.IsUnity || !fmt.IsNullTerminated()))
-                {
-                    Span<byte> newspan = fmt.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bfmt) = new NativeBuffer(fmt.Length + 1)) : stackalloc byte[fmt.Length + 1];
-                    fmt.Slice().CopyTo(newspan);
-                    newspan[fmt.Length] = 0;   // terminator: stackalloc is not zeroed
-                    pfmt = RawRef.Of(ref newspan[0]).Address;
-                }
-                else
-                {
-                    pfmt = RawRef.Of(ref fmt.ToSpan().GetRef()).Address;
-                }
-                var cloned = LuaImport.lua_pushfstring(Ptr(L), pfmt);
-                return new CStringRef(cloned);
+                Span<byte> newspan = fmt.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bfmt) = new NativeBuffer(fmt.Length + 1)) : stackalloc byte[fmt.Length + 1];
+                fmt.Slice().CopyTo(newspan);
+                newspan[fmt.Length] = 0;   // terminator: stackalloc is not zeroed
+                IntPtr pfmt = RawRef.Of(ref newspan[0]).Address;
+                return LuaImport.lua_pushfstring(Ptr(L), pfmt);
             }
         }
         /// <summary><c>[-0, +1, v]</c> Pushes a formatted string with a single conversion argument (lua_pushfstring).</summary>
@@ -535,22 +551,25 @@ namespace Mod.Lua
         /// native-va_list pushvfstring or format in C# instead).</remarks>
         public static CStringRef pushfstring(this State L, CStringSpan fmt, IntPtr arg1)
         {
+            var cloned = pushfstringCore(L, fmt, arg1);
+            return new CStringRef(cloned);
+        }
+        /// <summary><c>[-0, +1, v]</c> void variant of pushfstring: identical stack effect, skips the CStringRef return construction.</summary>
+        public static void pushfstringn(this State L, CStringSpan fmt, IntPtr arg1) => pushfstringCore(L, fmt, arg1);
+        private static IntPtr pushfstringCore(this State L, CStringSpan fmt, IntPtr arg1)
+        {
+            // Fast path: direct native address (fixed/Unity AND already NUL-terminated).
+            if (fmt.IsNull() || ((RuntimeInfo.IsUnity || fmt.IsFixed) && fmt.IsNullTerminated()))
+            {
+                return LuaImport.lua_pushfstring(Ptr(L), fmt.Address, arg1);
+            }
             using (NativeBuffer bfmt = default)
             {
-                IntPtr pfmt;
-                if (!fmt.IsNull() && (!RuntimeInfo.IsUnity || !fmt.IsNullTerminated()))
-                {
-                    Span<byte> newspan = fmt.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bfmt) = new NativeBuffer(fmt.Length + 1)) : stackalloc byte[fmt.Length + 1];
-                    fmt.Slice().CopyTo(newspan);
-                    newspan[fmt.Length] = 0;   // terminator: stackalloc is not zeroed
-                    pfmt = RawRef.Of(ref newspan[0]).Address;
-                }
-                else
-                {
-                    pfmt = RawRef.Of(ref fmt.ToSpan().GetRef()).Address;
-                }
-                var cloned = LuaImport.lua_pushfstring(Ptr(L), pfmt, arg1);
-                return new CStringRef(cloned);
+                Span<byte> newspan = fmt.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bfmt) = new NativeBuffer(fmt.Length + 1)) : stackalloc byte[fmt.Length + 1];
+                fmt.Slice().CopyTo(newspan);
+                newspan[fmt.Length] = 0;   // terminator: stackalloc is not zeroed
+                IntPtr pfmt = RawRef.Of(ref newspan[0]).Address;
+                return LuaImport.lua_pushfstring(Ptr(L), pfmt, arg1);
             }
         }
         /// <summary><c>[-n, +1, m]</c> Pushes a C function with n upvalues as a closure (lua_pushcclosure).</summary>
@@ -575,20 +594,17 @@ namespace Mod.Lua
         /// <summary><c>[-0, +1, e]</c> Pushes the value of the global name; returns its type (lua_getglobal).</summary>
         public static int getglobal(this State L, CStringSpan name)
         {
+            // Fast path: direct native address (fixed/Unity AND already NUL-terminated).
+            if (name.IsNull() || ((RuntimeInfo.IsUnity || name.IsFixed) && name.IsNullTerminated()))
+            {
+                return LuaImport.lua_getglobal(Ptr(L), name.Address);
+            }
             using (NativeBuffer bname = default)
             {
-                IntPtr pname;
-                if (!name.IsNull() && (!RuntimeInfo.IsUnity || !name.IsNullTerminated()))
-                {
-                    Span<byte> newspan = name.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bname) = new NativeBuffer(name.Length + 1)) : stackalloc byte[name.Length + 1];
-                    name.Slice().CopyTo(newspan);
-                    newspan[name.Length] = 0;   // terminator: stackalloc is not zeroed
-                    pname = RawRef.Of(ref newspan[0]).Address;
-                }
-                else
-                {
-                    pname = RawRef.Of(ref name.ToSpan().GetRef()).Address;
-                }
+                Span<byte> newspan = name.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bname) = new NativeBuffer(name.Length + 1)) : stackalloc byte[name.Length + 1];
+                name.Slice().CopyTo(newspan);
+                newspan[name.Length] = 0;   // terminator: stackalloc is not zeroed
+                IntPtr pname = RawRef.Of(ref newspan[0]).Address;
                 return LuaImport.lua_getglobal(Ptr(L), pname);
             }
         }
@@ -597,20 +613,17 @@ namespace Mod.Lua
         /// <summary><c>[-0, +1, e]</c> Pushes the value of field k from the table at idx (lua_getfield).</summary>
         public static int getfield(this State L, int idx, CStringSpan k)
         {
+            // Fast path: direct native address (fixed/Unity AND already NUL-terminated).
+            if (k.IsNull() || ((RuntimeInfo.IsUnity || k.IsFixed) && k.IsNullTerminated()))
+            {
+                return LuaImport.lua_getfield(Ptr(L), idx, k.Address);
+            }
             using (NativeBuffer bk = default)
             {
-                IntPtr pk;
-                if (!k.IsNull() && (!RuntimeInfo.IsUnity || !k.IsNullTerminated()))
-                {
-                    Span<byte> newspan = k.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bk) = new NativeBuffer(k.Length + 1)) : stackalloc byte[k.Length + 1];
-                    k.Slice().CopyTo(newspan);
-                    newspan[k.Length] = 0;   // terminator: stackalloc is not zeroed
-                    pk = RawRef.Of(ref newspan[0]).Address;
-                }
-                else
-                {
-                    pk = RawRef.Of(ref k.ToSpan().GetRef()).Address;
-                }
+                Span<byte> newspan = k.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bk) = new NativeBuffer(k.Length + 1)) : stackalloc byte[k.Length + 1];
+                k.Slice().CopyTo(newspan);
+                newspan[k.Length] = 0;   // terminator: stackalloc is not zeroed
+                IntPtr pk = RawRef.Of(ref newspan[0]).Address;
                 return LuaImport.lua_getfield(Ptr(L), idx, pk);
             }
         }
@@ -641,20 +654,18 @@ namespace Mod.Lua
         /// <summary><c>[-1, +0, e]</c> Pops a value and assigns it to the global name (lua_setglobal).</summary>
         public static void setglobal(this State L, CStringSpan name)
         {
+            // Fast path: direct native address (fixed/Unity AND already NUL-terminated).
+            if (name.IsNull() || ((RuntimeInfo.IsUnity || name.IsFixed) && name.IsNullTerminated()))
+            {
+                LuaImport.lua_setglobal(Ptr(L), name.Address);
+                return;
+            }
             using (NativeBuffer bname = default)
             {
-                IntPtr pname;
-                if (!name.IsNull() && (!RuntimeInfo.IsUnity || !name.IsNullTerminated()))
-                {
-                    Span<byte> newspan = name.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bname) = new NativeBuffer(name.Length + 1)) : stackalloc byte[name.Length + 1];
-                    name.Slice().CopyTo(newspan);
-                    newspan[name.Length] = 0;   // terminator: stackalloc is not zeroed
-                    pname = RawRef.Of(ref newspan[0]).Address;
-                }
-                else
-                {
-                    pname = RawRef.Of(ref name.ToSpan().GetRef()).Address;
-                }
+                Span<byte> newspan = name.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bname) = new NativeBuffer(name.Length + 1)) : stackalloc byte[name.Length + 1];
+                name.Slice().CopyTo(newspan);
+                newspan[name.Length] = 0;   // terminator: stackalloc is not zeroed
+                IntPtr pname = RawRef.Of(ref newspan[0]).Address;
                 LuaImport.lua_setglobal(Ptr(L), pname);
             }
         }
@@ -663,20 +674,18 @@ namespace Mod.Lua
         /// <summary><c>[-1, +0, e]</c> Pops a value and does t[k] = value on the table at idx (lua_setfield).</summary>
         public static void setfield(this State L, int idx, CStringSpan k)
         {
+            // Fast path: direct native address (fixed/Unity AND already NUL-terminated).
+            if (k.IsNull() || ((RuntimeInfo.IsUnity || k.IsFixed) && k.IsNullTerminated()))
+            {
+                LuaImport.lua_setfield(Ptr(L), idx, k.Address);
+                return;
+            }
             using (NativeBuffer bk = default)
             {
-                IntPtr pk;
-                if (!k.IsNull() && (!RuntimeInfo.IsUnity || !k.IsNullTerminated()))
-                {
-                    Span<byte> newspan = k.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bk) = new NativeBuffer(k.Length + 1)) : stackalloc byte[k.Length + 1];
-                    k.Slice().CopyTo(newspan);
-                    newspan[k.Length] = 0;   // terminator: stackalloc is not zeroed
-                    pk = RawRef.Of(ref newspan[0]).Address;
-                }
-                else
-                {
-                    pk = RawRef.Of(ref k.ToSpan().GetRef()).Address;
-                }
+                Span<byte> newspan = k.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bk) = new NativeBuffer(k.Length + 1)) : stackalloc byte[k.Length + 1];
+                k.Slice().CopyTo(newspan);
+                newspan[k.Length] = 0;   // terminator: stackalloc is not zeroed
+                IntPtr pk = RawRef.Of(ref newspan[0]).Address;
                 LuaImport.lua_setfield(Ptr(L), idx, pk);
             }
         }
@@ -694,20 +703,18 @@ namespace Mod.Lua
         /// <summary><c>[-0, +0, -]</c> Sets the registry metatable tname as the metatable of the value on top (luaL_setmetatable).</summary>
         public static void setmetatable(this State L, CStringSpan tname)
         {
+            // Fast path: direct native address (fixed/Unity AND already NUL-terminated).
+            if (tname.IsNull() || ((RuntimeInfo.IsUnity || tname.IsFixed) && tname.IsNullTerminated()))
+            {
+                LuaImport.luaL_setmetatable(Ptr(L), tname.Address);
+                return;
+            }
             using (NativeBuffer bname = default)
             {
-                IntPtr pname;
-                if (!tname.IsNull() && (!RuntimeInfo.IsUnity || !tname.IsNullTerminated()))
-                {
-                    Span<byte> newspan = tname.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bname) = new NativeBuffer(tname.Length + 1)) : stackalloc byte[tname.Length + 1];
-                    tname.Slice().CopyTo(newspan);
-                    newspan[tname.Length] = 0;   // terminator: stackalloc is not zeroed
-                    pname = RawRef.Of(ref newspan[0]).Address;
-                }
-                else
-                {
-                    pname = RawRef.Of(ref tname.ToSpan().GetRef()).Address;
-                }
+                Span<byte> newspan = tname.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bname) = new NativeBuffer(tname.Length + 1)) : stackalloc byte[tname.Length + 1];
+                tname.Slice().CopyTo(newspan);
+                newspan[tname.Length] = 0;   // terminator: stackalloc is not zeroed
+                IntPtr pname = RawRef.Of(ref newspan[0]).Address;
                 LuaImport.luaL_setmetatable(Ptr(L), pname);
             }
         }
@@ -738,10 +745,16 @@ namespace Mod.Lua
         /// verbatim to every Reader callback.</param>
         public static int load(this State L, Reader reader, IntPtr dt, CStringSpan chunkname, CStringSpan mode)
         {
+            // Fast path: both spans direct (fixed/Unity AND already NUL-terminated).
+            if ((chunkname.IsNull() || ((RuntimeInfo.IsUnity || chunkname.IsFixed) && chunkname.IsNullTerminated())) &&
+                (mode.IsNull() || ((RuntimeInfo.IsUnity || mode.IsFixed) && mode.IsNullTerminated())))
+            {
+                return LuaImport.lua_load(Ptr(L), Keep(reader), dt, chunkname.Address, mode.Address);
+            }
             using (NativeBuffer bchunkname = default, bmode = default)
             {
                 IntPtr pchunkname;
-                if (!chunkname.IsNull() && (!RuntimeInfo.IsUnity || !chunkname.IsNullTerminated()))
+                if (!chunkname.IsNull() && (!(RuntimeInfo.IsUnity || chunkname.IsFixed) || !chunkname.IsNullTerminated()))
                 {
                     Span<byte> newspan = chunkname.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bchunkname) = new NativeBuffer(chunkname.Length + 1)) : stackalloc byte[chunkname.Length + 1];
                     chunkname.Slice().CopyTo(newspan);
@@ -750,10 +763,10 @@ namespace Mod.Lua
                 }
                 else
                 {
-                    pchunkname = RawRef.Of(ref chunkname.ToSpan().GetRef()).Address;
+                    pchunkname = chunkname.Address;
                 }
                 IntPtr pmode;
-                if (!mode.IsNull() && (!RuntimeInfo.IsUnity || !mode.IsNullTerminated()))
+                if (!mode.IsNull() && (!(RuntimeInfo.IsUnity || mode.IsFixed) || !mode.IsNullTerminated()))
                 {
                     Span<byte> newspan = mode.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bmode) = new NativeBuffer(mode.Length + 1)) : stackalloc byte[mode.Length + 1];
                     mode.Slice().CopyTo(newspan);
@@ -762,7 +775,7 @@ namespace Mod.Lua
                 }
                 else
                 {
-                    pmode = RawRef.Of(ref mode.ToSpan().GetRef()).Address;
+                    pmode = mode.Address;
                 }
                 return LuaImport.lua_load(Ptr(L), Keep(reader), dt, pchunkname, pmode);
             }
@@ -808,20 +821,18 @@ namespace Mod.Lua
         /// <summary><c>[-0, +0, -]</c> Emits a warning; tocont marks a continued warning sequence (lua_warning).</summary>
         public static void warning(this State L, CStringSpan msg, int tocont)
         {
+            // Fast path: direct native address (fixed/Unity AND already NUL-terminated).
+            if (msg.IsNull() || ((RuntimeInfo.IsUnity || msg.IsFixed) && msg.IsNullTerminated()))
+            {
+                LuaImport.lua_warning(Ptr(L), msg.Address, tocont);
+                return;
+            }
             using (NativeBuffer bmsg = default)
             {
-                IntPtr pmsg;
-                if (!msg.IsNull() && (!RuntimeInfo.IsUnity || !msg.IsNullTerminated()))
-                {
-                    Span<byte> newspan = msg.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bmsg) = new NativeBuffer(msg.Length + 1)) : stackalloc byte[msg.Length + 1];
-                    msg.Slice().CopyTo(newspan);
-                    newspan[msg.Length] = 0;   // terminator: stackalloc is not zeroed
-                    pmsg = RawRef.Of(ref newspan[0]).Address;
-                }
-                else
-                {
-                    pmsg = RawRef.Of(ref msg.ToSpan().GetRef()).Address;
-                }
+                Span<byte> newspan = msg.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bmsg) = new NativeBuffer(msg.Length + 1)) : stackalloc byte[msg.Length + 1];
+                msg.Slice().CopyTo(newspan);
+                newspan[msg.Length] = 0;   // terminator: stackalloc is not zeroed
+                IntPtr pmsg = RawRef.Of(ref newspan[0]).Address;
                 LuaImport.lua_warning(Ptr(L), pmsg, tocont);
             }
         }
@@ -860,20 +871,17 @@ namespace Mod.Lua
         /// <param name="fmt">Must contain no conversion specifiers.</param>
         public static int error(this State L, CStringSpan fmt)
         {
+            // Fast path: direct native address (fixed/Unity AND already NUL-terminated).
+            if (fmt.IsNull() || ((RuntimeInfo.IsUnity || fmt.IsFixed) && fmt.IsNullTerminated()))
+            {
+                return LuaImport.luaL_error(Ptr(L), fmt.Address);
+            }
             using (NativeBuffer bfmt = default)
             {
-                IntPtr pfmt;
-                if (!fmt.IsNull() && (!RuntimeInfo.IsUnity || !fmt.IsNullTerminated()))
-                {
-                    Span<byte> newspan = fmt.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bfmt) = new NativeBuffer(fmt.Length + 1)) : stackalloc byte[fmt.Length + 1];
-                    fmt.Slice().CopyTo(newspan);
-                    newspan[fmt.Length] = 0;   // terminator: stackalloc is not zeroed
-                    pfmt = RawRef.Of(ref newspan[0]).Address;
-                }
-                else
-                {
-                    pfmt = RawRef.Of(ref fmt.ToSpan().GetRef()).Address;
-                }
+                Span<byte> newspan = fmt.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bfmt) = new NativeBuffer(fmt.Length + 1)) : stackalloc byte[fmt.Length + 1];
+                fmt.Slice().CopyTo(newspan);
+                newspan[fmt.Length] = 0;   // terminator: stackalloc is not zeroed
+                IntPtr pfmt = RawRef.Of(ref newspan[0]).Address;
                 return LuaImport.luaL_error(Ptr(L), pfmt);
             }
         }
@@ -883,20 +891,17 @@ namespace Mod.Lua
         /// as the pushfstring single-argument form).</param>
         public static int error(this State L, CStringSpan fmt, IntPtr arg1)
         {
+            // Fast path: direct native address (fixed/Unity AND already NUL-terminated).
+            if (fmt.IsNull() || ((RuntimeInfo.IsUnity || fmt.IsFixed) && fmt.IsNullTerminated()))
+            {
+                return LuaImport.luaL_error(Ptr(L), fmt.Address, arg1);
+            }
             using (NativeBuffer bfmt = default)
             {
-                IntPtr pfmt;
-                if (!fmt.IsNull() && (!RuntimeInfo.IsUnity || !fmt.IsNullTerminated()))
-                {
-                    Span<byte> newspan = fmt.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bfmt) = new NativeBuffer(fmt.Length + 1)) : stackalloc byte[fmt.Length + 1];
-                    fmt.Slice().CopyTo(newspan);
-                    newspan[fmt.Length] = 0;   // terminator: stackalloc is not zeroed
-                    pfmt = RawRef.Of(ref newspan[0]).Address;
-                }
-                else
-                {
-                    pfmt = RawRef.Of(ref fmt.ToSpan().GetRef()).Address;
-                }
+                Span<byte> newspan = fmt.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bfmt) = new NativeBuffer(fmt.Length + 1)) : stackalloc byte[fmt.Length + 1];
+                fmt.Slice().CopyTo(newspan);
+                newspan[fmt.Length] = 0;   // terminator: stackalloc is not zeroed
+                IntPtr pfmt = RawRef.Of(ref newspan[0]).Address;
                 return LuaImport.luaL_error(Ptr(L), pfmt, arg1);
             }
         }
@@ -929,20 +934,17 @@ namespace Mod.Lua
         /// <summary><c>[-0, +1, -]</c> Converts the string s to a number and pushes it; returns its length or 0 (lua_stringtonumber).</summary>
         public static UIntPtr stringtonumber(this State L, CStringSpan s)
         {
+            // Fast path: direct native address (fixed/Unity AND already NUL-terminated).
+            if (s.IsNull() || ((RuntimeInfo.IsUnity || s.IsFixed) && s.IsNullTerminated()))
+            {
+                return LuaImport.lua_stringtonumber(Ptr(L), s.Address);
+            }
             using (NativeBuffer bs = default)
             {
-                IntPtr ps;
-                if (!s.IsNull() && (!RuntimeInfo.IsUnity || !s.IsNullTerminated()))
-                {
-                    Span<byte> newspan = s.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bs) = new NativeBuffer(s.Length + 1)) : stackalloc byte[s.Length + 1];
-                    s.Slice().CopyTo(newspan);
-                    newspan[s.Length] = 0;   // terminator: stackalloc is not zeroed
-                    ps = RawRef.Of(ref newspan[0]).Address;
-                }
-                else
-                {
-                    ps = RawRef.Of(ref s.ToSpan().GetRef()).Address;
-                }
+                Span<byte> newspan = s.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bs) = new NativeBuffer(s.Length + 1)) : stackalloc byte[s.Length + 1];
+                s.Slice().CopyTo(newspan);
+                newspan[s.Length] = 0;   // terminator: stackalloc is not zeroed
+                IntPtr ps = RawRef.Of(ref newspan[0]).Address;
                 return LuaImport.lua_stringtonumber(Ptr(L), ps);
             }
         }
@@ -992,27 +994,28 @@ namespace Mod.Lua
         /// <remarks>Same stack-local bounce as getstack on compacting-GC hosts.</remarks>
         public static int getinfo(this State L, CStringSpan what, ref Debug ar)
         {
+            // Fast path: direct native address (fixed/Unity AND already NUL-terminated).
+            if (what.IsNull() || ((RuntimeInfo.IsUnity || what.IsFixed) && what.IsNullTerminated()))
+            {
+                return getinfoCore(L, what.Address, ref ar);
+            }
             using (NativeBuffer bwhat = default)
             {
-                IntPtr pwhat;
-                if (!what.IsNull() && (!RuntimeInfo.IsUnity || !what.IsNullTerminated()))
-                {
-                    Span<byte> newspan = what.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bwhat) = new NativeBuffer(what.Length + 1)) : stackalloc byte[what.Length + 1];
-                    what.Slice().CopyTo(newspan);
-                    newspan[what.Length] = 0;   // terminator: stackalloc is not zeroed
-                    pwhat = RawRef.Of(ref newspan[0]).Address;
-                }
-                else
-                {
-                    pwhat = RawRef.Of(ref what.ToSpan().GetRef()).Address;
-                }
-                if (RuntimeInfo.IsUnity)
-                    return LuaImport.lua_getinfo(Ptr(L), pwhat, Ptr(ref ar));
-                Debug local = ar;
-                int r = LuaImport.lua_getinfo(Ptr(L), pwhat, Ptr(ref local));
-                ar = local;
-                return r;
+                Span<byte> newspan = what.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bwhat) = new NativeBuffer(what.Length + 1)) : stackalloc byte[what.Length + 1];
+                what.Slice().CopyTo(newspan);
+                newspan[what.Length] = 0;   // terminator: stackalloc is not zeroed
+                IntPtr pwhat = RawRef.Of(ref newspan[0]).Address;
+                return getinfoCore(L, pwhat, ref ar);
             }
+        }
+        private static int getinfoCore(this State L, IntPtr pwhat, ref Debug ar)
+        {
+            if (RuntimeInfo.IsUnity)
+                return LuaImport.lua_getinfo(Ptr(L), pwhat, Ptr(ref ar));
+            Debug local = ar;
+            int r = LuaImport.lua_getinfo(Ptr(L), pwhat, Ptr(ref local));
+            ar = local;
+            return r;
         }
         /// <summary><c>[-0, +(0|1), -]</c> Pushes the n-th local variable of the frame and returns its name (lua_getlocal).</summary>
         /// <remarks>Same stack-local bounce as getstack on compacting-GC hosts.</remarks>
@@ -1066,40 +1069,34 @@ namespace Mod.Lua
         /// <summary><c>[-0, +(0|1), m]</c> Pushes the field e of the metatable of obj if it exists (luaL_getmetafield).</summary>
         public static int getmetafield(this State L, int obj, CStringSpan e)
         {
+            // Fast path: direct native address (fixed/Unity AND already NUL-terminated).
+            if (e.IsNull() || ((RuntimeInfo.IsUnity || e.IsFixed) && e.IsNullTerminated()))
+            {
+                return LuaImport.luaL_getmetafield(Ptr(L), obj, e.Address);
+            }
             using (NativeBuffer be = default)
             {
-                IntPtr pe;
-                if (!e.IsNull() && (!RuntimeInfo.IsUnity || !e.IsNullTerminated()))
-                {
-                    Span<byte> newspan = e.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in be) = new NativeBuffer(e.Length + 1)) : stackalloc byte[e.Length + 1];
-                    e.Slice().CopyTo(newspan);
-                    newspan[e.Length] = 0;   // terminator: stackalloc is not zeroed
-                    pe = RawRef.Of(ref newspan[0]).Address;
-                }
-                else
-                {
-                    pe = RawRef.Of(ref e.ToSpan().GetRef()).Address;
-                }
+                Span<byte> newspan = e.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in be) = new NativeBuffer(e.Length + 1)) : stackalloc byte[e.Length + 1];
+                e.Slice().CopyTo(newspan);
+                newspan[e.Length] = 0;   // terminator: stackalloc is not zeroed
+                IntPtr pe = RawRef.Of(ref newspan[0]).Address;
                 return LuaImport.luaL_getmetafield(Ptr(L), obj, pe);
             }
         }
         /// <summary><c>[-0, +(0|1), e]</c> Calls the metamethod e of the value at obj if present (luaL_callmeta).</summary>
         public static int callmeta(this State L, int obj, CStringSpan e)
         {
+            // Fast path: direct native address (fixed/Unity AND already NUL-terminated).
+            if (e.IsNull() || ((RuntimeInfo.IsUnity || e.IsFixed) && e.IsNullTerminated()))
+            {
+                return LuaImport.luaL_callmeta(Ptr(L), obj, e.Address);
+            }
             using (NativeBuffer be = default)
             {
-                IntPtr pe;
-                if (!e.IsNull() && (!RuntimeInfo.IsUnity || !e.IsNullTerminated()))
-                {
-                    Span<byte> newspan = e.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in be) = new NativeBuffer(e.Length + 1)) : stackalloc byte[e.Length + 1];
-                    e.Slice().CopyTo(newspan);
-                    newspan[e.Length] = 0;   // terminator: stackalloc is not zeroed
-                    pe = RawRef.Of(ref newspan[0]).Address;
-                }
-                else
-                {
-                    pe = RawRef.Of(ref e.ToSpan().GetRef()).Address;
-                }
+                Span<byte> newspan = e.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in be) = new NativeBuffer(e.Length + 1)) : stackalloc byte[e.Length + 1];
+                e.Slice().CopyTo(newspan);
+                newspan[e.Length] = 0;   // terminator: stackalloc is not zeroed
+                IntPtr pe = RawRef.Of(ref newspan[0]).Address;
                 return LuaImport.luaL_callmeta(Ptr(L), obj, pe);
             }
         }
@@ -1107,20 +1104,17 @@ namespace Mod.Lua
         /// <remarks>WARNING: longjmps (never returns normally).</remarks>
         public static int argerror(this State L, int arg, CStringSpan extramsg)
         {
+            // Fast path: direct native address (fixed/Unity AND already NUL-terminated).
+            if (extramsg.IsNull() || ((RuntimeInfo.IsUnity || extramsg.IsFixed) && extramsg.IsNullTerminated()))
+            {
+                return LuaImport.luaL_argerror(Ptr(L), arg, extramsg.Address);
+            }
             using (NativeBuffer bextramsg = default)
             {
-                IntPtr pextramsg;
-                if (!extramsg.IsNull() && (!RuntimeInfo.IsUnity || !extramsg.IsNullTerminated()))
-                {
-                    Span<byte> newspan = extramsg.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bextramsg) = new NativeBuffer(extramsg.Length + 1)) : stackalloc byte[extramsg.Length + 1];
-                    extramsg.Slice().CopyTo(newspan);
-                    newspan[extramsg.Length] = 0;   // terminator: stackalloc is not zeroed
-                    pextramsg = RawRef.Of(ref newspan[0]).Address;
-                }
-                else
-                {
-                    pextramsg = RawRef.Of(ref extramsg.ToSpan().GetRef()).Address;
-                }
+                Span<byte> newspan = extramsg.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bextramsg) = new NativeBuffer(extramsg.Length + 1)) : stackalloc byte[extramsg.Length + 1];
+                extramsg.Slice().CopyTo(newspan);
+                newspan[extramsg.Length] = 0;   // terminator: stackalloc is not zeroed
+                IntPtr pextramsg = RawRef.Of(ref newspan[0]).Address;
                 return LuaImport.luaL_argerror(Ptr(L), arg, pextramsg);
             }
         }
@@ -1128,20 +1122,17 @@ namespace Mod.Lua
         /// <remarks>WARNING: longjmps (never returns normally).</remarks>
         public static int typeerror(this State L, int arg, CStringSpan tname)
         {
+            // Fast path: direct native address (fixed/Unity AND already NUL-terminated).
+            if (tname.IsNull() || ((RuntimeInfo.IsUnity || tname.IsFixed) && tname.IsNullTerminated()))
+            {
+                return LuaImport.luaL_typeerror(Ptr(L), arg, tname.Address);
+            }
             using (NativeBuffer btname = default)
             {
-                IntPtr ptname;
-                if (!tname.IsNull() && (!RuntimeInfo.IsUnity || !tname.IsNullTerminated()))
-                {
-                    Span<byte> newspan = tname.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in btname) = new NativeBuffer(tname.Length + 1)) : stackalloc byte[tname.Length + 1];
-                    tname.Slice().CopyTo(newspan);
-                    newspan[tname.Length] = 0;   // terminator: stackalloc is not zeroed
-                    ptname = RawRef.Of(ref newspan[0]).Address;
-                }
-                else
-                {
-                    ptname = RawRef.Of(ref tname.ToSpan().GetRef()).Address;
-                }
+                Span<byte> newspan = tname.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in btname) = new NativeBuffer(tname.Length + 1)) : stackalloc byte[tname.Length + 1];
+                tname.Slice().CopyTo(newspan);
+                newspan[tname.Length] = 0;   // terminator: stackalloc is not zeroed
+                IntPtr ptname = RawRef.Of(ref newspan[0]).Address;
                 return LuaImport.luaL_typeerror(Ptr(L), arg, ptname);
             }
         }
@@ -1190,22 +1181,18 @@ namespace Mod.Lua
         /// previous value is left on top in that case).</returns>
         public static bool newmetatable(this State L, CStringSpan tname)
         {
+            // Fast path: direct native address (fixed/Unity AND already NUL-terminated).
+            if (tname.IsNull() || ((RuntimeInfo.IsUnity || tname.IsFixed) && tname.IsNullTerminated()))
+            {
+                return LuaImport.luaL_newmetatable(Ptr(L), tname.Address) != 0;
+            }
             using (NativeBuffer btname = default)
             {
-                IntPtr ptname;
-                if (!tname.IsNull() && (!RuntimeInfo.IsUnity || !tname.IsNullTerminated()))
-                {
-                    Span<byte> newspan = tname.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in btname) = new NativeBuffer(tname.Length + 1)) : stackalloc byte[tname.Length + 1];
-                    tname.Slice().CopyTo(newspan);
-                    newspan[tname.Length] = 0;   // terminator: stackalloc is not zeroed
-                    ptname = RawRef.Of(ref newspan[0]).Address;
-                }
-                else
-                {
-                    ptname = RawRef.Of(ref tname.ToSpan().GetRef()).Address;
-                }
-                var result = LuaImport.luaL_newmetatable(Ptr(L), ptname);
-                return result != 0;   // true: created and registered; false: already exists (previous value left on top)
+                Span<byte> newspan = tname.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in btname) = new NativeBuffer(tname.Length + 1)) : stackalloc byte[tname.Length + 1];
+                tname.Slice().CopyTo(newspan);
+                newspan[tname.Length] = 0;   // terminator: stackalloc is not zeroed
+                IntPtr ptname = RawRef.Of(ref newspan[0]).Address;
+                return LuaImport.luaL_newmetatable(Ptr(L), ptname) != 0;   // true: created and registered; false: already exists (previous value left on top)
             }
         }
         /// <summary><c>[-0, +0, m]</c> Returns the userdata at ud if it has metatable tname, otherwise null (luaL_testudata).</summary>
@@ -1213,20 +1200,17 @@ namespace Mod.Lua
         /// size is the one your newuserdatauv call used - Lua does not record it).</returns>
         public static IntPtr testudata(this State L, int ud, CStringSpan tname)
         {
+            // Fast path: direct native address (fixed/Unity AND already NUL-terminated).
+            if (tname.IsNull() || ((RuntimeInfo.IsUnity || tname.IsFixed) && tname.IsNullTerminated()))
+            {
+                return LuaImport.luaL_testudata(Ptr(L), ud, tname.Address);
+            }
             using (NativeBuffer btname = default)
             {
-                IntPtr ptname;
-                if (!tname.IsNull() && (!RuntimeInfo.IsUnity || !tname.IsNullTerminated()))
-                {
-                    Span<byte> newspan = tname.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in btname) = new NativeBuffer(tname.Length + 1)) : stackalloc byte[tname.Length + 1];
-                    tname.Slice().CopyTo(newspan);
-                    newspan[tname.Length] = 0;   // terminator: stackalloc is not zeroed
-                    ptname = RawRef.Of(ref newspan[0]).Address;
-                }
-                else
-                {
-                    ptname = RawRef.Of(ref tname.ToSpan().GetRef()).Address;
-                }
+                Span<byte> newspan = tname.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in btname) = new NativeBuffer(tname.Length + 1)) : stackalloc byte[tname.Length + 1];
+                tname.Slice().CopyTo(newspan);
+                newspan[tname.Length] = 0;   // terminator: stackalloc is not zeroed
+                IntPtr ptname = RawRef.Of(ref newspan[0]).Address;
                 return LuaImport.luaL_testudata(Ptr(L), ud, ptname);
             }
         }
@@ -1235,20 +1219,17 @@ namespace Mod.Lua
         /// <returns>A C <c>void*</c> to the raw userdata block (same semantics as touserdata).</returns>
         public static IntPtr checkudata(this State L, int ud, CStringSpan tname)
         {
+            // Fast path: direct native address (fixed/Unity AND already NUL-terminated).
+            if (tname.IsNull() || ((RuntimeInfo.IsUnity || tname.IsFixed) && tname.IsNullTerminated()))
+            {
+                return LuaImport.luaL_checkudata(Ptr(L), ud, tname.Address);
+            }
             using (NativeBuffer btname = default)
             {
-                IntPtr ptname;
-                if (!tname.IsNull() && (!RuntimeInfo.IsUnity || !tname.IsNullTerminated()))
-                {
-                    Span<byte> newspan = tname.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in btname) = new NativeBuffer(tname.Length + 1)) : stackalloc byte[tname.Length + 1];
-                    tname.Slice().CopyTo(newspan);
-                    newspan[tname.Length] = 0;   // terminator: stackalloc is not zeroed
-                    ptname = RawRef.Of(ref newspan[0]).Address;
-                }
-                else
-                {
-                    ptname = RawRef.Of(ref tname.ToSpan().GetRef()).Address;
-                }
+                Span<byte> newspan = tname.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in btname) = new NativeBuffer(tname.Length + 1)) : stackalloc byte[tname.Length + 1];
+                tname.Slice().CopyTo(newspan);
+                newspan[tname.Length] = 0;   // terminator: stackalloc is not zeroed
+                IntPtr ptname = RawRef.Of(ref newspan[0]).Address;
                 return LuaImport.luaL_checkudata(Ptr(L), ud, ptname);
             }
         } // WARNING: longjmps on bad argument
@@ -1261,7 +1242,7 @@ namespace Mod.Lua
             using (NativeBuffer bdef = default, blst = default, bitemlist = default)
             {
                 IntPtr pdef;
-                if (!def.IsNull() && (!RuntimeInfo.IsUnity || !def.IsNullTerminated()))
+                if (!def.IsNull() && (!(RuntimeInfo.IsUnity || def.IsFixed) || !def.IsNullTerminated()))
                 {
                     Span<byte> newspan = def.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bdef) = new NativeBuffer(def.Length + 1)) : stackalloc byte[def.Length + 1];
                     def.Slice().CopyTo(newspan);
@@ -1270,7 +1251,7 @@ namespace Mod.Lua
                 }
                 else
                 {
-                    pdef = RawRef.Of(ref def.ToSpan().GetRef()).Address;
+                    pdef = def.Address;
                 }
                 var len = lst.Length;
                 if (lst.Length > 0 && lst[lst.Length - 1].IsEmpty())
@@ -1295,7 +1276,7 @@ namespace Mod.Lua
                             itemdisposerlist[i] = default;
                             var item = lst[i];
                             IntPtr pitem;
-                            if (!item.IsNull() && (!RuntimeInfo.IsUnity || !item.IsNullTerminated()))
+                            if (!item.IsNull() && (!(RuntimeInfo.IsUnity || item.IsFixed) || !item.IsNullTerminated()))
                             {
                                 totalstrbytes += item.Length + 1;
                                 Span<byte> newspan = totalstrbytes > _StackAllocMaxElements ? (itemdisposerlist[i] = new NativeBuffer(item.Length + 1)) : stackalloc byte[item.Length + 1];
@@ -1305,7 +1286,7 @@ namespace Mod.Lua
                             }
                             else
                             {
-                                pitem = RawRef.Of(ref item.ToSpan().GetRef()).Address;
+                                pitem = item.Address;
                             }
                             llst[i] = pitem;
                         }
@@ -1325,20 +1306,17 @@ namespace Mod.Lua
         /// <summary><c>[-0, +(1|3), m]</c> Turns a C library call result into a Lua return tuple (nil+err / true / value) (luaL_fileresult).</summary>
         public static int fileresult(this State L, int stat, CStringSpan fname)
         {
+            // Fast path: direct native address (fixed/Unity AND already NUL-terminated).
+            if (fname.IsNull() || ((RuntimeInfo.IsUnity || fname.IsFixed) && fname.IsNullTerminated()))
+            {
+                return LuaImport.luaL_fileresult(Ptr(L), stat, fname.Address);
+            }
             using (NativeBuffer bfname = default)
             {
-                IntPtr pfname;
-                if (!fname.IsNull() && (!RuntimeInfo.IsUnity || !fname.IsNullTerminated()))
-                {
-                    Span<byte> newspan = fname.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bfname) = new NativeBuffer(fname.Length + 1)) : stackalloc byte[fname.Length + 1];
-                    fname.Slice().CopyTo(newspan);
-                    newspan[fname.Length] = 0;   // terminator: stackalloc is not zeroed
-                    pfname = RawRef.Of(ref newspan[0]).Address;
-                }
-                else
-                {
-                    pfname = RawRef.Of(ref fname.ToSpan().GetRef()).Address;
-                }
+                Span<byte> newspan = fname.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bfname) = new NativeBuffer(fname.Length + 1)) : stackalloc byte[fname.Length + 1];
+                fname.Slice().CopyTo(newspan);
+                newspan[fname.Length] = 0;   // terminator: stackalloc is not zeroed
+                IntPtr pfname = RawRef.Of(ref newspan[0]).Address;
                 return LuaImport.luaL_fileresult(Ptr(L), stat, pfname);
             }
         }
@@ -1360,10 +1338,16 @@ namespace Mod.Lua
         /// <param name="mode">"b"/"t"/"bt" (null span = "bt").</param>
         public static int loadfilex(this State L, CStringSpan filename, CStringSpan mode)
         {
+            // Fast path: both spans direct (fixed/Unity AND already NUL-terminated).
+            if ((filename.IsNull() || ((RuntimeInfo.IsUnity || filename.IsFixed) && filename.IsNullTerminated())) &&
+                (mode.IsNull() || ((RuntimeInfo.IsUnity || mode.IsFixed) && mode.IsNullTerminated())))
+            {
+                return LuaImport.luaL_loadfilex(Ptr(L), filename.Address, mode.Address);
+            }
             using (NativeBuffer bfilename = default, bmode = default)
             {
                 IntPtr pfilename;
-                if (!filename.IsNull() && (!RuntimeInfo.IsUnity || !filename.IsNullTerminated()))
+                if (!filename.IsNull() && (!(RuntimeInfo.IsUnity || filename.IsFixed) || !filename.IsNullTerminated()))
                 {
                     Span<byte> newspan = filename.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bfilename) = new NativeBuffer(filename.Length + 1)) : stackalloc byte[filename.Length + 1];
                     filename.Slice().CopyTo(newspan);
@@ -1372,10 +1356,10 @@ namespace Mod.Lua
                 }
                 else
                 {
-                    pfilename = RawRef.Of(ref filename.ToSpan().GetRef()).Address;
+                    pfilename = filename.Address;
                 }
                 IntPtr pmode;
-                if (!mode.IsNull() && (!RuntimeInfo.IsUnity || !mode.IsNullTerminated()))
+                if (!mode.IsNull() && (!(RuntimeInfo.IsUnity || mode.IsFixed) || !mode.IsNullTerminated()))
                 {
                     Span<byte> newspan = mode.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bmode) = new NativeBuffer(mode.Length + 1)) : stackalloc byte[mode.Length + 1];
                     mode.Slice().CopyTo(newspan);
@@ -1384,7 +1368,7 @@ namespace Mod.Lua
                 }
                 else
                 {
-                    pmode = RawRef.Of(ref mode.ToSpan().GetRef()).Address;
+                    pmode = mode.Address;
                 }
                 return LuaImport.luaL_loadfilex(Ptr(L), pfilename, pmode);
             }
@@ -1394,10 +1378,17 @@ namespace Mod.Lua
         /// <param name="mode">"b"/"t"/"bt" (null span = "bt").</param>
         public static int loadbufferx(this State L, CStringSpan buff, CStringSpan name, CStringSpan mode)
         {
+            // Fast path: all spans direct (buff fixed/Unity; name/mode fixed/Unity AND NUL-terminated).
+            if ((buff.IsNull() || RuntimeInfo.IsUnity || buff.IsFixed) &&
+                (name.IsNull() || ((RuntimeInfo.IsUnity || name.IsFixed) && name.IsNullTerminated())) &&
+                (mode.IsNull() || ((RuntimeInfo.IsUnity || mode.IsFixed) && mode.IsNullTerminated())))
+            {
+                return LuaImport.luaL_loadbufferx(Ptr(L), buff.Address, (UIntPtr)buff.Length, name.Address, mode.Address);
+            }
             using (NativeBuffer bbuff = default, bname = default(NativeBuffer), bmode = default)
             {
                 IntPtr pbuff;
-                if (!buff.IsNull() && (!RuntimeInfo.IsUnity))
+                if (!buff.IsNull() && (!(RuntimeInfo.IsUnity || buff.IsFixed)))
                 {
                     Span<byte> newspan = buff.Length > _StackAllocMaxElements ? (Ref.Unprotect(in bbuff) = new NativeBuffer(buff.Length)) : stackalloc byte[buff.Length];
                     buff.Slice().CopyTo(newspan);
@@ -1405,10 +1396,10 @@ namespace Mod.Lua
                 }
                 else
                 {
-                    pbuff = RawRef.Of(ref buff.Slice().GetRef()).Address; // empty span -> NULL
+                    pbuff = buff.Address; // empty span -> NULL
                 }
                 IntPtr pname;
-                if (!name.IsNull() && (!RuntimeInfo.IsUnity || !name.IsNullTerminated()))
+                if (!name.IsNull() && (!(RuntimeInfo.IsUnity || name.IsFixed) || !name.IsNullTerminated()))
                 {
                     Span<byte> newspan = name.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bname) = new NativeBuffer(name.Length + 1)) : stackalloc byte[name.Length + 1];
                     name.Slice().CopyTo(newspan);
@@ -1417,10 +1408,10 @@ namespace Mod.Lua
                 }
                 else
                 {
-                    pname = RawRef.Of(ref name.ToSpan().GetRef()).Address;
+                    pname = name.Address;
                 }
                 IntPtr pmode;
-                if (!mode.IsNull() && (!RuntimeInfo.IsUnity || !mode.IsNullTerminated()))
+                if (!mode.IsNull() && (!(RuntimeInfo.IsUnity || mode.IsFixed) || !mode.IsNullTerminated()))
                 {
                     Span<byte> newspan = mode.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bmode) = new NativeBuffer(mode.Length + 1)) : stackalloc byte[mode.Length + 1];
                     mode.Slice().CopyTo(newspan);
@@ -1429,7 +1420,7 @@ namespace Mod.Lua
                 }
                 else
                 {
-                    pmode = RawRef.Of(ref mode.ToSpan().GetRef()).Address;
+                    pmode = mode.Address;
                 }
                 return LuaImport.luaL_loadbufferx(Ptr(L), pbuff, (UIntPtr)buff.Length, pname, pmode);
             }
@@ -1437,20 +1428,17 @@ namespace Mod.Lua
         /// <summary><c>[-0, +1, -]</c> Loads a string as a chunk; errors come back as return codes (luaL_loadstring).</summary>
         public static int loadstring(this State L, CStringSpan s)
         {
+            // Fast path: direct native address (fixed/Unity AND already NUL-terminated).
+            if (s.IsNull() || ((RuntimeInfo.IsUnity || s.IsFixed) && s.IsNullTerminated()))
+            {
+                return LuaImport.luaL_loadstring(Ptr(L), s.Address);
+            }
             using (NativeBuffer bs = default)
             {
-                IntPtr ps;
-                if  (!s.IsNull() && (!RuntimeInfo.IsUnity || !s.IsNullTerminated()))
-                {
-                    Span<byte> newspan = s.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bs) = new NativeBuffer(s.Length + 1)) : stackalloc byte[s.Length + 1];
-                    s.Slice().CopyTo(newspan);
-                    newspan[s.Length] = 0;   // terminator: stackalloc is not zeroed
-                    ps = RawRef.Of(ref newspan[0]).Address;
-                }
-                else
-                {
-                    ps = RawRef.Of(ref s.ToSpan().GetRef()).Address;
-                }
+                Span<byte> newspan = s.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bs) = new NativeBuffer(s.Length + 1)) : stackalloc byte[s.Length + 1];
+                s.Slice().CopyTo(newspan);
+                newspan[s.Length] = 0;   // terminator: stackalloc is not zeroed
+                IntPtr ps = RawRef.Of(ref newspan[0]).Address;
                 return LuaImport.luaL_loadstring(Ptr(L), ps);
             }
         }
@@ -1461,10 +1449,17 @@ namespace Mod.Lua
         /// stays on the stack.</returns>
         public static CStringRef gsub(this State L, CStringSpan s, CStringSpan p, CStringSpan r)
         {
+            // Fast path: all spans direct (fixed/Unity AND already NUL-terminated).
+            if ((s.IsNull() || ((RuntimeInfo.IsUnity || s.IsFixed) && s.IsNullTerminated())) &&
+                (p.IsNull() || ((RuntimeInfo.IsUnity || p.IsFixed) && p.IsNullTerminated())) &&
+                (r.IsNull() || ((RuntimeInfo.IsUnity || r.IsFixed) && r.IsNullTerminated())))
+            {
+                return new CStringRef(LuaImport.luaL_gsub(Ptr(L), s.Address, p.Address, r.Address));
+            }
             using (NativeBuffer bs = default, bp = default(NativeBuffer), br = default)
             {
                 IntPtr ps;
-                if  (!s.IsNull() && (!RuntimeInfo.IsUnity || !s.IsNullTerminated()))
+                if  (!s.IsNull() && (!(RuntimeInfo.IsUnity || s.IsFixed) || !s.IsNullTerminated()))
                 {
                     Span<byte> newspan = s.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bs) = new NativeBuffer(s.Length + 1)) : stackalloc byte[s.Length + 1];
                     s.Slice().CopyTo(newspan);
@@ -1473,10 +1468,10 @@ namespace Mod.Lua
                 }
                 else
                 {
-                    ps = RawRef.Of(ref s.ToSpan().GetRef()).Address;
+                    ps = s.Address;
                 }
                 IntPtr pp;
-                if (!p.IsNull() && (!RuntimeInfo.IsUnity || !p.IsNullTerminated()))
+                if (!p.IsNull() && (!(RuntimeInfo.IsUnity || p.IsFixed) || !p.IsNullTerminated()))
                 {
                     Span<byte> newspan = p.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bp) = new NativeBuffer(p.Length + 1)) : stackalloc byte[p.Length + 1];
                     p.Slice().CopyTo(newspan);
@@ -1485,10 +1480,10 @@ namespace Mod.Lua
                 }
                 else
                 {
-                    pp = RawRef.Of(ref p.ToSpan().GetRef()).Address;
+                    pp = p.Address;
                 }
                 IntPtr pr;
-                if (!r.IsNull() && (!RuntimeInfo.IsUnity || !r.IsNullTerminated()))
+                if (!r.IsNull() && (!(RuntimeInfo.IsUnity || r.IsFixed) || !r.IsNullTerminated()))
                 {
                     Span<byte> newspan = r.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in br) = new NativeBuffer(r.Length + 1)) : stackalloc byte[r.Length + 1];
                     r.Slice().CopyTo(newspan);
@@ -1497,9 +1492,9 @@ namespace Mod.Lua
                 }
                 else
                 {
-                    pr = RawRef.Of(ref r.ToSpan().GetRef()).Address;
+                    pr = r.Address;
                 }
-    
+
                 return new CStringRef(LuaImport.luaL_gsub(Ptr(L), ps, pp, pr));
             }
         }
@@ -1538,40 +1533,35 @@ namespace Mod.Lua
         /// <summary><c>[-0, +1, e]</c> Pushes the field fname of the value at idx as a table, creating it if needed (luaL_getsubtable).</summary>
         public static int getsubtable(this State L, int idx, CStringSpan fname)
         {
+            // Fast path: direct native address (fixed/Unity AND already NUL-terminated).
+            if (fname.IsNull() || ((RuntimeInfo.IsUnity || fname.IsFixed) && fname.IsNullTerminated()))
+            {
+                return LuaImport.luaL_getsubtable(Ptr(L), idx, fname.Address);
+            }
             using (NativeBuffer bfname = default)
             {
-                IntPtr pfname;
-                if (!fname.IsNull() && (!RuntimeInfo.IsUnity || !fname.IsNullTerminated()))
-                {
-                    Span<byte> newspan = fname.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bfname) = new NativeBuffer(fname.Length + 1)) : stackalloc byte[fname.Length + 1];
-                    fname.Slice().CopyTo(newspan);
-                    newspan[fname.Length] = 0;   // terminator: stackalloc is not zeroed
-                    pfname = RawRef.Of(ref newspan[0]).Address;
-                }
-                else
-                {
-                    pfname = RawRef.Of(ref fname.ToSpan().GetRef()).Address;
-                }
+                Span<byte> newspan = fname.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bfname) = new NativeBuffer(fname.Length + 1)) : stackalloc byte[fname.Length + 1];
+                fname.Slice().CopyTo(newspan);
+                newspan[fname.Length] = 0;   // terminator: stackalloc is not zeroed
+                IntPtr pfname = RawRef.Of(ref newspan[0]).Address;
                 return LuaImport.luaL_getsubtable(Ptr(L), idx, pfname);
             }
         }
         /// <summary><c>[-0, +1, m]</c> Pushes a traceback of the thread L1 with the given message (luaL_traceback).</summary>
         public static void traceback(this State L, State L1, CStringSpan msg, int level)
         {
+            // Fast path: direct native address (fixed/Unity AND already NUL-terminated).
+            if (msg.IsNull() || ((RuntimeInfo.IsUnity || msg.IsFixed) && msg.IsNullTerminated()))
+            {
+                LuaImport.luaL_traceback(Ptr(L), Ptr(L1), msg.Address, level);
+                return;
+            }
             using (NativeBuffer bmsg = default)
             {
-                IntPtr pmsg;
-                if (!msg.IsNull() && (!RuntimeInfo.IsUnity || !msg.IsNullTerminated()))
-                {
-                    Span<byte> newspan = msg.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bmsg) = new NativeBuffer(msg.Length + 1)) : stackalloc byte[msg.Length + 1];
-                    msg.Slice().CopyTo(newspan);
-                    newspan[msg.Length] = 0;   // terminator: stackalloc is not zeroed
-                    pmsg = RawRef.Of(ref newspan[0]).Address;
-                }
-                else
-                {
-                    pmsg = RawRef.Of(ref msg.ToSpan().GetRef()).Address;
-                }
+                Span<byte> newspan = msg.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bmsg) = new NativeBuffer(msg.Length + 1)) : stackalloc byte[msg.Length + 1];
+                msg.Slice().CopyTo(newspan);
+                newspan[msg.Length] = 0;   // terminator: stackalloc is not zeroed
+                IntPtr pmsg = RawRef.Of(ref newspan[0]).Address;
                 LuaImport.luaL_traceback(Ptr(L), Ptr(L1), pmsg, level);
             }
         }
@@ -1581,20 +1571,18 @@ namespace Mod.Lua
         /// <param name="glb">Nonzero also sets the module as a global.</param>
         public static void requiref(this State L, CStringSpan modname, CFunction openf, int glb)
         {
+            // Fast path: direct native address (fixed/Unity AND already NUL-terminated).
+            if (modname.IsNull() || ((RuntimeInfo.IsUnity || modname.IsFixed) && modname.IsNullTerminated()))
+            {
+                LuaImport.luaL_requiref(Ptr(L), modname.Address, Keep(openf), glb);
+                return;
+            }
             using (NativeBuffer bmodname = default)
             {
-                IntPtr pmodname;
-                if (!modname.IsNull() && (!RuntimeInfo.IsUnity || !modname.IsNullTerminated()))
-                {
-                    Span<byte> newspan = modname.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bmodname) = new NativeBuffer(modname.Length + 1)) : stackalloc byte[modname.Length + 1];
-                    modname.Slice().CopyTo(newspan);
-                    newspan[modname.Length] = 0;   // terminator: stackalloc is not zeroed
-                    pmodname = RawRef.Of(ref newspan[0]).Address;
-                }
-                else
-                {
-                    pmodname = RawRef.Of(ref modname.ToSpan().GetRef()).Address;
-                }
+                Span<byte> newspan = modname.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bmodname) = new NativeBuffer(modname.Length + 1)) : stackalloc byte[modname.Length + 1];
+                modname.Slice().CopyTo(newspan);
+                newspan[modname.Length] = 0;   // terminator: stackalloc is not zeroed
+                IntPtr pmodname = RawRef.Of(ref newspan[0]).Address;
                 LuaImport.luaL_requiref(Ptr(L), pmodname, Keep(openf), glb);
             }
         }
@@ -1654,19 +1642,18 @@ namespace Mod.Lua
         /// <summary><c>[-?, +?, m]</c> Adds the string s (with embedded-zero-safe length) to the buffer (luaL_addlstring).</summary>
         internal static void addlstring(ref BufferL B, CStringSpan s)
         {
+            // Fast path: direct native address (fixed/Unity); a null span -> NULL
+            // (addlstring(B, NULL, 0) is a no-op).
+            if (s.IsNull() || RuntimeInfo.IsUnity || s.IsFixed)
+            {
+                LuaImport.luaL_addlstring(Ptr(ref B), s.Address, (UIntPtr)s.Length);
+                return;
+            }
             using (NativeBuffer bs = default)
             {
-                IntPtr ps;
-                if (!s.IsNull() && !RuntimeInfo.IsUnity)
-                {
-                    Span<byte> newspan = s.Length > _StackAllocMaxElements ? (Ref.Unprotect(in bs) = new NativeBuffer(s.Length)) : stackalloc byte[s.Length];
-                    s.Slice().CopyTo(newspan);
-                    ps = RawRef.Of(ref newspan.GetRef()).Address;   // empty span -> NULL (addlstring(B, NULL, 0) is a no-op)
-                }
-                else
-                {
-                    ps = RawRef.Of(ref s.Slice().GetRef()).Address; // empty span -> NULL
-                }
+                Span<byte> newspan = s.Length > _StackAllocMaxElements ? (Ref.Unprotect(in bs) = new NativeBuffer(s.Length)) : stackalloc byte[s.Length];
+                s.Slice().CopyTo(newspan);
+                IntPtr ps = RawRef.Of(ref newspan.GetRef()).Address;   // empty span -> NULL
                 LuaImport.luaL_addlstring(Ptr(ref B), ps, (UIntPtr)s.Length);
             }
         }
@@ -1712,10 +1699,18 @@ namespace Mod.Lua
         /// <summary><c>[-?, +?, m]</c> Adds a copy of s with every occurrence of p replaced by r (luaL_addgsub).</summary>
         internal static void addgsub(ref BufferL B, CStringSpan s, CStringSpan p, CStringSpan r)
         {
+            // Fast path: all spans direct (fixed/Unity AND already NUL-terminated).
+            if ((s.IsNull() || ((RuntimeInfo.IsUnity || s.IsFixed) && s.IsNullTerminated())) &&
+                (p.IsNull() || ((RuntimeInfo.IsUnity || p.IsFixed) && p.IsNullTerminated())) &&
+                (r.IsNull() || ((RuntimeInfo.IsUnity || r.IsFixed) && r.IsNullTerminated())))
+            {
+                LuaImport.luaL_addgsub(Ptr(ref B), s.Address, p.Address, r.Address);
+                return;
+            }
             using (NativeBuffer bs = default, bp = default(NativeBuffer), br = default)
             {
                 IntPtr ps;
-                if (!s.IsNull() && (!RuntimeInfo.IsUnity || !s.IsNullTerminated()))
+                if (!s.IsNull() && (!(RuntimeInfo.IsUnity || s.IsFixed) || !s.IsNullTerminated()))
                 {
                     Span<byte> newspan = s.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bs) = new NativeBuffer(s.Length + 1)) : stackalloc byte[s.Length + 1];
                     s.Slice().CopyTo(newspan);
@@ -1724,10 +1719,10 @@ namespace Mod.Lua
                 }
                 else
                 {
-                    ps = RawRef.Of(ref s.ToSpan().GetRef()).Address;
+                    ps = s.Address;
                 }
                 IntPtr pp;
-                if (!p.IsNull() && (!RuntimeInfo.IsUnity || !p.IsNullTerminated()))
+                if (!p.IsNull() && (!(RuntimeInfo.IsUnity || p.IsFixed) || !p.IsNullTerminated()))
                 {
                     Span<byte> newspan = p.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bp) = new NativeBuffer(p.Length + 1)) : stackalloc byte[p.Length + 1];
                     p.Slice().CopyTo(newspan);
@@ -1736,10 +1731,10 @@ namespace Mod.Lua
                 }
                 else
                 {
-                    pp = RawRef.Of(ref p.ToSpan().GetRef()).Address;
+                    pp = p.Address;
                 }
                 IntPtr pr;
-                if (!r.IsNull() && (!RuntimeInfo.IsUnity || !r.IsNullTerminated()))
+                if (!r.IsNull() && (!(RuntimeInfo.IsUnity || r.IsFixed) || !r.IsNullTerminated()))
                 {
                     Span<byte> newspan = r.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in br) = new NativeBuffer(r.Length + 1)) : stackalloc byte[r.Length + 1];
                     r.Slice().CopyTo(newspan);
@@ -1748,7 +1743,7 @@ namespace Mod.Lua
                 }
                 else
                 {
-                    pr = RawRef.Of(ref r.ToSpan().GetRef()).Address;
+                    pr = r.Address;
                 }
                 LuaImport.luaL_addgsub(Ptr(ref B), ps, pp, pr);
             }
@@ -1821,20 +1816,19 @@ namespace Mod.Lua
         /// <summary><c>[-0, +0, e]</c> lua_register: pushcfunction + setglobal - registers f as global name.</summary>
         public static void register(this State L, CStringSpan name, CFunction f)
         {
+            // Fast path: direct native address (fixed/Unity AND already NUL-terminated).
+            if (name.IsNull() || ((RuntimeInfo.IsUnity || name.IsFixed) && name.IsNullTerminated()))
+            {
+                LuaImport.lua_pushcclosure(Ptr(L), Keep(f), 0);
+                LuaImport.lua_setglobal(Ptr(L), name.Address);
+                return;
+            }
             using (NativeBuffer bname = default)
             {
-                IntPtr pname;
-                if (!name.IsNull() && (!RuntimeInfo.IsUnity || !name.IsNullTerminated()))
-                {
-                    Span<byte> newspan = name.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bname) = new NativeBuffer(name.Length + 1)) : stackalloc byte[name.Length + 1];
-                    name.Slice().CopyTo(newspan);
-                    newspan[name.Length] = 0;   // terminator: stackalloc is not zeroed
-                    pname = RawRef.Of(ref newspan[0]).Address;
-                }
-                else
-                {
-                    pname = RawRef.Of(ref name.ToSpan().GetRef()).Address;
-                }
+                Span<byte> newspan = name.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bname) = new NativeBuffer(name.Length + 1)) : stackalloc byte[name.Length + 1];
+                name.Slice().CopyTo(newspan);
+                newspan[name.Length] = 0;   // terminator: stackalloc is not zeroed
+                IntPtr pname = RawRef.Of(ref newspan[0]).Address;
                 LuaImport.lua_pushcclosure(Ptr(L), Keep(f), 0);
                 LuaImport.lua_setglobal(Ptr(L), pname);
             }
@@ -1917,20 +1911,17 @@ namespace Mod.Lua
         /// <summary><c>[-0, +1, m]</c> luaL_loadfile: loads a file in text mode (loadfilex with mode=NULL).</summary>
         public static int loadfile(this State L, CStringSpan filename)
         {
+            // Fast path: direct native address (fixed/Unity AND already NUL-terminated).
+            if (filename.IsNull() || ((RuntimeInfo.IsUnity || filename.IsFixed) && filename.IsNullTerminated()))
+            {
+                return LuaImport.luaL_loadfilex(Ptr(L), filename.Address, IntPtr.Zero);
+            }
             using (NativeBuffer bfilename = default)
             {
-                IntPtr pfilename;
-                if (!filename.IsNull() && (!RuntimeInfo.IsUnity || !filename.IsNullTerminated()))
-                {
-                    Span<byte> newspan = filename.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bfilename) = new NativeBuffer(filename.Length + 1)) : stackalloc byte[filename.Length + 1];
-                    filename.Slice().CopyTo(newspan);
-                    newspan[filename.Length] = 0;   // terminator: stackalloc is not zeroed
-                    pfilename = RawRef.Of(ref newspan[0]).Address;
-                }
-                else
-                {
-                    pfilename = RawRef.Of(ref filename.ToSpan().GetRef()).Address;
-                }
+                Span<byte> newspan = filename.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bfilename) = new NativeBuffer(filename.Length + 1)) : stackalloc byte[filename.Length + 1];
+                filename.Slice().CopyTo(newspan);
+                newspan[filename.Length] = 0;   // terminator: stackalloc is not zeroed
+                IntPtr pfilename = RawRef.Of(ref newspan[0]).Address;
                 return LuaImport.luaL_loadfilex(Ptr(L), pfilename, IntPtr.Zero);
             }
         }
@@ -1950,20 +1941,18 @@ namespace Mod.Lua
         /// <summary><c>[-0, +?, m]</c> luaL_dofile: loads and runs a file (loadfile || pcall(0, MULTRET, 0)).</summary>
         public static int dofile(this State L, CStringSpan filename)
         {
+            // Fast path: direct native address (fixed/Unity AND already NUL-terminated).
+            if (filename.IsNull() || ((RuntimeInfo.IsUnity || filename.IsFixed) && filename.IsNullTerminated()))
+            {
+                int r0 = LuaImport.luaL_loadfilex(Ptr(L), filename.Address, IntPtr.Zero);
+                return r0 != OK ? r0 : pcall(L, 0, MULTRET, 0);
+            }
             using (NativeBuffer bfilename = default)
             {
-                IntPtr pfilename;
-                if (!filename.IsNull() && (!RuntimeInfo.IsUnity || !filename.IsNullTerminated()))
-                {
-                    Span<byte> newspan = filename.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bfilename) = new NativeBuffer(filename.Length + 1)) : stackalloc byte[filename.Length + 1];
-                    filename.Slice().CopyTo(newspan);
-                    newspan[filename.Length] = 0;   // terminator: stackalloc is not zeroed
-                    pfilename = RawRef.Of(ref newspan[0]).Address;
-                }
-                else
-                {
-                    pfilename = RawRef.Of(ref filename.ToSpan().GetRef()).Address;
-                }
+                Span<byte> newspan = filename.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bfilename) = new NativeBuffer(filename.Length + 1)) : stackalloc byte[filename.Length + 1];
+                filename.Slice().CopyTo(newspan);
+                newspan[filename.Length] = 0;   // terminator: stackalloc is not zeroed
+                IntPtr pfilename = RawRef.Of(ref newspan[0]).Address;
                 int r = LuaImport.luaL_loadfilex(Ptr(L), pfilename, IntPtr.Zero);
                 return r != OK ? r : pcall(L, 0, MULTRET, 0);
             }
@@ -1972,20 +1961,18 @@ namespace Mod.Lua
         /// <summary><c>[-0, +?, -]</c> luaL_dostring: loads and runs a string (loadstring || pcall(0, MULTRET, 0)).</summary>
         public static int dostring(this State L, CStringSpan s)
         {
+            // Fast path: direct native address (fixed/Unity AND already NUL-terminated).
+            if (s.IsNull() || ((RuntimeInfo.IsUnity || s.IsFixed) && s.IsNullTerminated()))
+            {
+                int r0 = LuaImport.luaL_loadstring(Ptr(L), s.Address);
+                return r0 != OK ? r0 : pcall(L, 0, MULTRET, 0);
+            }
             using (NativeBuffer bs = default)
             {
-                IntPtr ps;
-                if (!s.IsNull() && (!RuntimeInfo.IsUnity || !s.IsNullTerminated()))
-                {
-                    Span<byte> newspan = s.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bs) = new NativeBuffer(s.Length + 1)) : stackalloc byte[s.Length + 1];
-                    s.Slice().CopyTo(newspan);
-                    newspan[s.Length] = 0;   // terminator: stackalloc is not zeroed
-                    ps = RawRef.Of(ref newspan[0]).Address;
-                }
-                else
-                {
-                    ps = RawRef.Of(ref s.ToSpan().GetRef()).Address;
-                }
+                Span<byte> newspan = s.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bs) = new NativeBuffer(s.Length + 1)) : stackalloc byte[s.Length + 1];
+                s.Slice().CopyTo(newspan);
+                newspan[s.Length] = 0;   // terminator: stackalloc is not zeroed
+                IntPtr ps = RawRef.Of(ref newspan[0]).Address;
                 int r = LuaImport.luaL_loadstring(Ptr(L), ps);
                 return r != OK ? r : pcall(L, 0, MULTRET, 0);
             }
@@ -1994,20 +1981,17 @@ namespace Mod.Lua
         /// <summary><c>[-0, +1, m]</c> luaL_getmetatable: pushes the named metatable from the registry (getfield(REGISTRYINDEX, n)).</summary>
         public static int getmetatable(this State L, CStringSpan tname)
         {
+            // Fast path: direct native address (fixed/Unity AND already NUL-terminated).
+            if (tname.IsNull() || ((RuntimeInfo.IsUnity || tname.IsFixed) && tname.IsNullTerminated()))
+            {
+                return LuaImport.lua_getfield(Ptr(L), REGISTRYINDEX, tname.Address);
+            }
             using (NativeBuffer btname = default)
             {
-                IntPtr ptname;
-                if (!tname.IsNull() && (!RuntimeInfo.IsUnity || !tname.IsNullTerminated()))
-                {
-                    Span<byte> newspan = tname.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in btname) = new NativeBuffer(tname.Length + 1)) : stackalloc byte[tname.Length + 1];
-                    tname.Slice().CopyTo(newspan);
-                    newspan[tname.Length] = 0;   // terminator: stackalloc is not zeroed
-                    ptname = RawRef.Of(ref newspan[0]).Address;
-                }
-                else
-                {
-                    ptname = RawRef.Of(ref tname.ToSpan().GetRef()).Address;
-                }
+                Span<byte> newspan = tname.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in btname) = new NativeBuffer(tname.Length + 1)) : stackalloc byte[tname.Length + 1];
+                tname.Slice().CopyTo(newspan);
+                newspan[tname.Length] = 0;   // terminator: stackalloc is not zeroed
+                IntPtr ptname = RawRef.Of(ref newspan[0]).Address;
                 return LuaImport.lua_getfield(Ptr(L), REGISTRYINDEX, ptname);
             }
         }
