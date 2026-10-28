@@ -223,6 +223,76 @@ namespace ModClrExUnsafe.Tests
         }
 
         [Fact]
+        public void Search_CStringSpan_Overloads()
+        {
+            var s = new CString("hello world");
+            Assert.Equal(6, s.IndexOf(new CStringSpan("world")));
+            Assert.True(s.Contains(new CStringSpan("lo wo")));
+            Assert.True(s.StartsWith(new CStringSpan("hello")));
+            Assert.True(s.EndsWith(new CStringSpan("world")));
+            Assert.Equal(2, s.LastIndexOf(new CStringSpan("ll")));   // the only "ll" in "hello world"
+        }
+
+        [Fact]
+        public void Edits_CStringSpan_And_CString_Overloads()
+        {
+            var s = new CString("ab");
+            var a1 = s.Append(new CStringSpan("cd"));             // Append(CStringSpan)
+            Assert.Equal("abcd", a1.ToString());
+            Assert.Equal("ab", s.ToString());
+
+            var a2 = s.Append(new CString("cd"));                 // Append(CString)
+            Assert.Equal("abcd", a2.ToString());
+
+            var i1 = s.Insert(1, new CStringSpan("XY"));          // Insert(CStringSpan)
+            Assert.Equal("aXYb", i1.ToString());
+            var i2 = s.Insert(1, new CStringSpan("-"), 3);        // Insert(CStringSpan, repeat)
+            Assert.Equal("a---b", i2.ToString());
+            var i3 = s.Insert(1, new CString("XY"));              // Insert(CString)
+            Assert.Equal("aXYb", i3.ToString());
+            var i4 = s.Insert(1, new CString("-"), 3);            // Insert(CString, repeat)
+            Assert.Equal("a---b", i4.ToString());
+
+            var r1 = s.Replace(new CStringSpan("a"), new CStringSpan("zz"));   // Replace(CStringSpan)
+            Assert.Equal("zzb", r1.ToString());
+            var r2 = s.Replace(new CString("a"), new CString("zz"));           // Replace(CString)
+            Assert.Equal("zzb", r2.ToString());
+
+            Assert.Equal("ab", s.ToString());                     // receiver unchanged throughout
+        }
+
+        [Fact]
+        public void Replace_StringOverload_Utf8_Window_AndEdges()
+        {
+            var s = new CString("a.b.c");
+            var r = s.Replace(".", "-");                          // Replace(string, string)
+            Assert.Equal("a-b-c", r.ToString());
+            Assert.Equal("a.b.c", s.ToString());
+
+            var w = new CString("x-y-zz");
+            var rw = w.Replace("-", "QQ", 2, 4);                  // window version
+            Assert.Equal("x-yQQzz", rw.ToString());
+
+            var u = new CString("你好.世界");
+            var ru = u.Replace(".", "，");                        // UTF-8 multibyte replacement
+            Assert.Equal("你好，世界", ru.ToString());
+
+            var d = new CString("a1b1c1");
+            var rd = d.Replace("1", "");                          // deletion via empty newstr
+            Assert.Equal("abc", rd.ToString());
+
+            Assert.Throws<ArgumentException>(() => s.Replace("", "x"));   // empty oldstr: string.Replace semantics
+            Assert.Throws<ArgumentNullException>(() => s.Replace(null, "x"));
+            Assert.Throws<ArgumentNullException>(() => s.Replace("a", null));
+
+            string needle = new string('x', 300);                 // > 256: heap fallback for both needles
+            var big = new CString("p-" + needle + "-q");
+            Assert.Equal(2, big.IndexOf(needle));
+            var bigReplaced = big.Replace(needle, "y");
+            Assert.Equal("p-y-q", bigReplaced.ToString());
+        }
+
+        [Fact]
         public void Substring_Split_Forwarded()
         {
             var s = new CString("a,b,c");

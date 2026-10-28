@@ -1121,6 +1121,68 @@ namespace ModClrExUnsafe.Tests
             s.Dispose();
         }
 
+        // ---------- CStringSpan-parameter overloads (zero-cost views) ----------
+
+        [Fact]
+        public void CStringSpan_Overloads_Mutators()
+        {
+            var s = CStr.New("he", 8);
+            var r = s.Append(new CStringSpan("llo"));            // Append(CStringSpan)
+            Assert.Equal("hello", r.ToString());
+
+            var i = CStr.New("ac", 8);
+            var ri = i.Insert(1, new CStringSpan("b"));          // Insert(CStringSpan)
+            Assert.Equal("abc", ri.ToString());
+            var ir = CStr.New("ab", 8);
+            var rir = ir.Insert(1, new CStringSpan("-"), 3);     // Insert(CStringSpan, repeat)
+            Assert.Equal("a---b", rir.ToString());
+
+            var p = new CStringRef("abcabc");
+            var rp = p.Replace(new CStringSpan("c"), new CStringSpan("ZZ"));   // Replace(CStringSpan, CStringSpan)
+            Assert.Equal("abZZabZZ", rp.ToString());
+            var pw = CStr.New("x-y-zz", 2);
+            var rpw = pw.Replace(new CStringSpan("-"), new CStringSpan("QQ"), 2, 4);   // window version
+            Assert.Equal("x-yQQzz", rpw.ToString());
+
+            r.Dispose(); ri.Dispose(); rir.Dispose(); rp.Dispose(); rpw.Dispose();
+        }
+
+        [Fact]
+        public void CStringSpan_Overload_CopyFrom()
+        {
+            var src = new CStringSpan("hello");                  // view over its own buffer
+            var dst = CStr.New("xxxxx", 3);
+            dst.CopyFrom(src);                                   // CopyFrom(CStringSpan)
+            Assert.Equal("hello", dst.ToString());
+            Assert.Equal(5, dst.Length);
+
+            var ro = CStr.New("abc", 2);
+            ro.Freeze();
+            Assert.Throws<InvalidOperationException>(() => ro.CopyFrom(new CStringSpan("z")));
+            ro.Dispose();
+            dst.Dispose();
+        }
+
+        [Fact]
+        public void CStringSpan_Overloads_SearchAndCompare()
+        {
+            var s = new CStringRef("hello world");
+            Assert.Equal(6, s.IndexOf(new CStringSpan("world")));            // + startIndex variant
+            Assert.Equal(6, s.IndexOf(new CStringSpan("world"), 3));
+            Assert.True(s.Contains(new CStringSpan("lo wo")));
+            Assert.True(s.StartsWith(new CStringSpan("hello")));
+            Assert.True(s.EndsWith(new CStringSpan("world")));
+            Assert.Equal(2, s.LastIndexOf(new CStringSpan("ll")));   // the only "ll" in "hello world"
+
+            Assert.True(s.Equals(new CStringSpan("hello world")));           // Equals(CStringSpan)
+            Assert.False(s.Equals(new CStringSpan("hello")));
+            Assert.Equal(0, s.CompareTo(new CStringSpan("hello world")));    // CompareTo(CStringSpan)
+            Assert.True(s.CompareTo(new CStringSpan("hello")) > 0);
+            Assert.Equal(0, CStringRef.Compare(new CStringSpan("ab"), new CStringSpan("ab")));   // static Compare
+
+            s.Dispose();
+        }
+
         [Fact]
         public void Ownership_DefaultAndEmptyDisposeIsNoOp()
         {

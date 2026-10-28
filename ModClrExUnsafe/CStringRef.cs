@@ -444,6 +444,38 @@ namespace Mod.LowLevel
         {
             from.CopyTo(ref this);
         }
+        /// <summary>
+        /// Same Size-based copy semantics as CopyFrom(CStringRef), with the source as a
+        /// zero-cost CStringSpan view (no slot lease for a temporary CStringRef).
+        /// </summary>
+        public void CopyFrom(CStringSpan from)
+        {
+            if (_Readonly)
+            {
+                throw new InvalidOperationException("Cannot modify a readonly CStringRef");
+            }
+            var source = from.ToSpan();
+            int copy = Math.Min(source.Length, _Size);
+            if (copy > 0)
+            {
+                UnsafeEx.MemCopy(ref _Address.GetRef(), 0, ref source.GetRef(), 0, copy);
+            }
+            if (_Size > source.Length)
+            {
+                UnsafeEx.MemClean(ref _Address.GetRef(), source.Length, _Size - source.Length);
+            }
+            if (_Size >= from.Length)
+            {
+                _Length = from.Length;
+                _ConvertedString = from._ConvertedString;
+                _CachedHashCode = from._CachedHashCode;
+            }
+            else
+            {
+                _Length = _Size;
+                ClearCache();
+            }
+        }
         public void CopyTo(Span<byte> to)
         {
             UnsafeEx.MemCopy(ref to.GetRef(), 0, ref _Address.GetRef(), 0, Math.Min(_Size, to.Length));
@@ -523,7 +555,15 @@ namespace Mod.LowLevel
             }
             return _Length.CompareTo(other.Length);
         }
+        public int CompareTo(CStringSpan other)
+        {
+            return CompareTo((ReadOnlySpan<byte>)other.Slice());
+        }
         public static int Compare(CStringRef a, CStringRef b)
+        {
+            return a.CompareTo(b);
+        }
+        public static int Compare(CStringSpan a, CStringSpan b)
         {
             return a.CompareTo(b);
         }
@@ -556,6 +596,10 @@ namespace Mod.LowLevel
         {
             return _Length == other.Length
                 && (_Length == 0 || MemCmp(ref _Address.GetRef(), 0, ref other.GetRef(), 0, _Length) == 0);
+        }
+        public bool Equals(CStringSpan other)
+        {
+            return Equals((ReadOnlySpan<byte>)other.Slice());
         }
         public override bool Equals(object obj)
         {
@@ -844,6 +888,10 @@ namespace Mod.LowLevel
         {
             return IndexOf((ReadOnlySpan<byte>)value, startIndex);
         }
+        public int IndexOf(CStringSpan value, int startIndex = 0)
+        {
+            return IndexOf((ReadOnlySpan<byte>)value.Slice(), startIndex);
+        }
 
         public bool Contains(byte value)
         {
@@ -860,6 +908,10 @@ namespace Mod.LowLevel
         public bool Contains(Span<byte> value)
         {
             return IndexOf(value) >= 0;
+        }
+        public bool Contains(CStringSpan value)
+        {
+            return IndexOf((ReadOnlySpan<byte>)value.Slice()) >= 0;
         }
 
         public int LastIndexOf(byte value)
@@ -955,6 +1007,10 @@ namespace Mod.LowLevel
         public int LastIndexOf(Span<byte> value)
         {
             return LastIndexOf((ReadOnlySpan<byte>)value);
+        }
+        public int LastIndexOf(CStringSpan value)
+        {
+            return LastIndexOf((ReadOnlySpan<byte>)value.Slice());
         }
 
         public int IndexOfAny(ReadOnlySpan<byte> anyOf)
@@ -1095,6 +1151,10 @@ namespace Mod.LowLevel
         {
             return StartsWith((ReadOnlySpan<byte>)value);
         }
+        public bool StartsWith(CStringSpan value)
+        {
+            return StartsWith((ReadOnlySpan<byte>)value.Slice());
+        }
 
         public bool EndsWith(byte value)
         {
@@ -1162,6 +1222,10 @@ namespace Mod.LowLevel
         public bool EndsWith(Span<byte> value)
         {
             return EndsWith((ReadOnlySpan<byte>)value);
+        }
+        public bool EndsWith(CStringSpan value)
+        {
+            return EndsWith((ReadOnlySpan<byte>)value.Slice());
         }
 
         public bool IsNullTerminated()
@@ -1349,6 +1413,10 @@ namespace Mod.LowLevel
             ToSpan().Append(other.ToSpan());
             _Length += other._Length;
             return this;
+        }
+        public CStringRef Append(CStringSpan other)
+        {
+            return Append((ReadOnlySpan<byte>)other.Slice());
         }
         public CStringRef Append(ReadOnlySpan<byte> value)
         {
@@ -1652,6 +1720,14 @@ namespace Mod.LowLevel
             // single content-copy implementation shared by the whole Insert family
             return Insert(index, (ReadOnlySpan<byte>)sub.Slice(), repeat);
         }
+        public CStringRef Insert(int index, CStringSpan sub)
+        {
+            return Insert(index, (ReadOnlySpan<byte>)sub.Slice());
+        }
+        public CStringRef Insert(int index, CStringSpan sub, int repeat)
+        {
+            return Insert(index, (ReadOnlySpan<byte>)sub.Slice(), repeat);
+        }
         public CStringRef Insert(int index, ReadOnlySpan<byte> sub)
         {
             return Insert(index, sub, 1);
@@ -1833,6 +1909,14 @@ namespace Mod.LowLevel
         public CStringRef Replace(CStringRef oldstr, CStringRef newstr, int startIndex, int count)
         {
             return Replace(ContentView(oldstr), ContentView(newstr), startIndex, count);
+        }
+        public CStringRef Replace(CStringSpan oldstr, CStringSpan newstr)
+        {
+            return Replace((ReadOnlySpan<byte>)oldstr.Slice(), (ReadOnlySpan<byte>)newstr.Slice());
+        }
+        public CStringRef Replace(CStringSpan oldstr, CStringSpan newstr, int startIndex, int count)
+        {
+            return Replace((ReadOnlySpan<byte>)oldstr.Slice(), (ReadOnlySpan<byte>)newstr.Slice(), startIndex, count);
         }
         public CStringRef Replace(ReadOnlySpan<byte> oldstr, ReadOnlySpan<byte> newstr)
         {

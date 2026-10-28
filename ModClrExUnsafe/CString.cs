@@ -300,6 +300,11 @@ namespace Mod.LowLevel
             if (value is null) throw new ArgumentNullException(nameof(value));
             return EndsWith(value.Value);
         }
+        public int IndexOf(CStringSpan value, int startIndex = 0) => Value.IndexOf((ReadOnlySpan<byte>)value.Slice(), startIndex);
+        public int LastIndexOf(CStringSpan value) => Value.LastIndexOf((ReadOnlySpan<byte>)value.Slice());
+        public bool Contains(CStringSpan value) => Value.Contains((ReadOnlySpan<byte>)value.Slice());
+        public bool StartsWith(CStringSpan value) => Value.StartsWith((ReadOnlySpan<byte>)value.Slice());
+        public bool EndsWith(CStringSpan value) => Value.EndsWith((ReadOnlySpan<byte>)value.Slice());
 
         /// <summary>Needles up to this many bytes are encoded on the stack; larger ones fall back to a heap array.</summary>
         private const int Utf8NeedleStackallocLimit = 256;
@@ -407,6 +412,15 @@ namespace Mod.LowLevel
         {
             return new CString(Value.Clone().Append(other));
         }
+        public CString Append(CStringSpan other)
+        {
+            return new CString(Value.Clone().Append(other));
+        }
+        public CString Append(CString other)
+        {
+            if (other is null) throw new ArgumentNullException(nameof(other));
+            return new CString(Value.Clone().Append(other.Value));
+        }
         public CString Append(ReadOnlySpan<byte> value)
         {
             return new CString(Value.Clone().Append(value));
@@ -434,6 +448,24 @@ namespace Mod.LowLevel
         public CString Insert(int index, CStringRef sub, int repeat)
         {
             return new CString(Value.Clone().Insert(index, sub, repeat));
+        }
+        public CString Insert(int index, CStringSpan sub)
+        {
+            return new CString(Value.Clone().Insert(index, sub));
+        }
+        public CString Insert(int index, CStringSpan sub, int repeat)
+        {
+            return new CString(Value.Clone().Insert(index, sub, repeat));
+        }
+        public CString Insert(int index, CString sub)
+        {
+            if (sub is null) throw new ArgumentNullException(nameof(sub));
+            return new CString(Value.Clone().Insert(index, sub.Value));
+        }
+        public CString Insert(int index, CString sub, int repeat)
+        {
+            if (sub is null) throw new ArgumentNullException(nameof(sub));
+            return new CString(Value.Clone().Insert(index, sub.Value, repeat));
         }
         public CString Insert(int index, ReadOnlySpan<byte> sub)
         {
@@ -466,6 +498,56 @@ namespace Mod.LowLevel
         public CString Replace(CStringRef oldstr, CStringRef newstr, int startIndex, int count)
         {
             return new CString(Value.Clone().Replace(oldstr, newstr, startIndex, count));
+        }
+        public CString Replace(CStringSpan oldstr, CStringSpan newstr)
+        {
+            return new CString(Value.Clone().Replace(oldstr, newstr));
+        }
+        public CString Replace(CStringSpan oldstr, CStringSpan newstr, int startIndex, int count)
+        {
+            return new CString(Value.Clone().Replace(oldstr, newstr, startIndex, count));
+        }
+        public CString Replace(CString oldstr, CString newstr)
+        {
+            if (oldstr is null) throw new ArgumentNullException(nameof(oldstr));
+            if (newstr is null) throw new ArgumentNullException(nameof(newstr));
+            return new CString(Value.Clone().Replace(oldstr.Value, newstr.Value));
+        }
+        public CString Replace(CString oldstr, CString newstr, int startIndex, int count)
+        {
+            if (oldstr is null) throw new ArgumentNullException(nameof(oldstr));
+            if (newstr is null) throw new ArgumentNullException(nameof(newstr));
+            return new CString(Value.Clone().Replace(oldstr.Value, newstr.Value, startIndex, count));
+        }
+        public CString Replace(string oldstr, string newstr)
+        {
+            return Replace(oldstr, newstr, 0, Length);
+        }
+        public CString Replace(string oldstr, string newstr, int startIndex, int count)
+        {
+            if (oldstr is null) throw new ArgumentNullException(nameof(oldstr));
+            if (newstr is null) throw new ArgumentNullException(nameof(newstr));
+            if (oldstr.Length == 0)
+            {
+                throw new ArgumentException("String cannot be of zero length", nameof(oldstr));   // string.Replace semantics
+            }
+            int oldCount = Encoding.UTF8.GetByteCount(oldstr);
+            int newCount = Encoding.UTF8.GetByteCount(newstr);
+            if (oldCount <= Utf8NeedleStackallocLimit && newCount <= Utf8NeedleStackallocLimit)
+            {
+                Span<byte> oldNeedle = stackalloc byte[oldCount];
+                Span<byte> newNeedle = stackalloc byte[newCount];
+                if (oldCount > 0)
+                {
+                    CStringRef.EncodeInto(oldstr, Encoding.UTF8, oldNeedle, 0, oldCount);
+                }
+                if (newCount > 0)
+                {
+                    CStringRef.EncodeInto(newstr, Encoding.UTF8, newNeedle, 0, newCount);
+                }
+                return new CString(Value.Clone().Replace((ReadOnlySpan<byte>)oldNeedle, (ReadOnlySpan<byte>)newNeedle, startIndex, count));
+            }
+            return new CString(Value.Clone().Replace((ReadOnlySpan<byte>)Encoding.UTF8.GetBytes(oldstr), (ReadOnlySpan<byte>)Encoding.UTF8.GetBytes(newstr), startIndex, count));
         }
         public CString Replace(ReadOnlySpan<byte> oldstr, ReadOnlySpan<byte> newstr)
         {
