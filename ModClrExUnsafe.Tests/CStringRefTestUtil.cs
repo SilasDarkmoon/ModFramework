@@ -1,6 +1,6 @@
 using System;
 using System.Text;
-using Mod;
+using Mod.LowLevel;
 
 namespace ModClrExUnsafe.Tests
 {
