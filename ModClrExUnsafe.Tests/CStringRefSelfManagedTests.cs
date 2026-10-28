@@ -616,6 +616,20 @@ namespace ModClrExUnsafe.Tests
             s.Dispose();
         }
 
+        [Fact]
+        public void Append_String_WithinCapacity_DoesNotAllocate()
+        {
+            var s = NewSelfManaged("he", 16);
+            Assert.Equal("he", s.ToString());   // warm the string cache before measuring
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            var r = s.Append("llo");            // in-capacity: encodes straight into the native block
+            long after = GC.GetAllocatedBytesForCurrentThread();
+            Assert.Equal(0, after - before);    // no byte[] round-trip, no stackalloc copy
+            Assert.Equal("hello", r.ToString());
+
+            r.Dispose();   // r and s share the address: dispose exactly one handle
+        }
+
         // ---------- growth from an empty view ----------
 
         [Fact]
@@ -629,6 +643,59 @@ namespace ModClrExUnsafe.Tests
             Assert.False(r.IsNull());
 
             r.Dispose();     // s was re-pointed to the same block: dispose exactly one handle
+        }
+
+        // ---------- Resize / Expand (native realloc paths) ----------
+
+        [Fact]
+        public void Resize_Expand_ReallocsNativeBlock()
+        {
+            var s = NewSelfManaged("hello", 16);
+            var r = s.Resize(32);                 // ReAllocHGlobal(16 -> 32)
+            Assert.Equal("hello", r.ToString());
+            Assert.Equal(32, r.Size);
+            Assert.Equal(5, r.Length);
+            Assert.True(r.IsNullTerminated());      // NUL restored over the realloc garbage
+
+            r.Dispose();       // direct call re-pointed s too: one block, dispose exactly one
+        }
+
+        [Fact]
+        public void Resize_Shrink_ReallocsDown_AndTruncates()
+        {
+            var s = NewSelfManaged("hello", 16);
+            var r = s.Resize(3);                  // ReAllocHGlobal(16 -> 3): tail released
+            Assert.Equal("hel", r.ToString());
+            Assert.Equal(3, r.Length);
+            Assert.Equal(3, r.Size);
+
+            r.Dispose();
+        }
+
+        [Fact]
+        public void Resize_EmptyStart_GrowsViaReAlloc()
+        {
+            var s = new CStringRef(true);          // empty self-managed view (Zero address)
+            var r = s.Resize(8);                   // ReAllocHGlobal(Zero, 8) == AllocHGlobal(8)
+            Assert.Equal(8, r.Size);
+            Assert.Equal(0, r.Length);
+            r[0] = (byte)'h';                      // indexer extends Length
+            r[1] = (byte)'i';
+            Assert.Equal("hi", r.ToString());
+
+            r.Dispose();       // s was re-pointed to the same block: dispose exactly one handle
+        }
+
+        [Fact]
+        public void Expand_Overflow_ReallocsNativeBlock()
+        {
+            var s = NewSelfManaged("hi", 8);
+            var r = s.Expand(24);
+            Assert.Equal("hi", r.ToString());
+            Assert.Equal(24, r.Size);
+            Assert.True(r.IsNullTerminated());
+
+            r.Dispose();
         }
     }
 }

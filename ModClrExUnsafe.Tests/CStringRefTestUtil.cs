@@ -38,6 +38,21 @@ namespace ModClrExUnsafe.Tests
             return new CStringRef(new Span<byte>(buffer));
         }
 
+        /// <summary>
+        /// CStringSpan counterpart of the removed (string, capacity) constructor:
+        /// new CStringSpan(max(capacity, byteCount) + 1).Append(text) - the
+        /// size-ctor + Append replacement pattern, Size exactly as that ctor produced.
+        /// </summary>
+        public static Mod.LowLevel.CStringSpan NewSpan(string text, int capacity = 0)
+        {
+            if (text == null)
+            {
+                return default;
+            }
+            int size = Math.Max(capacity, Encoding.UTF8.GetByteCount(text)) + 1;
+            return new Mod.LowLevel.CStringSpan(size).Append(text);
+        }
+
         /// <summary>Reads the current logical content as a fresh byte array.</summary>
         public static byte[] Content(CStringRef s)
         {

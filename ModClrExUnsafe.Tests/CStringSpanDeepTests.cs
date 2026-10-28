@@ -33,7 +33,7 @@ public class CStringSpanDeepTests
     [Fact]
     public void Indexer_WriteNonZeroAtLengthPosition_ExtendsByOne()
     {
-        var s = new CStringSpan("abc", 8);          // capacity 8
+        var s = CStr.NewSpan("abc", 8);          // capacity 8
         s[3] = (byte)'d';                           // writing at the nul position extends
         Assert.Equal(4, s.Length);
         Assert.Equal("abcd", s.ToString());
@@ -89,7 +89,7 @@ public class CStringSpanDeepTests
     [Fact]
     public void Append_Span_OverCapacity_Grows()
     {
-        var s = new CStringSpan("ab", 3);           // capacity 3, len 2
+        var s = CStr.NewSpan("ab", 3);           // capacity 3, len 2
         s = s.Append(B("cdef"));                    // needs 6 > 3: new instance
 
         Assert.Equal("abcdef", s.ToString());
@@ -99,7 +99,7 @@ public class CStringSpanDeepTests
     [Fact]
     public void Append_ExactlyFull_NoTerminatorSlot()
     {
-        var s = new CStringSpan("ab", 3);           // capacity 3, len 2
+        var s = CStr.NewSpan("ab", 3);           // capacity 3, len 2
         s = s.Append((byte)'c');                    // len 3 == capacity: no room for a terminator
 
         Assert.Equal(3, s.Length);
@@ -110,7 +110,7 @@ public class CStringSpanDeepTests
     public void Append_CStringSpan_Chains()
     {
         var a = new CStringSpan("foo");
-        var b = new CStringSpan("bar", 8);
+        var b = CStr.NewSpan("bar", 8);
         b = b.Append(a);                            // b's content comes first, then a's
 
         Assert.Equal("barfoo", b.ToString());
@@ -124,7 +124,7 @@ public class CStringSpanDeepTests
     [Fact]
     public void Insert_AtStart_And_AtEnd()
     {
-        var s = new CStringSpan("bc", 8);
+        var s = CStr.NewSpan("bc", 8);
         s = s.Insert(0, (byte)'a');
         Assert.Equal("abc", s.ToString());
 
@@ -135,7 +135,7 @@ public class CStringSpanDeepTests
     [Fact]
     public void Insert_RepeatMultiple()
     {
-        var s = new CStringSpan("ad", 16);
+        var s = CStr.NewSpan("ad", 16);
         s = s.Insert(1, (byte)'x', 3);
         Assert.Equal("axxxd", s.ToString());
     }
@@ -152,9 +152,9 @@ public class CStringSpanDeepTests
     [Fact]
     public void Insert_InvalidIndex_Throws()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new CStringSpan("abc", 8).Insert(-1, (byte)'x'));
-        Assert.Throws<ArgumentOutOfRangeException>(() => new CStringSpan("abc", 8).Insert(4, (byte)'x'));   // Length + 1
-        Assert.Throws<ArgumentOutOfRangeException>(() => new CStringSpan("abc", 8).Insert(0, (byte)'x', -1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => CStr.NewSpan("abc", 8).Insert(-1, (byte)'x'));
+        Assert.Throws<ArgumentOutOfRangeException>(() => CStr.NewSpan("abc", 8).Insert(4, (byte)'x'));   // Length + 1
+        Assert.Throws<ArgumentOutOfRangeException>(() => CStr.NewSpan("abc", 8).Insert(0, (byte)'x', -1));
     }
 
     [Fact]
@@ -183,7 +183,7 @@ public class CStringSpanDeepTests
     public void Insert_OverCapacity_ReturnsNewInstance()
     {
         // CStringSpan("ac", 3): buffer = max(3, 2) + 1 = 4 bytes (capacity excludes the nul slot)
-        var s = new CStringSpan("ac", 3);
+        var s = CStr.NewSpan("ac", 3);
         s = s.Insert(1, (byte)'b');                 // len 3 <= Size 4: in place
         Assert.Equal("abc", s.ToString());
         Assert.Equal(4, s.Size);
@@ -204,11 +204,11 @@ public class CStringSpanDeepTests
     [Fact]
     public void Remove_Boundaries()
     {
-        var s = new CStringSpan("abcdef", 16);
+        var s = CStr.NewSpan("abcdef", 16);
         s = s.Remove(0, 2);                         // remove the head
         Assert.Equal("cdef", s.ToString());
 
-        var t = new CStringSpan("abcdef", 16);
+        var t = CStr.NewSpan("abcdef", 16);
         t = t.Remove(4, 2);                         // remove the tail
         Assert.Equal("abcd", t.ToString());
     }
@@ -224,15 +224,15 @@ public class CStringSpanDeepTests
     [Fact]
     public void Remove_InvalidArguments_Throw()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new CStringSpan("abc", 8).Remove(3, 1));   // startIndex == Length
-        Assert.Throws<ArgumentOutOfRangeException>(() => new CStringSpan("abc", 8).Remove(1, 3)); // length beyond remainder
-        Assert.Throws<ArgumentOutOfRangeException>(() => new CStringSpan("abc", 8).Remove(1, -1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => CStr.NewSpan("abc", 8).Remove(3, 1));   // startIndex == Length
+        Assert.Throws<ArgumentOutOfRangeException>(() => CStr.NewSpan("abc", 8).Remove(1, 3)); // length beyond remainder
+        Assert.Throws<ArgumentOutOfRangeException>(() => CStr.NewSpan("abc", 8).Remove(1, -1));
     }
 
     [Fact]
     public void Remove_RewritesTerminator_LengthStaysConsistent()
     {
-        var s = new CStringSpan("abcdef", 16);
+        var s = CStr.NewSpan("abcdef", 16);
         s = s.Remove(2, 2);
         Assert.Equal(4, s.Length);
 
@@ -247,7 +247,7 @@ public class CStringSpanDeepTests
     [Fact]
     public void Replace_FindEmpty_IsNoOp()
     {
-        var s = new CStringSpan("abc", 8);
+        var s = CStr.NewSpan("abc", 8);
         var r = s.Replace(default, B("x"));         // empty find
         Assert.Equal("abc", r.ToString());
         Assert.Equal(3, r.Length);
@@ -256,7 +256,7 @@ public class CStringSpanDeepTests
     [Fact]
     public void Replace_NoMatch_IsNoOp()
     {
-        var s = new CStringSpan("abc", 8);
+        var s = CStr.NewSpan("abc", 8);
         var r = s.Replace(B("zz"), B("y"));
         Assert.Equal("abc", r.ToString());
         Assert.Equal(3, r.Length);                   // content and length untouched
@@ -265,7 +265,7 @@ public class CStringSpanDeepTests
     [Fact]
     public void Replace_EqualLength_InPlace()
     {
-        var s = new CStringSpan("hello world", 16);
+        var s = CStr.NewSpan("hello world", 16);
         s = s.Replace(B("world"), B("WORLD"));
         Assert.Equal("hello WORLD", s.ToString());
         Assert.Equal(11, s.Length);
@@ -274,7 +274,7 @@ public class CStringSpanDeepTests
     [Fact]
     public void Replace_Shrink_InPlace_RewritesTerminator()
     {
-        var s = new CStringSpan("a  b", 16);        // two spaces shrink to one
+        var s = CStr.NewSpan("a  b", 16);        // two spaces shrink to one
         s = s.Replace(B("  "), B(" "));
         Assert.Equal("a b", s.ToString());
         Assert.Equal(3, s.Length);
@@ -286,7 +286,7 @@ public class CStringSpanDeepTests
     [Fact]
     public void Replace_GrowthOverCapacity_NewInstance()
     {
-        var s = new CStringSpan("aa", 3);          // capacity 3
+        var s = CStr.NewSpan("aa", 3);          // capacity 3
         s = s.Replace(B("a"), B("bb"));            // needs 4 > 3: new buffer
 
         Assert.Equal("bbbb", s.ToString());
@@ -296,7 +296,7 @@ public class CStringSpanDeepTests
     [Fact]
     public void Replace_SelfReplacement_Idempotent()
     {
-        var s = new CStringSpan("abcabc", 16);
+        var s = CStr.NewSpan("abcabc", 16);
         s = s.Replace(B("ab"), B("ab"));
         Assert.Equal("abcabc", s.ToString());
         Assert.Equal(6, s.Length);
@@ -305,7 +305,7 @@ public class CStringSpanDeepTests
     [Fact]
     public void Replace_MatchAtVeryEnd()
     {
-        var s = new CStringSpan("abcxx", 16);
+        var s = CStr.NewSpan("abcxx", 16);
         s = s.Replace(B("xx"), B("y"));
         Assert.Equal("abcy", s.ToString());
     }
@@ -345,7 +345,7 @@ public class CStringSpanDeepTests
     [Fact]
     public void CopyTo_RefCStringSpan_UpdatesTargetLength()
     {
-        var src = new CStringSpan("hello world", 16);
+        var src = CStr.NewSpan("hello world", 16);
         var dst = new CStringSpan(new byte[16], 0);
 
         src.CopyTo(ref dst);                        // the ref overload copies AND updates _Length
@@ -360,7 +360,7 @@ public class CStringSpanDeepTests
         // KNOWN TRAP (documented on CStringRef, same shape here): dropping the `ref`
         // silently binds the Span<byte> overload - bytes arrive, _Length does not.
         // This test locks the difference so a future overload change cannot hide it.
-        var src = new CStringSpan("hello world", 16);
+        var src = CStr.NewSpan("hello world", 16);
         var dst = new CStringSpan(new byte[16], 0);
 
         Span<byte> dstSpan = dst;                    // implicit conversion
@@ -375,7 +375,7 @@ public class CStringSpanDeepTests
     [Fact]
     public void CopyFrom_SourceToTarget()
     {
-        var src = new CStringSpan("data", 8);
+        var src = CStr.NewSpan("data", 8);
         var dst = new CStringSpan(new byte[8], 0);
 
         dst.CopyFrom(src);
@@ -391,7 +391,7 @@ public class CStringSpanDeepTests
     [Fact]
     public void Clear_ResetsLength()
     {
-        var s = new CStringSpan("hello", 8);
+        var s = CStr.NewSpan("hello", 8);
         s = s.Clear();
         Assert.Equal(0, s.Length);
         Assert.Equal(string.Empty, s.ToString());
@@ -400,12 +400,12 @@ public class CStringSpanDeepTests
     [Fact]
     public void Freeze_Unfreeze_RoundTrip()
     {
-        var s = new CStringSpan("abc", 8);
+        var s = CStr.NewSpan("abc", 8);
         s.Freeze();
         Assert.True(s.Readonly);
         Assert.Throws<InvalidOperationException>(() =>
         {
-            var t = new CStringSpan("abc", 8);        // ref struct: construct inside the lambda
+            var t = CStr.NewSpan("abc", 8);        // ref struct: construct inside the lambda
             t.Freeze();
             t[0] = (byte)'x';
         });
@@ -418,8 +418,8 @@ public class CStringSpanDeepTests
     [Fact]
     public void OperatorPlus_Concatenates()
     {
-        var a = new CStringSpan("foo", 8);
-        var b = new CStringSpan("bar", 8);
+        var a = CStr.NewSpan("foo", 8);
+        var b = CStr.NewSpan("bar", 8);
         var c = a + b;
         Assert.Equal("foobar", c.ToString());
     }

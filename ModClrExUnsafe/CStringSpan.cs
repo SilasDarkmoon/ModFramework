@@ -249,23 +249,6 @@ namespace Mod.LowLevel
             _ConvertedString = null;
             _CachedHashCode = 0;
         }
-        public CStringSpan(string value, int capacity)
-        {
-            if (value == null)
-            {
-                this = default;
-                return;
-            }
-            int bytes = Encoding.UTF8.GetByteCount(value);
-            var buffer = new byte[Math.Max(capacity, bytes) + 1];
-            int len = Encoding.UTF8.GetBytes(value, 0, value.Length, buffer, 0);
-            _Address = buffer;
-            _Length = len;
-            _Readonly = false;
-            _IsFixed = false;
-            _ConvertedString = null;
-            _CachedHashCode = 0;
-        }
         public CStringSpan(string value, Encoding encoding)
         {
             if (value == null)
@@ -299,6 +282,22 @@ namespace Mod.LowLevel
         {
             _Address = buffer == null ? default : new Span<byte>(buffer);
             _Length = Math.Min(length, _Address.Length);
+            _Readonly = false;
+            _IsFixed = false;
+            _ConvertedString = null;
+            _CachedHashCode = 0;
+        }
+        /// <summary>
+        /// Allocates an empty view over a fresh zeroed size-byte buffer.
+        /// </summary>
+        public CStringSpan(int size)
+        {
+            if (size < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(size));
+            }
+            _Address = new byte[size];
+            _Length = 0;
             _Readonly = false;
             _IsFixed = false;
             _ConvertedString = null;
@@ -637,7 +636,8 @@ namespace Mod.LowLevel
             {
                 throw new ArgumentOutOfRangeException(nameof(startIndex));
             }
-            return _Address.Slice(startIndex, _Length - startIndex).IndexOf(value) + startIndex;
+            var result = _Address.Slice(startIndex, _Length - startIndex).IndexOf(value);
+            return result < 0 ? -1 : result + startIndex;
         }
         public int IndexOf(ReadOnlySpan<byte> value, int startIndex = 0)
         {
@@ -645,7 +645,12 @@ namespace Mod.LowLevel
             {
                 throw new ArgumentOutOfRangeException(nameof(startIndex));
             }
-            return _Address.Slice(startIndex, _Length - startIndex).IndexOf(value) + startIndex;
+            var result = _Address.Slice(startIndex, _Length - startIndex).IndexOf(value);
+            return result < 0 ? -1 : result + startIndex;
+        }
+        public int IndexOf(CStringSpan value, int startIndex = 0)
+        {
+            return IndexOf((ReadOnlySpan<byte>)value.Slice(), startIndex);
         }
         public bool Contains(byte value)
         {
@@ -655,6 +660,10 @@ namespace Mod.LowLevel
         {
             return _Address.Slice(0, _Length).IndexOf(value) >= 0;
         }
+        public bool Contains(CStringSpan value)
+        {
+            return Contains((ReadOnlySpan<byte>)value.Slice());
+        }
         public int LastIndexOf(byte value)
         {
             return _Address.Slice(0, _Length).LastIndexOf(value);
@@ -662,6 +671,10 @@ namespace Mod.LowLevel
         public int LastIndexOf(ReadOnlySpan<byte> value)
         {
             return _Address.Slice(0, _Length).LastIndexOf(value);
+        }
+        public int LastIndexOf(CStringSpan value)
+        {
+            return LastIndexOf((ReadOnlySpan<byte>)value.Slice());
         }
         //public int IndexOfAny()
         //{
@@ -731,6 +744,10 @@ namespace Mod.LowLevel
         {
             return _Length >= value.Length && _Address.Slice(0, _Length).StartsWith(value);
         }
+        public bool StartsWith(CStringSpan value)
+        {
+            return StartsWith((ReadOnlySpan<byte>)value.Slice());
+        }
         public bool EndsWith(byte value)
         {
             return _Length > 0 && _Address[_Length - 1] == value;
@@ -738,6 +755,10 @@ namespace Mod.LowLevel
         public bool EndsWith(ReadOnlySpan<byte> value)
         {
             return _Length >= value.Length && _Address.Slice(0, _Length).EndsWith(value);
+        }
+        public bool EndsWith(CStringSpan value)
+        {
+            return EndsWith((ReadOnlySpan<byte>)value.Slice());
         }
 
         public bool IsNullTerminated()
@@ -750,7 +771,7 @@ namespace Mod.LowLevel
         }
         public static bool IsWhiteSpace(byte value)
         {
-            return value == 0x20 || (value >= 0x09 && value <= 0x0D);
+            return CStringRef.IsWhiteSpace(value);
         }
         public bool IsEmpty()
         {
@@ -779,6 +800,66 @@ namespace Mod.LowLevel
         public CStringSpanSplitEnumerator Split()
         {
             return new CStringSpanSplitEnumerator(this, -1);
+        }
+
+        /// <summary>
+        /// Resizes the view to exactly newsize bytes (expand or shrink). realloc
+        /// semantics: the first min(old Size, newsize) bytes are preserved; _Length is
+        /// clamped to newsize and the terminating NUL is maintained. Shrink slices the
+        /// view in place (no allocation, returns this); expand allocates a fresh buffer
+        /// and returns a NEW instance (the family's value-mode growth).
+        /// </summary>
+        public CStringSpan Resize(int newsize)
+        {
+            if (newsize < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(newsize));
+            }
+            if (newsize == _Address.Length)
+            {
+                return this;
+            }
+            if (_Readonly)
+            {
+                throw new InvalidOperationException("Cannot modify a readonly CStringSpan");
+            }
+            if (newsize < _Address.Length)
+            {
+                // Shrink: slice the view in place - no allocation, the tail becomes invisible
+                _Address = _Address.Slice(0, newsize);
+                if (_Length > newsize)
+                {
+                    _Length = newsize;      // shrink truncated the content
+                    ClearCache();
+                }
+                if (_Length < newsize)
+                {
+                    _Address[_Length] = 0;  // maintain the terminator
+                }
+                return this;
+            }
+            // Expand: fresh buffer keeping the whole old block (realloc semantics)
+            var buffer = new byte[newsize];
+            _Address.CopyTo(buffer);
+            buffer[_Length] = 0;            // maintain the terminator
+            return new CStringSpan(buffer, _Length);
+        }
+        /// <summary>
+        /// Expands the view to newsize bytes - only if newsize &gt; _Size; equal or
+        /// smaller sizes are a no-op returning this unchanged (never shrinks).
+        /// </summary>
+        public CStringSpan Expand(int newsize)
+        {
+            if (newsize < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(newsize));
+            }
+            // only if newsize > _Size; equal or smaller sizes are a no-op
+            if (newsize <= _Address.Length)
+            {
+                return this;
+            }
+            return Resize(newsize);
         }
 
         public CStringSpan Append(byte value)
@@ -829,6 +910,38 @@ namespace Mod.LowLevel
         {
             return Append((ReadOnlySpan<byte>)other._Address.Slice(0, other._Length));
         }
+        public CStringSpan Append(string str)
+        { // use UTF8 encoding
+            return Append(str, Encoding.UTF8);
+        }
+        public CStringSpan Append(string str, Encoding enc)
+        {
+            enc = enc ?? Encoding.Default;
+            if (_Readonly)
+            {
+                throw new InvalidOperationException("Cannot modify a readonly CStringSpan");
+            }
+            int byteCount = enc.GetByteCount(str);
+            if (byteCount == 0)
+            {
+                return this;
+            }
+            if (_Length + byteCount > _Address.Length)
+            {
+                var buffer = new byte[_Length + byteCount + 1];
+                _Address.Slice(0, _Length).CopyTo(buffer);
+                int written = CStringRef.EncodeInto(str, enc, buffer, _Length, byteCount);
+                return new CStringSpan(buffer, _Length + written);
+            }
+            int written2 = CStringRef.EncodeInto(str, enc, _Address, _Length, byteCount);
+            _Length += written2;
+            if (_Length < _Address.Length)
+            {
+                _Address[_Length] = 0;
+            }
+            ClearCache();
+            return this;
+        }
 
         public CStringSpan Insert(int index, byte value)
         {
@@ -878,6 +991,119 @@ namespace Mod.LowLevel
             return this;
         }
 
+        public CStringSpan Insert(int index, CStringSpan sub)
+        {
+            return Insert(index, sub, 1);
+        }
+        public CStringSpan Insert(int index, CStringSpan sub, int repeat)
+        {
+            if (repeat == 0 || sub._Length == 0)
+            {
+                return this;
+            }
+            // sub's content as a zero-copy span view: the ReadOnlySpan overload is the
+            // single content-copy implementation shared by the whole Insert family
+            return Insert(index, (ReadOnlySpan<byte>)sub.Slice(), repeat);
+        }
+
+        public CStringSpan Insert(int index, ReadOnlySpan<byte> sub)
+        {
+            return Insert(index, sub, 1);
+        }
+        public CStringSpan Insert(int index, ReadOnlySpan<byte> sub, int repeat)
+        {
+            if (repeat == 0 || sub.Length == 0)
+            {
+                return this;
+            }
+            if (_Readonly)
+            {
+                throw new InvalidOperationException("Cannot modify a readonly CStringSpan");
+            }
+            if (index < 0 || index > _Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+            if (repeat < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(repeat));
+            }
+            long addLength64 = (long)sub.Length * repeat;
+            if (addLength64 > int.MaxValue - _Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(repeat));
+            }
+            int addLength = (int)addLength64;
+            int newLength = _Length + addLength;
+            if (newLength > _Address.Length)
+            {
+                var buffer = new byte[newLength + 1];
+                _Address.Slice(0, index).CopyTo(buffer);
+                for (int i = 0; i < repeat; ++i)
+                {
+                    sub.CopyTo(buffer.AsSpan(index + i * sub.Length));
+                }
+                _Address.Slice(index, _Length - index).CopyTo(buffer.AsSpan(index + addLength));
+                return new CStringSpan(buffer, newLength);
+            }
+            // In-place right shift: Span.CopyTo has memmove semantics (overlap-safe).
+            // Snapshot sub first so it survives the shift when sub aliases this buffer.
+            Span<byte> snapshot = stackalloc byte[sub.Length];
+            sub.CopyTo(snapshot);
+            _Address.Slice(index, _Length - index).CopyTo(_Address.Slice(index + addLength));
+            for (int i = 0; i < repeat; ++i)
+            {
+                snapshot.CopyTo(_Address.Slice(index + i * sub.Length));
+            }
+            _Length = newLength;
+            if (_Length < _Address.Length)            // room for the terminator
+            {
+                _Address[_Length] = 0;
+            }
+            ClearCache();
+            return this;
+        }
+        public CStringSpan Insert(int index, string str)
+        { // use UTF8 encoding
+            return Insert(index, str, Encoding.UTF8);
+        }
+        public CStringSpan Insert(int index, string str, Encoding enc)
+        {
+            enc = enc ?? Encoding.Default;
+            int byteCount = enc.GetByteCount(str);
+            if (byteCount == 0)
+            {
+                return this;
+            }
+            if (_Readonly)
+            {
+                throw new InvalidOperationException("Cannot modify a readonly CStringSpan");
+            }
+            if (index < 0 || index > _Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+            int newLength = _Length + byteCount;
+            if (newLength > _Address.Length)
+            {
+                var buffer = new byte[newLength + 1];
+                _Address.Slice(0, index).CopyTo(buffer);
+                CStringRef.EncodeInto(str, enc, buffer, index, byteCount);
+                _Address.Slice(index, _Length - index).CopyTo(buffer.AsSpan(index + byteCount));
+                return new CStringSpan(buffer, newLength);
+            }
+            // In-place: shift the tail right, then encode straight into the vacated gap
+            _Address.Slice(index, _Length - index).CopyTo(_Address.Slice(index + byteCount));
+            CStringRef.EncodeInto(str, enc, _Address, index, byteCount);
+            _Length = newLength;
+            if (_Length < _Address.Length)            // room for the terminator
+            {
+                _Address[_Length] = 0;
+            }
+            ClearCache();
+            return this;
+        }
+
         public CStringSpan Remove(int startIndex, int length)
         {
             if (length == 0)
@@ -905,9 +1131,39 @@ namespace Mod.LowLevel
             return this;
         }
 
-        public CStringSpan Replace(ReadOnlySpan<byte> find, ReadOnlySpan<byte> replace)
+        public CStringSpan Replace(byte oldch, byte newch)
         {
-            if (find.Length == 0)
+            return Replace(oldch, newch, 0, _Length);
+        }
+        public CStringSpan Replace(byte oldch, byte newch, int startIndex, int count)
+        {
+            if (count == 0)
+            {
+                return this;
+            }
+            if (startIndex < 0 || startIndex >= _Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(startIndex));
+            }
+            if (count < 0 || count > _Length - startIndex)
+            {
+                throw new ArgumentOutOfRangeException(nameof(count));
+            }
+            if (oldch == newch)
+            {
+                return this;
+            }
+            int windowEnd = startIndex + count;
+            int first = -1;
+            for (int i = startIndex; i < windowEnd; ++i)
+            {
+                if (_Address[i] == oldch)
+                {
+                    first = i;
+                    break;
+                }
+            }
+            if (first < 0)
             {
                 return this;
             }
@@ -915,11 +1171,59 @@ namespace Mod.LowLevel
             {
                 throw new InvalidOperationException("Cannot modify a readonly CStringSpan");
             }
-            // Count non-overlapping matches (left to right).
-            int matchCount = 0;
-            int pos = 0;
+            // Pure byte replacement; _Length is unchanged (same when newch is 0: a NUL is merely written into the content, no truncation)
+            for (int i = first; i < windowEnd; ++i)
+            {
+                if (_Address[i] == oldch)
+                {
+                    _Address[i] = newch;
+                }
+            }
+            ClearCache();
+            return this;
+        }
+        public CStringSpan Replace(CStringSpan find, CStringSpan replace)
+        {
+            return Replace((ReadOnlySpan<byte>)find.Slice(), (ReadOnlySpan<byte>)replace.Slice());
+        }
+        public CStringSpan Replace(CStringSpan find, CStringSpan replace, int startIndex, int count)
+        {
+            return Replace((ReadOnlySpan<byte>)find.Slice(), (ReadOnlySpan<byte>)replace.Slice(), startIndex, count);
+        }
+        public CStringSpan Replace(ReadOnlySpan<byte> find, ReadOnlySpan<byte> replace)
+        {
+            return Replace(find, replace, 0, _Length);
+        }
+        // Replaces find with replace left-to-right and non-overlapping within [startIndex, startIndex + count);
+        // content outside the window keeps its relative position and shifts naturally as the length changes
+        public CStringSpan Replace(ReadOnlySpan<byte> find, ReadOnlySpan<byte> replace, int startIndex, int count)
+        {
+            if (count == 0)
+            {
+                return this;
+            }
+            if (find.Length == 0)
+            {
+                return this;
+            }
+            if (startIndex < 0 || startIndex >= _Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(startIndex));
+            }
+            if (count < 0 || count > _Length - startIndex)
+            {
+                throw new ArgumentOutOfRangeException(nameof(count));
+            }
+            if (_Readonly)
+            {
+                throw new InvalidOperationException("Cannot modify a readonly CStringSpan");
+            }
+            int windowEnd = startIndex + count;
             var content = _Address.Slice(0, _Length);
-            while (pos <= content.Length - find.Length)
+            // Count non-overlapping matches (left to right) within the window.
+            int matchCount = 0;
+            int pos = startIndex;
+            while (pos <= windowEnd - find.Length)
             {
                 if (content.Slice(pos, find.Length).SequenceEqual(find))
                 {
@@ -935,6 +1239,11 @@ namespace Mod.LowLevel
             {
                 return this;
             }
+            // Snapshot replace first so it survives the rewrite when replace aliases this
+            // buffer (same protection as CStringRef.ReplaceCore; heap fallback for large
+            // replacements - a plain stackalloc would overflow on big inputs).
+            Span<byte> snapshot = replace.Length <= 512 ? stackalloc byte[replace.Length] : new byte[replace.Length];
+            replace.CopyTo(snapshot);
             int delta = (replace.Length - find.Length) * matchCount;
             int newLength = _Length + delta;
             if (replace.Length > find.Length || newLength > _Address.Length)
@@ -942,12 +1251,13 @@ namespace Mod.LowLevel
                 // Growth path: new buffer (in-place growth would corrupt the read
                 // window while writing).
                 var buffer = new byte[newLength + 1];
-                int srcPos = 0, dstPos = 0;
-                while (srcPos < _Length)
+                content.Slice(0, startIndex).CopyTo(buffer);                 // head, verbatim
+                int srcPos = startIndex, dstPos = startIndex;
+                while (srcPos < windowEnd)
                 {
-                    if (srcPos <= _Length - find.Length && content.Slice(srcPos, find.Length).SequenceEqual(find))
+                    if (srcPos <= windowEnd - find.Length && content.Slice(srcPos, find.Length).SequenceEqual(find))
                     {
-                        replace.CopyTo(buffer.AsSpan(dstPos));
+                        snapshot.CopyTo(buffer.AsSpan(dstPos));
                         dstPos += replace.Length;
                         srcPos += find.Length;
                     }
@@ -956,16 +1266,17 @@ namespace Mod.LowLevel
                         buffer[dstPos++] = _Address[srcPos++];
                     }
                 }
+                content.Slice(windowEnd).CopyTo(buffer.AsSpan(dstPos));      // tail, verbatim
                 return new CStringSpan(buffer, newLength);
             }
             // Shrink / equal-length path: in place (dst <= src always holds, so
             // writes never pollute the unread region).
-            int src = 0, dst = 0;
-            while (src < _Length)
+            int src = startIndex, dst = startIndex;
+            while (src < windowEnd)
             {
-                if (src <= _Length - find.Length && content.Slice(src, find.Length).SequenceEqual(find))
+                if (src <= windowEnd - find.Length && content.Slice(src, find.Length).SequenceEqual(find))
                 {
-                    replace.CopyTo(_Address.Slice(dst));
+                    snapshot.CopyTo(_Address.Slice(dst));
                     dst += replace.Length;
                     src += find.Length;
                 }
@@ -974,6 +1285,7 @@ namespace Mod.LowLevel
                     _Address[dst++] = _Address[src++];
                 }
             }
+            _Address.Slice(windowEnd, _Length - windowEnd).CopyTo(_Address.Slice(dst));   // tail follows the shift
             _Length = newLength;
             if (_Length < _Address.Length)            // room for the terminator
             {
@@ -990,12 +1302,12 @@ namespace Mod.LowLevel
                 return this;
             }
             int start = 0;
-            while (start < _Length && ShouldTrim(_Address[start], chars))
+            while (start < _Length && CStringRef.ShouldTrim(_Address[start], chars))
             {
                 ++start;
             }
             int end = _Length;
-            while (end > start && ShouldTrim(_Address[end - 1], chars))
+            while (end > start && CStringRef.ShouldTrim(_Address[end - 1], chars))
             {
                 --end;
             }
@@ -1022,7 +1334,7 @@ namespace Mod.LowLevel
                 return this;
             }
             int end = _Length;
-            while (end > 0 && ShouldTrim(_Address[end - 1], chars))
+            while (end > 0 && CStringRef.ShouldTrim(_Address[end - 1], chars))
             {
                 --end;
             }
@@ -1044,7 +1356,7 @@ namespace Mod.LowLevel
                 return this;
             }
             int start = 0;
-            while (start < _Length && ShouldTrim(_Address[start], chars))
+            while (start < _Length && CStringRef.ShouldTrim(_Address[start], chars))
             {
                 ++start;
             }
@@ -1076,22 +1388,6 @@ namespace Mod.LowLevel
             _Length = 0;
             ClearCache();
             return this;
-        }
-
-        private static bool ShouldTrim(byte value, ReadOnlySpan<byte> chars)
-        {
-            if (chars.Length == 0)
-            {
-                return IsWhiteSpace(value);
-            }
-            for (int i = 0; i < chars.Length; ++i)
-            {
-                if (chars[i] == value)
-                {
-                    return true;
-                }
-            }
-            return false;
         }
     }
 

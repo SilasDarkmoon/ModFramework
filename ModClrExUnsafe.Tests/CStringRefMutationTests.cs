@@ -1,5 +1,7 @@
 using Mod;
+using Mod.LowLevel;
 using System;
+using System.Text;
 using Xunit;
 
 namespace ModClrExUnsafe.Tests
@@ -88,6 +90,135 @@ namespace ModClrExUnsafe.Tests
 
             right.Dispose();
             sum.Dispose();                   // sum and left share one slot: dispose exactly one handle
+        }
+
+        // ---------- Append(ReadOnlySpan<byte>) ----------
+
+        [Fact]
+        public void Append_ReadOnlySpan_ComposesInPlace()
+        {
+            var s = CStr.New("he", 8);
+            var r = s.Append((ReadOnlySpan<byte>)CStr.Bytes("llo"));
+            Assert.Equal("hello", r.ToString());
+
+
+            r.Dispose();
+        }
+
+        [Fact]
+        public void Append_ReadOnlySpan_Overflow_GrowsInPlace()
+        {
+            var s = new CStringRef("ab");      // Size == 2
+            var r = s.Append((ReadOnlySpan<byte>)CStr.Bytes("cde"));   // growth re-binds the slot
+            Assert.Equal("abcde", r.ToString());
+            Assert.Equal(5, r.Length);
+            Assert.True(r.Size > 5);
+            Assert.Equal("abcde", s.ToString()); // r and s are the same view now
+
+            r.Dispose();                       // r and s share one slot: dispose exactly one handle
+        }
+
+        [Fact]
+        public void Append_ReadOnlySpan_Empty_IsNoOp()
+        {
+            var s = new CStringRef("x");
+            var r = s.Append(default(ReadOnlySpan<byte>));
+            Assert.Equal(1, r.Length);
+            Assert.Equal("x", r.ToString());
+
+
+            r.Dispose();
+        }
+
+        [Fact]
+        public void Append_ReadOnlySpan_Readonly_Throws()
+        {
+            var s = new CStringRef("ab");
+            s.Freeze();
+            Assert.Throws<InvalidOperationException>(() => s.Append((ReadOnlySpan<byte>)CStr.Bytes("c")));
+
+            s.Dispose();
+        }
+
+        // ---------- Append(string) ----------
+
+        [Fact]
+        public void Append_String_DefaultUtf8_ComposesInPlace()
+        {
+            var s = CStr.New("he", 8);
+            var r = s.Append("llo");
+            Assert.Equal("hello", r.ToString());
+
+
+            r.Dispose();
+        }
+
+        [Fact]
+        public void Append_String_Utf8_EncodesMultibyte()
+        {
+            var s = new CStringRef("你");
+            var r = s.Append("好");
+            Assert.Equal("你好", r.ToString());
+            Assert.Equal(Encoding.UTF8.GetByteCount("你好"), r.Length);
+
+            r.Dispose();
+        }
+
+        [Fact]
+        public void Append_String_Overflow_GrowsInPlace()
+        {
+            var s = new CStringRef("ab");      // Size == 2
+            var r = s.Append("cde");           // growth re-binds the slot
+            Assert.Equal("abcde", r.ToString());
+            Assert.Equal(5, r.Length);
+            Assert.True(r.Size > 5);
+
+            r.Dispose();                       // r and s share one slot: dispose exactly one handle
+        }
+
+        [Fact]
+        public void Append_String_WithEncoding_UsesIt()
+        {
+            var s = CStr.New("h", 8);
+            var r = s.Append("i", Encoding.ASCII);
+            Assert.Equal("hi", r.ToString());
+            Assert.Equal(2, r.Length);
+
+            r.Dispose();
+        }
+
+        [Fact]
+        public void Append_String_NullEncoding_FallsBackToDefault()
+        {
+            var s = CStr.New("x", 4);
+            var r = s.Append("y", null);
+            Assert.Equal("xy", r.ToString());
+
+            r.Dispose();
+        }
+
+        [Fact]
+        public void Append_String_Readonly_Throws()
+        {
+            var s = new CStringRef("ab");
+            s.Freeze();
+            Assert.Throws<InvalidOperationException>(() => s.Append("c"));
+
+            s.Dispose();
+        }
+
+        [Fact]
+        public void Append_String_WithinCapacity_DoesNotAllocate()
+        {
+            var s = CStr.New("he", 16);
+            Assert.Equal("he", s.ToString());   // warm the string cache before measuring
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            var r = s.Append("llo");            // in-capacity: encodes straight into the buffer
+            long after = GC.GetAllocatedBytesForCurrentThread();
+            Assert.Equal(0, after - before);    // no byte[] round-trip, no stackalloc copy
+            Assert.Equal("hello", r.ToString());
+
+            r.Dispose();
         }
 
         // ---------- Trim family ----------
@@ -396,6 +527,168 @@ namespace ModClrExUnsafe.Tests
             s.Dispose();
         }
 
+        // ---------- Insert(ReadOnlySpan<byte>) ----------
+
+        [Fact]
+        public void Insert_ReadOnlySpan_InPlace()
+        {
+            var s = CStr.New("ac", 6);
+            var r = s.Insert(1, (ReadOnlySpan<byte>)CStr.Bytes("b"));
+            Assert.Equal("abc", r.ToString());
+            Assert.Equal(3, r.Length);
+
+
+            r.Dispose();
+        }
+
+        [Fact]
+        public void Insert_ReadOnlySpan_Overflow_GrowsInPlace()
+        {
+            var s = new CStringRef("ac");     // Size == 2
+            var r = s.Insert(1, (ReadOnlySpan<byte>)CStr.Bytes("bb"));   // growth re-binds the slot
+            Assert.Equal("abbc", r.ToString());
+            Assert.Equal("abbc", s.ToString());          // r and s are the same view now
+            Assert.True(r.Size > 4);
+
+            r.Dispose();                      // r and s share one slot: dispose exactly one handle
+        }
+
+        [Fact]
+        public void Insert_ReadOnlySpan_Repeated()
+        {
+            var s = CStr.New("ab", 8);
+            var r = s.Insert(1, (ReadOnlySpan<byte>)CStr.Bytes("-"), 3);
+            Assert.Equal("a---b", r.ToString());
+
+
+            r.Dispose();
+        }
+
+        [Fact]
+        public void Insert_ReadOnlySpan_FromSameBuffer_Overflow()
+        {
+            var s = new CStringRef("abc");          // Size == 3
+            var one = s.ToSpan().Slice(1, 1);        // "b" — ReadOnlySpan view over s's buffer
+            var r = s.Insert(0, one);                // growth re-binds the slot (snapshot protects the aliasing view)
+            Assert.Equal("babc", r.ToString());
+            Assert.Equal("babc", s.ToString());     // r and s are the same view now
+
+            r.Dispose();                           // r and s share one slot: dispose exactly one handle
+        }
+
+        [Fact]
+        public void Insert_ReadOnlySpan_Empty_IsNoOp()
+        {
+            var s = new CStringRef("ab");
+            var r = s.Insert(0, default(ReadOnlySpan<byte>));
+            Assert.Equal("ab", r.ToString());
+            Assert.Equal(2, r.Length);
+
+            r.Dispose();
+        }
+
+        [Fact]
+        public void Insert_ReadOnlySpan_Readonly_Throws()
+        {
+            var s = new CStringRef("ab");
+            s.Freeze();
+            Assert.Throws<InvalidOperationException>(() => s.Insert(1, (ReadOnlySpan<byte>)CStr.Bytes("x")));
+
+            s.Dispose();
+        }
+
+        // ---------- Insert(string) ----------
+
+        [Fact]
+        public void Insert_String_InPlace()
+        {
+            var s = CStr.New("ac", 6);
+            var r = s.Insert(1, "b");
+            Assert.Equal("abc", r.ToString());
+            Assert.Equal(3, r.Length);
+
+
+            r.Dispose();
+        }
+
+        [Fact]
+        public void Insert_String_Utf8_EncodesMultibyte()
+        {
+            var s = new CStringRef("你A");     // bytes: E4 BD A0 41
+            var r = s.Insert(3, "好");         // insert after 你 (3 bytes in)
+            Assert.Equal("你好A", r.ToString());
+            Assert.Equal(Encoding.UTF8.GetByteCount("你好A"), r.Length);
+
+            r.Dispose();
+        }
+
+        [Fact]
+        public void Insert_String_Overflow_GrowsInPlace()
+        {
+            var s = new CStringRef("ac");     // Size == 2
+            var r = s.Insert(1, "bb");        // growth re-binds the slot
+            Assert.Equal("abbc", r.ToString());
+            Assert.Equal("abbc", s.ToString());   // r and s are the same view now
+            Assert.True(r.Size > 4);
+
+            r.Dispose();                      // r and s share one slot: dispose exactly one handle
+        }
+
+        [Fact]
+        public void Insert_String_WithEncoding_UsesIt()
+        {
+            var s = CStr.New("ac", 6);
+            var r = s.Insert(1, "b", Encoding.ASCII);
+            Assert.Equal("abc", r.ToString());
+
+            r.Dispose();
+        }
+
+        [Fact]
+        public void Insert_String_NullEncoding_FallsBackToDefault()
+        {
+            var s = CStr.New("ac", 6);
+            var r = s.Insert(1, "b", null);
+            Assert.Equal("abc", r.ToString());
+
+            r.Dispose();
+        }
+
+        [Fact]
+        public void Insert_String_Empty_IsNoOp()
+        {
+            var s = new CStringRef("ab");
+            var r = s.Insert(1, "");
+            Assert.Equal("ab", r.ToString());
+            Assert.Equal(2, r.Length);
+
+            r.Dispose();
+        }
+
+        [Fact]
+        public void Insert_String_Readonly_Throws()
+        {
+            var s = new CStringRef("ab");
+            s.Freeze();
+            Assert.Throws<InvalidOperationException>(() => s.Insert(1, "x"));
+
+            s.Dispose();
+        }
+
+        [Fact]
+        public void Insert_String_WithinCapacity_DoesNotAllocate()
+        {
+            var s = CStr.New("ac", 6);
+            Assert.Equal("ac", s.ToString());   // warm the cache before measuring
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            var r = s.Insert(1, "b");           // in-capacity: encodes straight into the buffer
+            long after = GC.GetAllocatedBytesForCurrentThread();
+            Assert.Equal(0, after - before);   // no byte[] round-trip, no stackalloc copy
+            Assert.Equal("abc", r.ToString());
+
+            r.Dispose();
+        }
+
         // ---------- Replace(byte, byte) ----------
 
         [Fact]
@@ -607,6 +900,85 @@ namespace ModClrExUnsafe.Tests
             r.Dispose();       // r and s share one slot (mutators return this)
         }
 
+        // ---------- Replace(ReadOnlySpan<byte>) ----------
+
+        [Fact]
+        public void Replace_ReadOnlySpan_EqualLength_ManyMatches()
+        {
+            var s = new CStringRef("ababababab");      // 5 matches -> exercises positions buffer
+            var r = s.Replace((ReadOnlySpan<byte>)CStr.Bytes("ab"), (ReadOnlySpan<byte>)CStr.Bytes("XY"));
+            Assert.Equal("XYXYXYXYXY", r.ToString());
+
+
+            r.Dispose();
+        }
+
+        [Fact]
+        public void Replace_ReadOnlySpan_Growth_Overflow_GrowsInPlace()
+        {
+            var s = new CStringRef("abcabc");          // Size == 6
+            var r = s.Replace((ReadOnlySpan<byte>)CStr.Bytes("c"), (ReadOnlySpan<byte>)CStr.Bytes("ZZ"));   // growth re-binds the slot
+            Assert.Equal("abZZabZZ", r.ToString());
+            Assert.Equal("abZZabZZ", s.ToString());    // r and s are the same view now
+
+            r.Dispose();                              // r and s share one slot: dispose exactly one handle
+        }
+
+        [Fact]
+        public void Replace_ReadOnlySpan_Deletion_ManyMatches_InPlace()
+        {
+            var s = new CStringRef("a1b1c1d1");        // 4 deletions
+            var r = s.Replace((ReadOnlySpan<byte>)CStr.Bytes("1"), default(ReadOnlySpan<byte>));
+            Assert.Equal("abcd", r.ToString());
+
+
+            r.Dispose();
+        }
+
+        [Fact]
+        public void Replace_ReadOnlySpan_WindowGrowth_PreservesOutOfWindowMatches()
+        {
+            // '-' at index 1 is outside the window and must stay untouched.
+            var s = CStr.New("x-y-zz", 2);
+            var r = s.Replace((ReadOnlySpan<byte>)CStr.Bytes("-"), (ReadOnlySpan<byte>)CStr.Bytes("QQ"), 2, 4);
+            Assert.Equal("x-yQQzz", r.ToString());
+
+
+            r.Dispose();
+        }
+
+        [Fact]
+        public void Replace_ReadOnlySpan_EmptyOldString_Throws()
+        {
+            var s = new CStringRef("abc");
+            Assert.Throws<ArgumentException>(() => s.Replace(default(ReadOnlySpan<byte>), (ReadOnlySpan<byte>)CStr.Bytes("x")));
+
+            s.Dispose();
+        }
+
+        [Fact]
+        public void Replace_ReadOnlySpan_NoMatch_ReturnsUnchanged_EvenReadonly()
+        {
+            var s = new CStringRef("abc");
+            s.Freeze();
+            var r = s.Replace((ReadOnlySpan<byte>)CStr.Bytes("zz"), (ReadOnlySpan<byte>)CStr.Bytes("y"));
+            Assert.Equal("abc", r.ToString());          // no mutation needed, no throw
+
+
+            r.Dispose();
+        }
+
+        [Fact]
+        public void Replace_ReadOnlySpan_FromAliasingNewString_IsSafe()
+        {
+            var s = CStr.New("abXcd", 8);
+            var part = s.ToSpan().Slice(0, 2);          // "ab" — ReadOnlySpan view over s's buffer
+            var r = s.Replace((ReadOnlySpan<byte>)CStr.Bytes("X"), part);
+            Assert.Equal("ababcd", r.ToString());
+
+            r.Dispose();       // r and s share one slot (mutators return this)
+        }
+
         [Fact]
         public void Mutators_ShareOneSlot_DisposeExactlyOneHandle()
         {
@@ -628,6 +1000,126 @@ namespace ModClrExUnsafe.Tests
 
             r.Dispose();                    // the chain's single slot
             space.Dispose();                // space kept its own slot
+        }
+
+        // ---------- Resize / Expand ----------
+
+        [Fact]
+        public void Resize_Expand_PreservesContent_AndMaintainsNul()
+        {
+            var s = CStr.New("hello", 2);       // Size 7
+            var r = s.Resize(16);
+            Assert.Equal("hello", r.ToString());   // content preserved
+            Assert.Equal(16, r.Size);
+            Assert.Equal(5, r.Length);
+            Assert.True(r.IsNullTerminated());      // [5] = 0 maintained after growth
+            Assert.Equal("hello", s.ToString());   // r and s are the same view now
+
+            r.Dispose();       // r and s share one slot: dispose exactly one handle
+        }
+
+        [Fact]
+        public void Resize_Expand_KeepsDataBeyondLength()
+        {
+            // realloc semantics: the WHOLE old block is preserved, not just the content.
+            var s = CStr.New("hello", 2);       // Size 7, Length 5
+            s.Ref[6] = (byte)'X';               // raw write beyond Length (no _Length bump)
+            var r = s.Resize(16);
+            Assert.Equal((byte)'X', r.Ref[6]);     // the byte behind the NUL survived
+
+            r.Dispose();
+        }
+
+        [Fact]
+        public void Resize_Shrink_TruncatesContent()
+        {
+            var s = CStr.New("hello", 4);       // Size 9, Length 5
+            var r = s.Resize(3);
+            Assert.Equal("hel", r.ToString());     // content clamped to the new size
+            Assert.Equal(3, r.Length);
+            Assert.Equal(3, r.Size);
+
+            r.Dispose();
+        }
+
+        [Fact]
+        public void Resize_Shrink_WithinLength_KeepsContent()
+        {
+            var s = CStr.New("hello", 8);       // Size 13, Length 5
+            var r = s.Resize(6);
+            Assert.Equal("hello", r.ToString());   // Length 5 <= 6: no truncation
+            Assert.Equal(5, r.Length);
+            Assert.Equal(6, r.Size);
+            Assert.True(r.IsNullTerminated());
+
+            r.Dispose();
+        }
+
+        [Fact]
+        public void Resize_SameSize_NoOp_EvenReadonly()
+        {
+            var s = new CStringRef("abc");
+            s.Freeze();
+            var r = s.Resize(3);                // same size: no-op, readonly not consulted
+            Assert.Equal("abc", r.ToString());
+
+            s.Dispose();
+        }
+
+        [Fact]
+        public void Resize_Negative_Throws()
+        {
+            var s = new CStringRef("abc");
+            Assert.Throws<ArgumentOutOfRangeException>(() => s.Resize(-1));
+
+            s.Dispose();
+        }
+
+        [Fact]
+        public void Resize_Readonly_Throws()
+        {
+            var s = new CStringRef("abc");
+            s.Freeze();
+            Assert.Throws<InvalidOperationException>(() => s.Resize(8));
+
+            s.Dispose();
+        }
+
+        [Fact]
+        public void Expand_Grows_PreservesContent()
+        {
+            var s = CStr.New("hello", 2);
+            var r = s.Expand(16);
+            Assert.Equal("hello", r.ToString());
+            Assert.Equal(16, r.Size);
+            Assert.True(r.IsNullTerminated());
+
+            r.Dispose();
+        }
+
+        [Fact]
+        public void Expand_AtOrBelowSize_NoOp_EvenReadonly()
+        {
+            var s = new CStringRef("abc");      // Size 3
+            s.Freeze();
+            var r = s.Expand(3);                // equal: no-op
+            Assert.Equal(3, r.Size);
+            Assert.Equal("abc", r.ToString());
+            var r2 = s.Expand(2);               // smaller: no-op (Expand never shrinks)
+            Assert.Equal(3, r2.Size);
+            Assert.Equal("abc", r2.ToString());
+
+            s.Dispose();
+        }
+
+        [Fact]
+        public void Expand_Readonly_Throws_WhenGrowing()
+        {
+            var s = new CStringRef("abc");
+            s.Freeze();
+            Assert.Throws<InvalidOperationException>(() => s.Expand(8));
+
+            s.Dispose();
         }
 
         [Fact]

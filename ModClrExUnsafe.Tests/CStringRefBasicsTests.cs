@@ -81,6 +81,66 @@ namespace ModClrExUnsafe.Tests
         }
 
         [Fact]
+        public void Constructor_IntSize_Managed_IsEmptyViewWithCapacity()
+        {
+            var s = new CStringRef(16);
+            Assert.Equal(0, s.Length);
+            Assert.Equal(16, s.Size);
+            Assert.True(s.IsEmpty());
+            Assert.Equal("", s.ToString());
+
+            s.Dispose();
+        }
+
+        [Fact]
+        public void Constructor_IntSize_ThenAppendString_ReplacesCapacityCtor()
+        {
+            var s = new CStringRef(16).Append("hello");   // the (string, capacity) replacement pattern
+            Assert.Equal("hello", s.ToString());
+            Assert.Equal(5, s.Length);
+            Assert.Equal(16, s.Size);
+            Assert.True(s.IsNullTerminated());
+
+            s.Dispose();
+        }
+
+        [Fact]
+        public void Constructor_IntSize_SelfManaged_AllocatesNativeBlock()
+        {
+            var s = new CStringRef(16, true);
+            Assert.Equal(16, s.Size);
+            Assert.Equal(0, s.Length);
+            Assert.False(s.IsNull());
+            Assert.True(s.IsFixed);                  // Raw mode
+            s[0] = (byte)'h';                        // indexer extends Length
+            s[1] = (byte)'i';
+            Assert.Equal("hi", s.ToString());
+
+            s.Dispose();                             // frees the native block
+        }
+
+        [Fact]
+        public void Constructor_IntSize_Zero_ManagedAndSelfManaged()
+        {
+            var m = new CStringRef(0);
+            Assert.Equal(0, m.Size);
+            Assert.True(m.IsEmpty());
+            m.Dispose();
+
+            var n = new CStringRef(0, true);         // Zero address: nothing to free
+            Assert.Equal(0, n.Size);
+            Assert.True(n.IsNull());
+            n.Dispose();                             // addr == Zero: no-op, must not throw
+        }
+
+        [Fact]
+        public void Constructor_IntSize_Negative_Throws()
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => new CStringRef(-1));
+            Assert.Throws<ArgumentOutOfRangeException>(() => new CStringRef(-1, true));
+        }
+
+        [Fact]
         public void StringConversions_RoundTrip()
         {
             var s = new CStringRef("abc");
@@ -370,6 +430,37 @@ namespace ModClrExUnsafe.Tests
 
             a.Dispose();
             b.Dispose();
+        }
+
+        [Fact]
+        public void CompareTo_ReadOnlySpan_MatchesCStringRefBehaviour()
+        {
+            var a = new CStringRef("ab");
+            Assert.Equal(0, a.CompareTo((ReadOnlySpan<byte>)CStr.Bytes("ab")));
+            Assert.True(a.CompareTo((ReadOnlySpan<byte>)CStr.Bytes("abc")) < 0);   // shorter prefix first
+            Assert.True(a.CompareTo((ReadOnlySpan<byte>)CStr.Bytes("aa")) > 0);    // byte difference
+            Assert.True(a.CompareTo((ReadOnlySpan<byte>)CStr.Bytes("a")) > 0);     // length tiebreak
+            Assert.True(a.CompareTo(default(ReadOnlySpan<byte>)) > 0);             // empty span sorts first
+
+            a.Dispose();
+        }
+
+        [Fact]
+        public void Equals_ReadOnlySpan_ByContent()
+        {
+            var a = new CStringRef("hello");
+            Assert.True(a.Equals((ReadOnlySpan<byte>)CStr.Bytes("hello")));
+            Assert.False(a.Equals((ReadOnlySpan<byte>)CStr.Bytes("hell")));        // shorter
+            Assert.False(a.Equals((ReadOnlySpan<byte>)CStr.Bytes("hello!")));      // longer
+            Assert.False(a.Equals((ReadOnlySpan<byte>)CStr.Bytes("hellp")));       // last byte differs
+            Assert.True(a.Equals(default(ReadOnlySpan<byte>)) == a.IsEmpty());     // empty vs empty
+
+            var e = new CStringRef("");
+            Assert.True(e.Equals(default(ReadOnlySpan<byte>)));                    // both empty
+            Assert.False(e.Equals((ReadOnlySpan<byte>)CStr.Bytes("x")));
+
+            a.Dispose();
+            e.Dispose();
         }
 
         [Fact]

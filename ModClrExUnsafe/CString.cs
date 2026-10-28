@@ -107,6 +107,45 @@ namespace Mod
             _ConvertedString = null;
             _CachedHashCode = 0;
         }
+        public CStringRef(bool isSelfManaged = false)
+        {
+            _Address = new UnionRef<byte>(UnionRef.RefType.Raw);
+            _Length = 0;
+            _Size = 0;
+            _Readonly = false;
+            _IsSelfManagedNative = isSelfManaged;
+            _ConvertedString = null;
+            _CachedHashCode = 0;
+        }
+        /// <summary>
+        /// Allocates an empty view over a fresh size-byte buffer: a managed array
+        /// (zeroed), or an AllocHGlobal block when isSelfManaged (Dispose frees it;
+        /// size 0 keeps the Zero address so the empty-start ReAllocHGlobal path applies).
+        /// </summary>
+        public CStringRef(int size, bool isSelfManaged = false)
+        {
+            if (size < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(size));
+            }
+            if (isSelfManaged)
+            {
+                _Address = new UnionRef<byte>(UnionRef.RefType.Raw); // native block -> Raw
+                _Address.Address = size > 0 ? System.Runtime.InteropServices.Marshal.AllocHGlobal(size) : IntPtr.Zero;
+            }
+            else
+            {
+                _Address = new UnionRef<byte>(_RefType); // managed buffer -> auto
+                var buffer = new byte[size];
+                _Address.SetRef(ref buffer.AsSpan().GetRef());
+            }
+            _Length = 0;
+            _Size = size;
+            _Readonly = false;
+            _IsSelfManagedNative = isSelfManaged;
+            _ConvertedString = null;
+            _CachedHashCode = 0;
+        }
         public CStringRef(ref byte address, int size, int len)
         {
             _Address = new UnionRef<byte>(_RefType); // ref -> auto
@@ -469,6 +508,19 @@ namespace Mod
         {
             return ToString().CompareTo(other);
         }
+        public int CompareTo(ReadOnlySpan<byte> other)
+        {
+            int count = Math.Min(_Length, other.Length);
+            if (count > 0)
+            {
+                var result = MemCmp(ref _Address.GetRef(), 0, ref other.GetRef(), 0, count);
+                if (result != 0)
+                {
+                    return result;
+                }
+            }
+            return _Length.CompareTo(other.Length);
+        }
         public static int Compare(CStringRef a, CStringRef b)
         {
             return a.CompareTo(b);
@@ -497,6 +549,11 @@ namespace Mod
         public bool Equals(string other)
         {
             return ToString().Equals(other);
+        }
+        public bool Equals(ReadOnlySpan<byte> other)
+        {
+            return _Length == other.Length
+                && (_Length == 0 || MemCmp(ref _Address.GetRef(), 0, ref other.GetRef(), 0, _Length) == 0);
         }
         public override bool Equals(object obj)
         {
@@ -1115,8 +1172,7 @@ namespace Mod
         }
         public static bool IsWhiteSpace(byte value)
         {
-            //return value == 0x20 || (value >= 0x09 && value <= 0x0D);
-            return CStringSpan.IsWhiteSpace(value);
+            return value == 0x20 || (value >= 0x09 && value <= 0x0D);
         }
         public bool IsEmpty()
         {
@@ -1163,6 +1219,73 @@ namespace Mod
                 return new CStringSpanSplitEnumerator(default(CStringSpan), -1);
             }
             return new CStringSpanSplitEnumerator(this, -1);
+        }
+
+        /// <summary>
+        /// Resizes the buffer to exactly newsize bytes (expand or shrink). realloc
+        /// semantics: the first min(old Size, newsize) bytes are preserved; on shrink
+        /// the tail is dropped (and released for the self-managed native block),
+        /// _Length is clamped to newsize and the terminating NUL is maintained.
+        /// </summary>
+        public CStringRef Resize(int newsize)
+        {
+            if (newsize < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(newsize));
+            }
+            if (newsize == _Size)
+            {
+                return this;
+            }
+            if (_Readonly)
+            {
+                throw new InvalidOperationException("Cannot modify a readonly CStringRef");
+            }
+            Span<byte> newbuffer;
+            if (_IsSelfManagedNative)
+            {
+                // realloc keeps min(old, new) bytes and releases the tail on shrink;
+                // ReAllocHGlobal(Zero, n) == AllocHGlobal(n) for the empty-start view
+                newbuffer = UnsafeEx.AsSpan<byte>(System.Runtime.InteropServices.Marshal.ReAllocHGlobal(_Address.Address, (IntPtr)newsize), newsize);
+            }
+            else
+            {
+                newbuffer = new byte[newsize];
+                int keep = Math.Min(_Size, newsize);
+                if (keep > 0)
+                {
+                    UnsafeEx.MemCopy(ref newbuffer[0], 0, ref _Address.GetRef(), 0, keep);
+                }
+            }
+            _Address.SetRef(ref newbuffer[0]);
+            _Size = newsize;
+            if (_Length > newsize)
+            {
+                _Length = newsize;      // shrink truncated the content
+                ClearCache();
+            }
+            if (_Length < newsize)
+            {
+                newbuffer[_Length] = 0; // maintain the terminator
+            }
+            return this;
+        }
+        /// <summary>
+        /// Expands the buffer to newsize bytes - only if newsize &gt; _Size; equal or
+        /// smaller sizes are a no-op returning this unchanged (never shrinks).
+        /// </summary>
+        public CStringRef Expand(int newsize)
+        {
+            if (newsize < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(newsize));
+            }
+            // only if newsize > _Size; equal or smaller sizes are a no-op
+            if (newsize <= _Size)
+            {
+                return this;
+            }
+            return Resize(newsize);
         }
 
         public CStringRef Append(byte value)
@@ -1225,12 +1348,106 @@ namespace Mod
             _Length += other._Length;
             return this;
         }
+        public CStringRef Append(ReadOnlySpan<byte> value)
+        {
+            if (_Readonly)
+            {
+                throw new InvalidOperationException("Cannot modify a readonly CStringRef");
+            }
+            if (value.Length == 0)
+            {
+                return this;
+            }
+            if (_Length + value.Length > _Size)
+            {
+                Span<byte> newbuffer;
+                var newbuffersize = _Length + value.Length + 1;
+                if (_IsSelfManagedNative)
+                {
+                    newbuffer = UnsafeEx.AsSpan<byte>(System.Runtime.InteropServices.Marshal.ReAllocHGlobal(_Address.Address, (IntPtr)newbuffersize), newbuffersize);
+                }
+                else
+                {
+                    newbuffer = new byte[newbuffersize];
+                    UnsafeEx.MemCopy(ref newbuffer[0], 0, ref _Address.GetRef(), 0, _Length);
+                }
+                value.CopyTo(newbuffer.Slice(_Length));
+                RebindToNewBuffer(newbuffer, _Length + value.Length);
+                return this;
+            }
+            ClearCache();
+            ToSpan().Append(value);
+            _Length += value.Length;
+            return this;
+        }
+        public CStringRef Append(string str)
+        { // use UTF8 encoding
+            return Append(str, Encoding.UTF8);
+        }
+        public CStringRef Append(string str, Encoding enc)
+        {
+            enc = enc ?? Encoding.Default;
+            if (_Readonly)
+            {
+                throw new InvalidOperationException("Cannot modify a readonly CStringRef");
+            }
+            int byteCount = enc.GetByteCount(str);
+            if (byteCount == 0)
+            {
+                return this;
+            }
+            if (_Length + byteCount > _Size)
+            {
+                Span<byte> newbuffer;
+                var newbuffersize = _Length + byteCount + 1;
+                if (_IsSelfManagedNative)
+                {
+                    newbuffer = UnsafeEx.AsSpan<byte>(System.Runtime.InteropServices.Marshal.ReAllocHGlobal(_Address.Address, (IntPtr)newbuffersize), newbuffersize);
+                }
+                else
+                {
+                    newbuffer = new byte[newbuffersize];
+                    UnsafeEx.MemCopy(ref newbuffer[0], 0, ref _Address.GetRef(), 0, _Length);
+                }
+                int written = EncodeInto(str, enc, newbuffer, _Length, byteCount);
+                RebindToNewBuffer(newbuffer, _Length + written);
+                return this;
+            }
+            ClearCache();
+            int written2 = EncodeInto(str, enc, ToSpan(), _Length, byteCount);
+            _Length += written2;
+            if (_Length < _Size)
+            {
+                UnsafeEx.AddByteOffset(ref _Address.GetRef(), (IntPtr)_Length) = 0;   // maintain the terminator
+            }
+            return this;
+        }
+
+        /// <summary>
+        /// Encodes str straight into buffer[offset..] via the pointer-based
+        /// Encoding.GetBytes(char*, int, byte*, int) - available since netstandard2.0,
+        /// so no intermediate byte[] and no stackalloc round-trip. Returns the number
+        /// of bytes written (== GetByteCount for a consistent encoder).
+        /// </summary>
+        internal static int EncodeInto(string str, Encoding enc, Span<byte> buffer, int offset, int byteCount)
+        {
+            unsafe
+            {
+                fixed (char* pChars = str)
+                {
+                    fixed (byte* pBytes = &buffer[offset])
+                    {
+                        return enc.GetBytes(pChars, str.Length, pBytes, byteCount);
+                    }
+                }
+            }
+        }
         public static CStringRef operator +(CStringRef a, CStringRef b)
         {
             return a.Append(b);
         }
 
-        private static bool ShouldTrim(byte value, ReadOnlySpan<byte> chars)
+        internal static bool ShouldTrim(byte value, ReadOnlySpan<byte> chars)
         {
             if (chars.Length == 0)
             {
@@ -1429,6 +1646,20 @@ namespace Mod
             {
                 return this;
             }
+            // sub's content as a zero-copy span view: the ReadOnlySpan overload is the
+            // single content-copy implementation shared by the whole Insert family
+            return Insert(index, (ReadOnlySpan<byte>)sub.Slice(), repeat);
+        }
+        public CStringRef Insert(int index, ReadOnlySpan<byte> sub)
+        {
+            return Insert(index, sub, 1);
+        }
+        public CStringRef Insert(int index, ReadOnlySpan<byte> sub, int repeat)
+        {
+            if (repeat == 0 || sub.Length == 0)
+            {
+                return this;
+            }
             if (_Readonly)
             {
                 throw new InvalidOperationException("Cannot modify a readonly CStringRef");
@@ -1441,7 +1672,7 @@ namespace Mod
             {
                 throw new ArgumentOutOfRangeException(nameof(repeat));
             }
-            long addLength64 = (long)sub._Length * repeat;
+            long addLength64 = (long)sub.Length * repeat;
             if (addLength64 > int.MaxValue - _Length)
             {
                 throw new ArgumentOutOfRangeException(nameof(repeat));
@@ -1462,7 +1693,7 @@ namespace Mod
                 UnsafeEx.MemCopy(ref newbuffer[0], 0, ref _Address.GetRef(), 0, index);
                 for (int i = 0; i < repeat; ++i)
                 {
-                    UnsafeEx.MemCopy(ref newbuffer[0], index + i * sub._Length, ref sub._Address.GetRef(), 0, sub._Length);
+                    UnsafeEx.MemCopy(ref newbuffer[0], index + i * sub.Length, ref sub.GetRef(), 0, sub.Length);
                 }
                 UnsafeEx.MemCopy(ref newbuffer[0], index + addLength, ref _Address.GetRef(), index, _Length - index);
                 if (_IsSelfManagedNative)
@@ -1473,13 +1704,66 @@ namespace Mod
                 return this;
             }
             // In-place insertion: snapshot sub first so it survives the shift when sub shares the same underlying buffer as this view
-            Span<byte> snapshot = stackalloc byte[sub._Length];
-            UnsafeEx.MemCopy(ref snapshot[0], 0, ref sub._Address.GetRef(), 0, sub._Length);
+            Span<byte> snapshot = stackalloc byte[sub.Length];
+            UnsafeEx.MemCopy(ref snapshot[0], 0, ref sub.GetRef(), 0, sub.Length);
             UnsafeEx.MemCopy(ref _Address.GetRef(), index + addLength, ref _Address.GetRef(), index, _Length - index);
             for (int i = 0; i < repeat; ++i)
             {
-                UnsafeEx.MemCopy(ref _Address.GetRef(), index + i * sub._Length, ref snapshot[0], 0, sub._Length);
+                UnsafeEx.MemCopy(ref _Address.GetRef(), index + i * sub.Length, ref snapshot[0], 0, sub.Length);
             }
+            if (newLength < _Size)
+            {
+                UnsafeEx.AddByteOffset(ref _Address.GetRef(), (IntPtr)newLength) = 0;
+            }
+            _Length = newLength;
+            ClearCache();
+            return this;
+        }
+        public CStringRef Insert(int index, string str)
+        { // use UTF8 encoding
+            return Insert(index, str, Encoding.UTF8);
+        }
+        public CStringRef Insert(int index, string str, Encoding enc)
+        {
+            enc = enc ?? Encoding.Default;
+            int byteCount = enc.GetByteCount(str);
+            if (byteCount == 0)
+            {
+                return this;
+            }
+            if (_Readonly)
+            {
+                throw new InvalidOperationException("Cannot modify a readonly CStringRef");
+            }
+            if (index < 0 || index > _Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+            int newLength = _Length + byteCount;
+            if (newLength > _Size)
+            {
+                Span<byte> newbuffer;
+                if (_IsSelfManagedNative)
+                {
+                    newbuffer = UnsafeEx.AsSpan<byte>(System.Runtime.InteropServices.Marshal.AllocHGlobal(newLength + 1), newLength + 1);
+                }
+                else
+                {
+                    newbuffer = new byte[newLength + 1];
+                }
+                UnsafeEx.MemCopy(ref newbuffer[0], 0, ref _Address.GetRef(), 0, index);
+                EncodeInto(str, enc, newbuffer, index, byteCount);
+                UnsafeEx.MemCopy(ref newbuffer[0], index + byteCount, ref _Address.GetRef(), index, _Length - index);
+                if (_IsSelfManagedNative)
+                {
+                    System.Runtime.InteropServices.Marshal.FreeHGlobal(_Address.Address);
+                }
+                RebindToNewBuffer(newbuffer, newLength);
+                return this;
+            }
+            // In-place: shift the tail right, then encode straight into the vacated gap
+            UnsafeEx.MemCopy(ref _Address.GetRef(), index + byteCount, ref _Address.GetRef(), index, _Length - index);
+            EncodeInto(str, enc, ToSpan(), index, byteCount);
             if (newLength < _Size)
             {
                 UnsafeEx.AddByteOffset(ref _Address.GetRef(), (IntPtr)newLength) = 0;
@@ -1542,9 +1826,30 @@ namespace Mod
         }
         public CStringRef Replace(CStringRef oldstr, CStringRef newstr)
         {
-            return ReplaceCore(oldstr, newstr, 0, _Length);
+            return Replace(ContentView(oldstr), ContentView(newstr), 0, _Length);
         }
         public CStringRef Replace(CStringRef oldstr, CStringRef newstr, int startIndex, int count)
+        {
+            return Replace(ContentView(oldstr), ContentView(newstr), startIndex, count);
+        }
+        public CStringRef Replace(ReadOnlySpan<byte> oldstr, ReadOnlySpan<byte> newstr)
+        {
+            return Replace(oldstr, newstr, 0, _Length);
+        }
+
+        /// <summary>
+        /// Content view of s as a ReadOnlySpan; empty/default views yield a default span
+        /// WITHOUT touching their (possibly never-constructed) UnionRef slot - the window
+        /// overload throws for an empty oldstr and skips an empty newstr.
+        /// </summary>
+        private static ReadOnlySpan<byte> ContentView(CStringRef s)
+        {
+            return s._Length == 0 ? default(ReadOnlySpan<byte>) : (ReadOnlySpan<byte>)s.Slice();
+        }
+
+        // Replaces oldstr with newstr left-to-right and non-overlapping within [startIndex, startIndex + count);
+        // content outside the window keeps its relative position and shifts naturally as the length changes
+        public CStringRef Replace(ReadOnlySpan<byte> oldstr, ReadOnlySpan<byte> newstr, int startIndex, int count)
         {
             if (count == 0)
             {
@@ -1558,28 +1863,23 @@ namespace Mod
             {
                 throw new ArgumentOutOfRangeException(nameof(count));
             }
-            return ReplaceCore(oldstr, newstr, startIndex, startIndex + count);
-        }
-
-        // Replaces oldstr with newstr left-to-right and non-overlapping within [windowStart, windowEnd); content outside the window keeps its relative position and shifts naturally as the length changes
-        private CStringRef ReplaceCore(CStringRef oldstr, CStringRef newstr, int windowStart, int windowEnd)
-        {
-            if (oldstr._Length == 0)
+            if (oldstr.Length == 0)
             {
                 throw new ArgumentException("String cannot be of zero length", nameof(oldstr));
             }
-            int oldLength = oldstr._Length;
-            int newLength = newstr._Length;
+            int oldLength = oldstr.Length;
+            int newLength = newstr.Length;
+            int windowEnd = startIndex + count;
             int maxStart = windowEnd - oldLength;
 
             // First pass: count matches, keeping the first/last positions so that tiny cases need no second pass
             int first = -1;
             int last = -1;
             int matchCount = 0;
-            int scan = windowStart;
+            int scan = startIndex;
             while (scan <= maxStart)
             {
-                if (MemCmp(ref _Address.GetRef(), scan, ref oldstr._Address.GetRef(), 0, oldLength) == 0)
+                if (MemCmp(ref _Address.GetRef(), scan, ref oldstr.GetRef(), 0, oldLength) == 0)
                 {
                     if (matchCount == 0)
                     {
@@ -1606,7 +1906,7 @@ namespace Mod
             Span<byte> snapshot = stackalloc byte[newLength];
             if (newLength > 0)
             {
-                UnsafeEx.MemCopy(ref snapshot[0], 0, ref newstr._Address.GetRef(), 0, newLength);
+                UnsafeEx.MemCopy(ref snapshot[0], 0, ref newstr.GetRef(), 0, newLength);
             }
             int diff = newLength - oldLength;
             long newTotal64 = (long)_Length + (long)diff * matchCount;
@@ -1620,10 +1920,10 @@ namespace Mod
             if (matchCount > 2)
             {
                 int k = 0;
-                scan = windowStart;
+                scan = startIndex;
                 while (scan <= maxStart)
                 {
-                    if (MemCmp(ref _Address.GetRef(), scan, ref oldstr._Address.GetRef(), 0, oldLength) == 0)
+                    if (MemCmp(ref _Address.GetRef(), scan, ref oldstr.GetRef(), 0, oldLength) == 0)
                     {
                         positions[k++] = scan;
                         scan += oldLength;

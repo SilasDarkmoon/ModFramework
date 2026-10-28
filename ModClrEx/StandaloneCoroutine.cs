@@ -8,10 +8,21 @@ namespace Mod
     {
         public enum LoopPhase
         {
-            OnStart,
-            PostUpdate,
-            PostLateUpdate,
-            OnEnd,
+            OnStart = 0,
+
+            PostFixedUpdate = 100,
+
+            PostUpdate = 200,
+            PostUpdate_WaitForRealTime = PostUpdate,
+            PostUpdate_WaitForTime,
+            PostUpdate_WaitForAsync,
+            PostUpdate_WaitForCustom,
+            PostUpdate_WaitForDefault,
+            PostUpdate_WaitForSub,
+
+            PostLateUpdate = 300,
+
+            OnEnd = 400,
         }
     }
 

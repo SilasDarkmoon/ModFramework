@@ -23,6 +23,26 @@ public class CStringSpanSmokeTests
     }
 
     [Fact]
+    public void Construction_IntSize_EmptyThenAppendString()
+    {
+        var s = new CStringSpan(16);                // empty view over a zeroed buffer
+        Assert.Equal(0, s.Length);
+        Assert.Equal(16, s.Size);
+        Assert.Equal("", s.ToString());
+
+        s = s.Append("hello");                      // the (string, capacity) replacement pattern
+        Assert.Equal("hello", s.ToString());
+        Assert.Equal(5, s.Length);
+        Assert.Equal(16, s.Size);
+    }
+
+    [Fact]
+    public void Construction_IntSize_Negative_Throws()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new CStringSpan(-1));
+    }
+
+    [Fact]
     public void Indexer_WriteSemantics()
     {
         var s = new CStringSpan("abcdef");
@@ -88,15 +108,203 @@ public class CStringSpanSmokeTests
     }
 
     [Fact]
+    public void Append_String_Utf8_And_Encoding()
+    {
+        var s = new CStringSpan(new byte[16], 0);
+        s = s.Append("he").Append("llo");
+        Assert.Equal("hello", s.ToString());
+        Assert.Equal(5, s.Length);
+
+        var u = new CStringSpan("你");            // UTF8: 3 bytes
+        u = u.Append("好");                       // +3 bytes
+        Assert.Equal("你好", u.ToString());
+        Assert.Equal(Encoding.UTF8.GetByteCount("你好"), u.Length);
+
+        var a = new CStringSpan(new byte[8], 0);
+        a = a.Append("hi", Encoding.ASCII);
+        Assert.Equal("hi", a.ToString());
+
+        var n = new CStringSpan(new byte[8], 0);
+        n = n.Append("x", null);                  // null → Encoding.Default
+        Assert.Equal("x", n.ToString());
+    }
+
+    [Fact]
+    public void Append_String_Growth_ReturnsNewInstance()
+    {
+        var s = new CStringSpan("ab");            // Size 3
+        s = s.Append("cde");                      // 2 + 3 > 3 → new instance
+        Assert.Equal("abcde", s.ToString());
+        Assert.Equal(5, s.Length);
+        Assert.True(s.Size > 5);
+    }
+
+    [Fact]
+    public void Append_String_WithinCapacity_DoesNotAllocate()
+    {
+        var s = new CStringSpan(new byte[16], 0);
+        s = s.Append("he");
+        Assert.Equal("he", s.ToString());       // warm the string cache before measuring
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        s = s.Append("llo");                    // in-capacity: encodes straight into the buffer
+        long after = GC.GetAllocatedBytesForCurrentThread();
+        Assert.Equal(0, after - before);        // no byte[] round-trip, no stackalloc copy
+        Assert.Equal("hello", s.ToString());
+    }
+
+    [Fact]
+    public void Resize_Shrink_SlicesInPlace()
+    {
+        var s = CStr.NewSpan("hello", 8);      // Size 13, Length 5
+        s = s.Resize(3);                          // shrink: in-place slice, returns this
+        Assert.Equal("hel", s.ToString());
+        Assert.Equal(3, s.Length);
+        Assert.Equal(3, s.Size);
+
+        var t = CStr.NewSpan("hello", 8);      // shrink within Length: content kept
+        t = t.Resize(6);
+        Assert.Equal("hello", t.ToString());
+        Assert.Equal(5, t.Length);
+        Assert.Equal(6, t.Size);
+    }
+
+    [Fact]
+    public void Resize_Expand_ReturnsNewInstance_OriginalUnchanged()
+    {
+        var s = new CStringSpan("hello");         // Size 6
+        var grown = s.Resize(16);                 // expand: fresh buffer, NEW instance
+        Assert.Equal("hello", grown.ToString());
+        Assert.Equal(16, grown.Size);
+        Assert.Equal("hello", s.ToString());     // the original view is untouched
+        Assert.Equal(6, s.Size);
+    }
+
+    [Fact]
+    public void Expand_Grows_OrNoOp()
+    {
+        var s = CStr.NewSpan("hi", 4);         // Size 5 (max(4, 2) + 1)
+        var same = s.Expand(5);                   // equal: no-op
+        Assert.Equal(5, same.Size);
+        Assert.Equal("hi", same.ToString());
+        var smaller = s.Expand(2);                // smaller: no-op (Expand never shrinks)
+        Assert.Equal(5, smaller.Size);
+
+        var grown = s.Expand(20);
+        Assert.Equal(20, grown.Size);
+        Assert.Equal("hi", grown.ToString());
+        Assert.Equal(5, s.Size);                  // original still untouched
+    }
+
+    [Fact]
+    public void Resize_Expand_NegativeAndReadonly_Throw()
+    {
+        var s = CStr.NewSpan("abc", 4);
+        Assert.Throws<ArgumentOutOfRangeException>(() => CStr.NewSpan("abc", 4).Resize(-1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => CStr.NewSpan("abc", 4).Expand(-1));
+
+        var ro = new CStringSpan(new ReadOnlySpan<byte>(Encoding.UTF8.GetBytes("abc")));
+        bool threwResize = false;
+        try { ro = ro.Resize(8); }                 // ref struct: no lambda capture, try/catch instead
+        catch (InvalidOperationException) { threwResize = true; }
+        Assert.True(threwResize);
+        bool threwExpand = false;
+        try { ro = ro.Expand(8); }
+        catch (InvalidOperationException) { threwExpand = true; }
+        Assert.True(threwExpand);
+        var noop = ro.Resize(3);                   // same size: no-op even when readonly
+        Assert.Equal("abc", noop.ToString());
+    }
+
+    [Fact]
     public void Insert_And_Remove()
     {
-        var s = new CStringSpan("ac", 6);
+        var s = CStr.NewSpan("ac", 6);
         s = s.Insert(1, (byte)'b');
         Assert.Equal("abc", s.ToString());
 
         var r = new CStringSpan("abcdef");
         r = r.Remove(2, 2);
         Assert.Equal("abef", r.ToString());
+    }
+
+    [Fact]
+    public void Insert_CStringSpan_InPlace_Overflow_And_Aliasing()
+    {
+        var s = CStr.NewSpan("ac", 8);
+        s = s.Insert(1, new CStringSpan("b"));            // in-capacity
+        Assert.Equal("abc", s.ToString());
+
+        var o = new CStringSpan("ac");                    // Size 3
+        o = o.Insert(1, new CStringSpan("bb"));          // newLength 4 > 3 → new instance
+        Assert.Equal("abbc", o.ToString());
+        Assert.True(o.Size > 4);
+
+        var a = CStr.NewSpan("abc", 8);
+        var tail = a.Substring(1, 2);                     // "bc" view over a's buffer
+        a = a.Insert(0, tail);                            // snapshot protects the aliasing view
+        Assert.Equal("bcabc", a.ToString());
+
+        var rep = CStr.NewSpan("abc", 8);
+        var last = rep.Substring(2, 1);                   // "c" view
+        rep = rep.Insert(1, last, 3);
+        Assert.Equal("acccbc", rep.ToString());
+    }
+
+    [Fact]
+    public void Insert_CStringSpan_Readonly_Throws()
+    {
+        var s = new CStringSpan(new ReadOnlySpan<byte>(Encoding.UTF8.GetBytes("ab")));
+        bool threw = false;
+        try { s = s.Insert(1, new CStringSpan("x")); }
+        catch (InvalidOperationException) { threw = true; }
+        Assert.True(threw);
+    }
+
+    [Fact]
+    public void Insert_ReadOnlySpan_InPlace_Overflow_And_Repeat()
+    {
+        var s = CStr.NewSpan("ac", 8);
+        s = s.Insert(1, (ReadOnlySpan<byte>)new byte[] { (byte)'b' });   // in-capacity
+        Assert.Equal("abc", s.ToString());
+
+        var o = new CStringSpan("ac");                    // Size 3
+        o = o.Insert(1, (ReadOnlySpan<byte>)new byte[] { (byte)'b', (byte)'b' });   // 4 > 3 → new instance
+        Assert.Equal("abbc", o.ToString());
+        Assert.True(o.Size > 4);
+
+        var rep = CStr.NewSpan("ab", 8);
+        rep = rep.Insert(1, (ReadOnlySpan<byte>)new byte[] { (byte)'-' }, 3);
+        Assert.Equal("a---b", rep.ToString());
+
+        var empty = CStr.NewSpan("ab", 4);
+        empty = empty.Insert(0, default(ReadOnlySpan<byte>));   // empty sub: no-op
+        Assert.Equal("ab", empty.ToString());
+    }
+
+    [Fact]
+    public void Insert_String_Utf8_Encoding_Empty()
+    {
+        var s = CStr.NewSpan("ac", 8);
+        s = s.Insert(1, "b");                             // in-capacity
+        Assert.Equal("abc", s.ToString());
+
+        var u = new CStringSpan("你A");
+        u = u.Insert(3, "好");                            // UTF8: insert after 3 bytes
+        Assert.Equal("你好A", u.ToString());
+        Assert.Equal(Encoding.UTF8.GetByteCount("你好A"), u.Length);
+
+        var o = new CStringSpan("ac");                   // Size 3
+        o = o.Insert(1, "bb");                           // 4 > 3 → new instance
+        Assert.Equal("abbc", o.ToString());
+        Assert.True(o.Size > 4);
+
+        var enc = CStr.NewSpan("ac", 8);
+        enc = enc.Insert(1, "b", Encoding.ASCII);        // explicit encoding
+        Assert.Equal("abc", enc.ToString());
+
+        var e = CStr.NewSpan("ab", 4);
+        e = e.Insert(1, "");                              // empty: no-op
+        Assert.Equal("ab", e.ToString());
     }
 
     [Fact]
@@ -114,13 +322,95 @@ public class CStringSpanSmokeTests
     [Fact]
     public void Replace_NonOverlapping()
     {
-        var s = new CStringSpan("aaaa", 0);
+        var s = CStr.NewSpan("aaaa", 0);
         s = s.Replace(new byte[] { (byte)'a', (byte)'a' }, new byte[] { (byte)'b' });
         Assert.Equal("bb", s.ToString());
 
-        var g = new CStringSpan("aaaa", 4);
+        var g = CStr.NewSpan("aaaa", 4);
         g = g.Replace(new byte[] { (byte)'a', (byte)'a' }, new byte[] { (byte)'b', (byte)'b', (byte)'b' });
         Assert.Equal("bbbbbb", g.ToString());
+    }
+
+    [Fact]
+    public void Replace_Byte_SameLength_And_ZeroDoesNotTruncate()
+    {
+        var s = CStr.NewSpan("a.b.c", 4);
+        s = s.Replace((byte)'.', (byte)'-');
+        Assert.Equal("a-b-c", s.ToString());
+
+        var z = new CStringSpan("a.b.c");
+        z = z.Replace((byte)'.', 0);
+        Assert.Equal(5, z.Length);                       // NUL written into content, no truncation
+        Assert.Equal(new byte[] { 97, 0, 98, 0, 99 }, z.Slice().ToArray());
+    }
+
+    [Fact]
+    public void Replace_Byte_Windowed()
+    {
+        var s = CStr.NewSpan("abcabc", 2);            // window covers indexes 1..4
+        s = s.Replace((byte)'b', (byte)'X', 1, 4);
+        Assert.Equal("aXcaXc", s.ToString());
+    }
+
+    [Fact]
+    public void Replace_Byte_NoMatch_Readonly_NoThrow()
+    {
+        var s = new CStringSpan(new ReadOnlySpan<byte>(Encoding.UTF8.GetBytes("abc")));
+        s = s.Replace((byte)'z', (byte)'y');            // no match: no mutation, readonly not consulted
+        Assert.Equal("abc", s.ToString());
+    }
+
+    [Fact]
+    public void Replace_Byte_Readonly_ThrowsOnMatch()
+    {
+        var s = new CStringSpan(new ReadOnlySpan<byte>(Encoding.UTF8.GetBytes("abc")));
+        bool threw = false;
+        try { s = s.Replace((byte)'a', (byte)'x'); }
+        catch (InvalidOperationException) { threw = true; }
+        Assert.True(threw);
+    }
+
+    [Fact]
+    public void Replace_Window_Growth_PreservesOutOfWindowMatches()
+    {
+        // '-' at index 1 is outside the window and must stay untouched.
+        var s = CStr.NewSpan("x-y-zz", 2);
+        s = s.Replace((ReadOnlySpan<byte>)new byte[] { (byte)'-' },
+                      (ReadOnlySpan<byte>)new byte[] { (byte)'Q', (byte)'Q' }, 2, 4);
+        Assert.Equal("x-yQQzz", s.ToString());
+    }
+
+    [Fact]
+    public void Replace_Window_Deletion_PreservesTail()
+    {
+        var s = new CStringSpan("abXcdXefXg");          // X at 2,5,8; window covers only 2 & 5
+        s = s.Replace((ReadOnlySpan<byte>)new byte[] { (byte)'X' }, default(ReadOnlySpan<byte>), 0, 7);
+        Assert.Equal("abcdefXg", s.ToString());
+    }
+
+    [Fact]
+    public void Replace_Window_ZeroCount_NoChange()
+    {
+        var s = CStr.NewSpan("abc", 2);
+        s = s.Replace((ReadOnlySpan<byte>)new byte[] { (byte)'b' }, (ReadOnlySpan<byte>)new byte[] { (byte)'X' }, 1, 0);
+        Assert.Equal("abc", s.ToString());
+    }
+
+    [Fact]
+    public void Replace_CStringSpan_Typed()
+    {
+        var s = CStr.NewSpan("ababababab", 2);
+        s = s.Replace(new CStringSpan("ab"), new CStringSpan("XY"));
+        Assert.Equal("XYXYXYXYXY", s.ToString());
+    }
+
+    [Fact]
+    public void Replace_FromAliasingNewString_IsSafe()
+    {
+        var s = CStr.NewSpan("abXcd", 8);
+        var part = s.Substring(0, 2);                    // "ab" view over the same buffer
+        s = s.Replace(new CStringSpan("X"), part);      // snapshot protects the aliasing view
+        Assert.Equal("ababcd", s.ToString());
     }
 
     [Fact]
@@ -144,6 +434,23 @@ public class CStringSpanSmokeTests
         Assert.True(s.StartsWith(new byte[] { (byte)'h', (byte)'e' }));
         Assert.True(s.EndsWith(new byte[] { (byte)'l', (byte)'o' }));
         Assert.Equal(2, s.IndexOf(new byte[] { (byte)'l', (byte)'l' }));
+    }
+
+    [Fact]
+    public void Search_Family_CStringSpan_Typed()
+    {
+        var s = new CStringSpan("hello world hello");
+        Assert.Equal(6, s.IndexOf(new CStringSpan("world")));
+        Assert.Equal(12, s.IndexOf(new CStringSpan("hello"), 6));   // startIndex overload
+        Assert.True(s.Contains(new CStringSpan("lo wo")));
+        Assert.Equal(14, s.LastIndexOf(new CStringSpan("ll")));     // last "ll" in the trailing "hello"
+        Assert.True(s.StartsWith(new CStringSpan("hello")));
+        Assert.True(s.EndsWith(new CStringSpan("hello")));
+        Assert.False(s.Contains(new CStringSpan("xyz")));
+        Assert.False(s.StartsWith(new CStringSpan("world")));
+        Assert.False(s.EndsWith(new CStringSpan("world")));
+        Assert.Equal(-1, s.IndexOf(new CStringSpan("world"), 7));   // no match past index 7
+        Assert.Equal(-1, s.IndexOf((byte)'z', 5));                  // byte overload: not-found stays -1 (was startIndex-1)
     }
 
     [Fact]
