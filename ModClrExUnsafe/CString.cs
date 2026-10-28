@@ -103,6 +103,39 @@ namespace Mod.LowLevel
         public CString(string value) : base(Normalize(new CStringRef(value)))
         {
         }
+        public CString(string value, Encoding encoding) : base(Normalize(new CStringRef(value, encoding)))
+        {
+        }
+        public CString(IntPtr address, int size, int len, bool isSelfManaged = false) : base(Normalize(new CStringRef(address, size, len, isSelfManaged)))
+        {
+        }
+        public CString(IntPtr address, int size, bool isSelfManaged = false) : base(Normalize(new CStringRef(address, size, isSelfManaged)))
+        {
+        }
+        public CString(IntPtr address, bool isSelfManaged = false) : base(Normalize(new CStringRef(address, isSelfManaged)))
+        {
+        }
+        public CString(ref byte address, int size, int len) : base(Normalize(new CStringRef(ref address, size, len)))
+        {
+        }
+        public CString(ref byte address, int size) : base(Normalize(new CStringRef(ref address, size)))
+        {
+        }
+        public CString(ref byte address) : base(Normalize(new CStringRef(ref address)))
+        {
+        }
+        public CString(Span<byte> data) : base(Normalize(new CStringRef(data)))
+        {
+        }
+        public CString(ReadOnlySpan<byte> data) : base(Normalize(new CStringRef(data)))
+        {
+        }
+        public CString(Span<byte> data, int length) : base(Normalize(new CStringRef(data, length)))
+        {
+        }
+        public CString(ReadOnlySpan<byte> data, int length) : base(Normalize(new CStringRef(data, length)))
+        {
+        }
 
         private static CStringRef Normalize(CStringRef value)
         {

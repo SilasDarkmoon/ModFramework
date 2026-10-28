@@ -1,3 +1,4 @@
+using Mod.LowLevel;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -191,5 +192,116 @@ namespace Mod
         }
         public static implicit operator string(PString pooled) => pooled._Value;
         public static implicit operator PString(string str) => new PString(str);
+    }
+
+    public sealed class PCString
+    {
+        private readonly static List<PCString> _Pool = new List<PCString>();
+        private static void Put(PCString pcstr)
+        {
+            var index = pcstr.Index;
+            if (index >= 0)
+            {
+                lock (_Pool)
+                {
+                    while (_Pool.Count <= index)
+                    {
+                        _Pool.Add(null);
+                    }
+                    _Pool[index] = pcstr;
+                }
+            }
+        }
+        private static PCString Get(int index)
+        {
+            if (index >= 0)
+            {
+                lock (_Pool)
+                {
+                    if (_Pool.Count > index)
+                    {
+                        return _Pool[index];
+                    }
+                }
+            }
+            return null;
+        }
+
+        public static PCString GetOrCreate(string str)
+        {
+            if (str == null)
+            {
+                return null;
+            }
+            PString pstr = new PString(str);
+            var index = pstr.Index;
+            return Get(index) ?? new PCString(str);
+        }
+        public static PCString GetOrCreate(PString pstr)
+        {
+            if (pstr == null)
+            {
+                return null;
+            }
+            var index = pstr.Index;
+            return Get(index) ?? new PCString(pstr);
+        }
+
+        private PString _Str;
+        private CString _CStr;
+        private WeakAttachment.Key _Key;
+
+        private PCString(string str)
+        {
+            if (str != null)
+            {
+                _Str = new PString(str);
+                _Key = new WeakAttachment.Key(str);
+                _CStr = new CString(new CStringRef(true).Append(str));
+                Put(this);
+            }
+        }
+        private PCString(PString pstr)
+        {
+            if (pstr != null)
+            {
+                _Str = pstr;
+                _Key = new WeakAttachment.Key(pstr.Value);
+                _CStr = new CString(new CStringRef(true).Append(pstr.Value));
+                Put(this);
+            }
+        }
+
+        public PString PString => _Str;
+        public string String => _Str?.Value;
+        public int Index => _Str?.Index ?? -1;
+        public CString CString => _CStr;
+        public WeakAttachment.Key Key => _Key;
+
+        public override string ToString() => String;
+        public override int GetHashCode()
+        {
+            return _Str?.GetHashCode() ?? 0;
+        }
+        public override bool Equals(object obj)
+        {
+            if (obj is PCString other)
+            {
+                return _Str == other._Str;
+            }
+            else if (obj is PString otherpstr)
+            {
+                return _Str == otherpstr;
+            }
+            else if (obj is string otherstr)
+            {
+                return String == otherstr;
+            }
+            return false;
+        }
+        public static implicit operator string(PCString pooled) => pooled.String;
+        public static implicit operator PCString(string str) => GetOrCreate(str);
+        public static implicit operator PString(PCString pooled) => pooled.PString;
+        public static implicit operator PCString(PString pstr) => GetOrCreate(pstr);
     }
 }

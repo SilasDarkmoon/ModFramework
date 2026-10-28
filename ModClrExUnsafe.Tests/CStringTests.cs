@@ -61,6 +61,166 @@ namespace ModClrExUnsafe.Tests
             boxed.Dispose();                                 // frees the native block
         }
 
+        // ---------- constructors mirroring CStringRef ----------
+
+        [Fact]
+        public void Construction_StringEncoding_UsesIt()
+        {
+            var a = new CString("hi", Encoding.ASCII);
+            Assert.Equal(2, a.Length);
+            Assert.Equal("hi", a.ToString());
+
+            var u = new CString("héllo", Encoding.ASCII);   // é -> '?': 5 bytes (UTF8 would give 6)
+            Assert.Equal(5, u.Length);
+            Assert.Equal("h?llo", u.ToString());
+
+            var utf8 = new CString("héllo", Encoding.UTF8); // explicit UTF8: 6 bytes
+            Assert.Equal(6, utf8.Length);
+            Assert.Equal("héllo", utf8.ToString());
+
+            var n = new CString("x", null);                 // null -> Encoding.Default
+            Assert.Equal("x", n.ToString());
+        }
+
+        [Fact]
+        public void Construction_StringEncoding_NulByteEncoding_TruncatesAtFirstNul()
+        {
+            // NUL-terminated model pitfall, locked in as a test: the (string, Encoding)
+            // ctor measures via StrLen, so an encoding that emits NUL bytes (UTF-16)
+            // truncates at the first one - 'a',0,'b',0 -> Length 1.
+            var w = new CString("ab", Encoding.Unicode);
+            Assert.Equal(1, w.Length);
+        }
+
+        [Fact]
+        public void Construction_IntPtr_ExplicitLen_NormalizesToTracking()
+        {
+            var ptr = Marshal.AllocHGlobal(16);
+            try
+            {
+                var bytes = Encoding.ASCII.GetBytes("hi");
+                Marshal.Copy(bytes, 0, ptr, bytes.Length);
+                var s = new CString(ptr, 16, 2);             // explicit len
+                Assert.Equal("hi", s.ToString());
+                Assert.Equal(2, s.Length);
+                Assert.False(s.IsFixed);                     // Raw unowned -> tracked
+
+                s.Dispose();                                 // returns the slot; the block is NOT freed
+                Assert.Equal((byte)'h', Marshal.ReadByte(ptr, 0));
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(ptr);
+            }
+        }
+
+        [Fact]
+        public void Construction_IntPtr_StrLenScan_BoundedAndUnbounded()
+        {
+            var ptr = Marshal.AllocHGlobal(16);
+            try
+            {
+                var bytes = Encoding.ASCII.GetBytes("hi");
+                Marshal.Copy(bytes, 0, ptr, bytes.Length);
+                Marshal.WriteByte(ptr, bytes.Length, 0);     // terminator
+
+                var bounded = new CString(ptr, 16);          // StrLen(ptr, 16)
+                Assert.Equal("hi", bounded.ToString());
+                Assert.Equal(2, bounded.Length);
+
+                var unbounded = new CString(ptr);            // StrLen(ptr)
+                Assert.Equal("hi", unbounded.ToString());
+                Assert.Equal(2, unbounded.Length);
+                Assert.Equal(3, unbounded.Size);             // Length + 1
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(ptr);
+            }
+        }
+
+        [Fact]
+        public void Construction_IntPtr_SelfManaged_DisposeFrees()
+        {
+            var ptr = Marshal.AllocHGlobal(16);
+            var bytes = Encoding.ASCII.GetBytes("ok");
+            Marshal.Copy(bytes, 0, ptr, bytes.Length);
+            Marshal.WriteByte(ptr, bytes.Length, 0);
+
+            var s = new CString(ptr, 16, 2, true);           // self-managed: stays Raw
+            Assert.True(s.IsFixed);
+            Assert.Equal("ok", s.ToString());
+
+            s.Dispose();                                     // frees the block; the caller gave up ownership
+        }
+
+        [Fact]
+        public void Construction_ByRef_WrapsTheBuffer()
+        {
+            var buffer = new byte[] { (byte)'h', (byte)'i', 0, 0, 0, 0, 0, 0 };
+
+            var explicitLen = new CString(ref buffer[0], 8, 2);
+            Assert.Equal("hi", explicitLen.ToString());
+            Assert.Equal(2, explicitLen.Length);
+
+            var bounded = new CString(ref buffer[0], 8);     // StrLen(ref, size)
+            Assert.Equal("hi", bounded.ToString());
+
+            var unbounded = new CString(ref buffer[0]);      // StrLen(ref)
+            Assert.Equal("hi", unbounded.ToString());
+            Assert.Equal(3, unbounded.Size);                 // Length + 1
+
+            explicitLen.Ref[0] = (byte)'H';                  // live view: writes land in the array
+            Assert.Equal((byte)'H', buffer[0]);
+        }
+
+        [Fact]
+        public void Construction_Span_IsALiveView_StrLenSemantics()
+        {
+            var buffer = new byte[] { (byte)'h', (byte)'i', 0, (byte)'x' };
+            var s = new CString((Span<byte>)buffer);         // view, no copy
+            Assert.Equal("hi", s.ToString());
+            Assert.Equal(2, s.Length);                       // StrLen stops at the NUL
+            Assert.Equal(4, s.Size);
+            Assert.False(s.IsFixed);                         // net10: Tracking mode
+
+            s.Ref[0] = (byte)'H';                            // writes land in the caller's buffer
+            Assert.Equal((byte)'H', buffer[0]);
+        }
+
+        [Fact]
+        public void Construction_ReadOnlySpan_ReadonlyButEditableViaClone()
+        {
+            var buffer = new byte[] { (byte)'h', (byte)'i', 0 };
+            var s = new CString((ReadOnlySpan<byte>)buffer);
+            Assert.True(s.Readonly);
+            Assert.Equal("hi", s.ToString());
+
+            var appended = s.Append((byte)'!');              // edits clone: fresh non-readonly buffer
+            Assert.Equal("hi!", appended.ToString());
+            Assert.False(appended.Readonly);
+            Assert.Equal("hi", s.ToString());                // receiver unchanged
+            Assert.Equal((byte)'h', buffer[0]);              // the view never mutated
+        }
+
+        [Fact]
+        public void Construction_SpanExplicitLength_ClampsToSize()
+        {
+            var buffer = new byte[] { (byte)'a', (byte)'b', (byte)'c', 0 };
+
+            var s = new CString((Span<byte>)buffer, 2);      // explicit length 2
+            Assert.Equal("ab", s.ToString());
+            Assert.Equal(2, s.Length);
+
+            var clamped = new CString((Span<byte>)buffer, 99);   // clamped to Size
+            Assert.Equal(4, clamped.Length);
+            Assert.Equal(4, clamped.Size);
+
+            var ro = new CString((ReadOnlySpan<byte>)buffer, 2);
+            Assert.Equal("ab", ro.ToString());
+            Assert.True(ro.Readonly);
+        }
+
         [Fact]
         public void Edits_ReturnNewInstances_ReceiverUnchanged()
         {
