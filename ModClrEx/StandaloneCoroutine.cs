@@ -8,7 +8,7 @@ namespace Mod
     public interface ICoroutineProvider
     {
         void StartCoroutine(IEnumerator work);
-        void RunCoroutineLooper();
+        bool TickCoroutineLooper();
     }
     public enum CoroutinePhase
     {
@@ -183,69 +183,67 @@ namespace Mod
                 }
             }
         }
-        public void RunCoroutineLooper()
+        public bool TickCoroutineLooper()
         {
-            _Looper.Start();
-            for (; ; )
+            _Looper.Tick();
+            var node = _Checkers.First;
+            while (node != null)
             {
-                _Looper.Tick();
-                var node = _Checkers.First;
-                while (node != null)
+                var next = node.Next;
+                var checker = node.Value;
+                if (_Looper.Phase == checker.Target.Phase)
                 {
-                    var next = node.Next;
-                    var checker = node.Value;
-                    if (_Looper.Phase == checker.Target.Phase)
+                    if (checker.CheckDone())
                     {
-                        if (checker.CheckDone())
+                        if (checker.Work != null)
                         {
-                            if (checker.Work != null)
+                            var nextwork = checker.Work;
+                            bool notDone;
+                            while (notDone = nextwork.MoveNext())
                             {
-                                var nextwork = checker.Work;
-                                bool notDone;
-                                while (notDone = nextwork.MoveNext())
+                                var nextci = nextwork.Current;
+                                var nextchecker = CreateChecker(nextci);
+                                if (!nextchecker.CheckDone())
                                 {
-                                    var nextci = nextwork.Current;
-                                    var nextchecker = CreateChecker(nextci);
-                                    if (!nextchecker.CheckDone())
-                                    {
-                                        nextchecker.Work = nextwork;
-                                        node.Value = nextchecker;
-                                        break;
-                                    }
+                                    nextchecker.Work = nextwork;
+                                    node.Value = nextchecker;
+                                    break;
                                 }
-                                if (!notDone)
-                                {
-                                    _Checkers.Remove(node);
-                                }
+                            }
+                            if (!notDone)
+                            {
+                                _Checkers.Remove(node);
                             }
                         }
                     }
-                    node = next;
                 }
+                node = next;
             }
+            return _Checkers.Count > 0;
         }
 
         protected internal class Looper
         {
             private int _StartTick;
-            public int RealTimeTick => Environment.TickCount - _StartTick;
+            public int RealTimeTick => IsStarted ? Environment.TickCount - _StartTick : 0;
             public float RealTime => RealTimeTick / 1000f;
 
             private int _FrameCount = -1;
-            public int FrameCount => _FrameCount;
+            public bool IsStarted => _FrameCount >= 0;
+            public int FrameCount => IsStarted ? _FrameCount : 0;
             public float VirtualTimePerFrame = 0.017f;
-            public float VirtualTime => _FrameCount * VirtualTimePerFrame;
+            public float VirtualTime => FrameCount * VirtualTimePerFrame;
 
             private const int _LastPhase = (int)CoroutinePhase.OnEnd;
             private int _CurrentPhase = _LastPhase;
-            public CoroutinePhase Phase => (CoroutinePhase)_CurrentPhase;
+            public CoroutinePhase Phase => IsStarted ? (CoroutinePhase)_CurrentPhase : CoroutinePhase.OnStart;
 
-            public void Start()
-            {
-                _StartTick = Environment.TickCount;
-            }
             public void Tick()
             {
+                if (!IsStarted)
+                {
+                    _StartTick = Environment.TickCount;
+                }
                 if (_CurrentPhase >= _LastPhase)
                 {
                     _CurrentPhase = 0;
@@ -263,9 +261,21 @@ namespace Mod
     public static class CoroutineProvider
     {
         public static ICoroutineProvider Instance;
-        public static void StartCoroutine(IEnumerator<ICoroutineInstruction> work)
+        public static void StartCoroutine(IEnumerator work)
         {
             Instance?.StartCoroutine(work);
+        }
+        public static bool TickCoroutineLooper()
+        {
+            return Instance?.TickCoroutineLooper() ?? false;
+        }
+        public static void RunCoroutineLooper()
+        {
+            while (Instance?.TickCoroutineLooper() ?? false) ;
+        }
+        public static void SetProvider(ICoroutineProvider provider = null)
+        {
+            Instance = provider ?? new StandaloneCoroutineProvider();
         }
     }
 }
