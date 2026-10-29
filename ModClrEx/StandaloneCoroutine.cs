@@ -669,7 +669,7 @@ namespace Mod
                 }
             }
         }
-        public bool TickCoroutineLooper()
+        public virtual bool TickCoroutineLooper()
         {
             _Looper.Tick();
             var node = _Checkers.First;
@@ -713,7 +713,7 @@ namespace Mod
         /// (virtual time / predicates / sub-coroutines etc.) are mixed in, keeping their
         /// frame-by-frame timing undisturbed.
         /// </summary>
-        private void TryFastForwardRealTime()
+        protected internal virtual void TryFastForwardRealTime()
         {
             if (_Checkers.Count == 0)
             {
@@ -751,7 +751,7 @@ namespace Mod
             public bool IsStarted => _FrameCount >= 0;
             public int FrameCount => IsStarted ? _FrameCount : 0;
             public float VirtualTimePerFrame = 1f / 60f;
-            public float VirtualTime => FrameCount * VirtualTimePerFrame;
+            public virtual float VirtualTime => FrameCount * VirtualTimePerFrame;
 
             private const int _LastPhase = (int)CoroutinePhase.OnEnd;
             private int _CurrentPhase = _LastPhase;

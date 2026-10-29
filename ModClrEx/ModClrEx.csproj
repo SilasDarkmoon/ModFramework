@@ -15,4 +15,11 @@
     </Reference>
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Unity-side providers (Unity/ folder) are source files meant to be copied into a
+         Unity project; they reference UnityEngine/UnityEditor and must not compile into
+         this netstandard library. -->
+    <Compile Remove="Unity\**\*.cs" />
+  </ItemGroup>
+
 </Project>
