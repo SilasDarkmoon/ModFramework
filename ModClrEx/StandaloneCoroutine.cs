@@ -9,6 +9,13 @@ namespace Mod
     {
         void StartCoroutine(IEnumerator work);
         bool TickCoroutineLooper();
+        /// <summary>
+        /// Converts a provider-agnostic ICoroutineInstruction into an object the current engine can yield.
+        /// For the Unity CoroutineProvider this produces the matching Unity yield instruction;
+        /// for the standalone provider it returns the instruction itself.
+        /// Callers write: yield return new CoroutineWaitForSeconds(10f).ToYield();
+        /// </summary>
+        object ConvertInstruction(object facade);
     }
     public enum CoroutinePhase
     {
@@ -440,6 +447,7 @@ namespace Mod
             TryFastForwardRealTime();
             return _Checkers.Count > 0;
         }
+        public object ConvertInstruction(object facade) => facade;
 
         /// <summary>
         /// When only realtime waits (WaitForSecondsRealtime) remain in the queue, fast-forwards
@@ -541,6 +549,19 @@ namespace Mod
         public static void SetProvider(ICoroutineProvider provider = null)
         {
             Instance = provider ?? new StandaloneCoroutineProvider();
+        }
+        public static void SetProvider<T>() where T : ICoroutineProvider, new()
+        {
+            Instance = new T();
+        }
+        /// <summary>
+        /// Converts this instruction into the yield object understood by the current provider
+        /// (Unity: the matching Unity yield instruction; standalone: the instruction itself).
+        /// Usage: yield return new CoroutineWaitForSeconds(10f).ToYield();
+        /// </summary>
+        public static object ToYield(this ICoroutineInstruction ci)
+        {
+            return Instance?.ConvertInstruction(ci) ?? ci;
         }
     }
 }
