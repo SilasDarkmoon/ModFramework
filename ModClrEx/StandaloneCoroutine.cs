@@ -1,77 +1,271 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Text;
 
 namespace Mod
 {
-    public static class StandaloneCoroutine
+    public interface ICoroutineProvider
     {
-        public enum LoopPhase
+        void StartCoroutine(IEnumerator work);
+        void RunCoroutineLooper();
+    }
+    public enum CoroutinePhase
+    {
+        OnStart = 0,
+
+        PostFixedUpdate = 10,
+
+        PostUpdate = 20,
+        PostUpdate_WaitForRealTime = PostUpdate,
+        PostUpdate_WaitForTime,
+        PostUpdate_WaitForAsync,
+        PostUpdate_WaitForCustom,
+        PostUpdate_WaitForDefault,
+        PostUpdate_WaitForSub,
+
+        PostLateUpdate = 30,
+
+        OnEnd = 40,
+    }
+    public interface ICoroutineInstruction
+    {
+        CoroutinePhase Phase { get; }
+        object Attachment { get; set; }
+    }
+    public class CoroutineWaitForSecondsRealtime : ICoroutineInstruction
+    {
+        public CoroutinePhase Phase => CoroutinePhase.PostUpdate_WaitForRealTime;
+        public object Attachment { get; set; }
+        public float WaitTime { get; protected internal set; }
+        public CoroutineWaitForSecondsRealtime(float timeInSeconds)
         {
-            OnStart = 0,
-
-            PostFixedUpdate = 100,
-
-            PostUpdate = 200,
-            PostUpdate_WaitForRealTime = PostUpdate,
-            PostUpdate_WaitForTime,
-            PostUpdate_WaitForAsync,
-            PostUpdate_WaitForCustom,
-            PostUpdate_WaitForDefault,
-            PostUpdate_WaitForSub,
-
-            PostLateUpdate = 300,
-
-            OnEnd = 400,
+            WaitTime = timeInSeconds;
         }
     }
-
-    public class StandaloneCoroutineLoop
+    public class CoroutineWaitForSub : ICoroutineInstruction
     {
-        private static StandaloneCoroutineLoop _Loop;
-        public static StandaloneCoroutineLoop Loop
+        public CoroutinePhase Phase => CoroutinePhase.PostUpdate_WaitForSub;
+        public object Attachment { get; set; }
+        public IEnumerator Sub { get; protected internal set; }
+        public CoroutineWaitForSub(IEnumerator sub)
         {
-            get
+            Sub = sub;
+        }
+    }
+    public class CoroutineWaitDefault : ICoroutineInstruction
+    {
+        public CoroutinePhase Phase => CoroutinePhase.PostUpdate_WaitForDefault;
+        public object Attachment { get; set; }
+    }
+    public class StandaloneCoroutineProvider : ICoroutineProvider
+    {
+        protected internal interface ICoroutineInstructionChecker
+        {
+            ICoroutineInstruction Target { get; set; }
+            ICoroutineProvider Provider { get; set; }
+            IEnumerator Work { get; set; }
+            void Start();
+            bool CheckDone();
+        }
+        protected internal abstract class BaseChecker : ICoroutineInstructionChecker
+        {
+            protected abstract ICoroutineInstruction RealTarget { get; set; }
+            ICoroutineInstruction ICoroutineInstructionChecker.Target { get => RealTarget; set => RealTarget = value; }
+            public StandaloneCoroutineProvider Provider;
+            ICoroutineProvider ICoroutineInstructionChecker.Provider { get => Provider; set => Provider = value as StandaloneCoroutineProvider; }
+            public IEnumerator Work { get; set; }
+            public abstract void Start();
+            public abstract bool CheckDone();
+            public BaseChecker()
             {
-                if (_Loop == null)
-                {
-                    _Loop = new StandaloneCoroutineLoop();
-                }
-                return _Loop;
+                Start();
             }
         }
-        private static int _DefaultTickCountPerLoop = 17;
-        public static int DefaultTickCountPerLoop
+        protected internal abstract class BaseChecker<T> : BaseChecker where T : ICoroutineInstruction
         {
-            get => _DefaultTickCountPerLoop;
-            set
+            private T _Target;
+            public T Target => _Target;
+            protected override ICoroutineInstruction RealTarget
             {
-                if (value <= 0)
+                get => _Target;
+                set
                 {
-                    throw new ArgumentOutOfRangeException(nameof(value), "DefaultTickCountPerLoop must be greater than 0.");
+                    if (value is T tar)
+                    {
+                        _Target = tar;
+                        tar.Attachment = this;
+                    }
                 }
-                _DefaultTickCountPerLoop = value;
+            }
+            protected BaseChecker(StandaloneCoroutineProvider provider, T ci)
+            {
+                Provider = provider;
+                RealTarget = ci;
             }
         }
-        private int _TickCountPerLoop = _DefaultTickCountPerLoop;
-        public int TickCountPerLoop
+        protected internal abstract class NonUrgentChecker<T> : BaseChecker<T> where T : ICoroutineInstruction
         {
-            get => _TickCountPerLoop;
-            set
+            private int _StartFrame;
+            private CoroutinePhase _StartPhase;
+            protected NonUrgentChecker(StandaloneCoroutineProvider provider, T ci)
+                : base(provider, ci)
             {
-                if (value <= 0)
+            }
+            public override void Start()
+            {
+                _StartFrame = Provider._Looper.FrameCount;
+                _StartPhase = Provider._Looper.Phase;
+            }
+            public override bool CheckDone()
+            {
+                if (_StartFrame == Provider._Looper.FrameCount && _StartPhase == Provider._Looper.Phase)
                 {
-                    throw new ArgumentOutOfRangeException(nameof(value), "TickCountPerLoop must be greater than 0.");
+                    return false;
                 }
-                _TickCountPerLoop = value;
+                else
+                {
+                    return true;
+                }
+            }
+        }
+        protected internal class CheckerForDefault : NonUrgentChecker<CoroutineWaitDefault>
+        {
+            public CheckerForDefault(StandaloneCoroutineProvider provider, CoroutineWaitDefault ci)
+                : base(provider, ci)
+            {
+            }
+        }
+        protected internal class CheckerForWaitForSecondsRealtime : BaseChecker<CoroutineWaitForSecondsRealtime>
+        {
+            public int StartTick;
+            public int WaitTick;
+            public override void Start()
+            {
+                StartTick = Environment.TickCount;
+                WaitTick = (int)Math.Ceiling(Target.WaitTime * 1000f);
+            }
+            public override bool CheckDone()
+            {
+                return Environment.TickCount - StartTick >= WaitTick;
+            }
+            public CheckerForWaitForSecondsRealtime(StandaloneCoroutineProvider provider, CoroutineWaitForSecondsRealtime ci)
+                : base(provider, ci)
+            {
             }
         }
 
-        public void Run()
+        protected internal ICoroutineInstructionChecker CreateChecker(object ci)
         {
+            if (ci == null)
+            {
+                return new CheckerForDefault(this, null);
+            }
+            if (ci is CoroutineWaitForSecondsRealtime cirt)
+            {
+                return new CheckerForWaitForSecondsRealtime(this, cirt);
+            }
+            return null; // TODO: return waitfordefault.
         }
-        public void Stop()
+
+        protected internal LinkedList<ICoroutineInstructionChecker> _Checkers = new LinkedList<ICoroutineInstructionChecker>();
+        public void StartCoroutine(IEnumerator work)
         {
+            while (work.MoveNext())
+            {
+                var ci = work.Current;
+                var checker = CreateChecker(ci);
+                if (!checker.CheckDone())
+                {
+                    checker.Work = work;
+                    _Checkers.AddLast(checker);
+                    break;
+                }
+            }
+        }
+        public void RunCoroutineLooper()
+        {
+            _Looper.Start();
+            for (; ; )
+            {
+                _Looper.Tick();
+                var node = _Checkers.First;
+                while (node != null)
+                {
+                    var next = node.Next;
+                    var checker = node.Value;
+                    if (_Looper.Phase == checker.Target.Phase)
+                    {
+                        if (checker.CheckDone())
+                        {
+                            if (checker.Work != null)
+                            {
+                                var nextwork = checker.Work;
+                                bool notDone;
+                                while (notDone = nextwork.MoveNext())
+                                {
+                                    var nextci = nextwork.Current;
+                                    var nextchecker = CreateChecker(nextci);
+                                    if (!nextchecker.CheckDone())
+                                    {
+                                        nextchecker.Work = nextwork;
+                                        node.Value = nextchecker;
+                                        break;
+                                    }
+                                }
+                                if (!notDone)
+                                {
+                                    _Checkers.Remove(node);
+                                }
+                            }
+                        }
+                    }
+                    node = next;
+                }
+            }
+        }
+
+        protected internal class Looper
+        {
+            private int _StartTick;
+            public int RealTimeTick => Environment.TickCount - _StartTick;
+            public float RealTime => RealTimeTick / 1000f;
+
+            private int _FrameCount = -1;
+            public int FrameCount => _FrameCount;
+            public float VirtualTimePerFrame = 0.017f;
+            public float VirtualTime => _FrameCount * VirtualTimePerFrame;
+
+            private const int _LastPhase = (int)CoroutinePhase.OnEnd;
+            private int _CurrentPhase = _LastPhase;
+            public CoroutinePhase Phase => (CoroutinePhase)_CurrentPhase;
+
+            public void Start()
+            {
+                _StartTick = Environment.TickCount;
+            }
+            public void Tick()
+            {
+                if (_CurrentPhase >= _LastPhase)
+                {
+                    _CurrentPhase = 0;
+                    ++_FrameCount;
+                }
+                else
+                {
+                    ++_CurrentPhase;
+                }
+            }
+        }
+        protected internal Looper _Looper = new Looper();
+    }
+
+    public static class CoroutineProvider
+    {
+        public static ICoroutineProvider Instance;
+        public static void StartCoroutine(IEnumerator<ICoroutineInstruction> work)
+        {
+            Instance?.StartCoroutine(work);
         }
     }
 }
