@@ -221,6 +221,145 @@ namespace ModClrExUnsafe.Tests
             Assert.True(ro.Readonly);
         }
 
+        // ---------- Normalize: every non-self-managed view gets Track()ed ----------
+        //
+        // The Track condition was radicalized: it no longer checks IsFixed or
+        // !IsIl2Cpp, so EVERY non-self-managed view entering a CString is Track()ed.
+        // On .NET (Tracking _RefType) the span/byref/string views are already in
+        // Tracking mode and the call is an idempotent no-op; the real change targets
+        // IL2CPP/Mono, where those constructors build Raw views over managed buffers
+        // that the box must keep rooted. These tests lock the contract per path.
+
+        [Fact]
+        public void Normalize_TracksEveryNonSelfManaged_ManagedMemoryPaths()
+        {
+            var buffer = new byte[] { (byte)'h', (byte)'i', 0, 0 };
+
+            // every managed-memory construction path ends up tracked (not fixed)
+            Assert.False(new CString("hi").IsFixed);                          // string
+            Assert.False(new CString("hi", Encoding.ASCII).IsFixed);          // string + encoding
+            Assert.False(new CString((Span<byte>)buffer).IsFixed);            // span
+            Assert.False(new CString((ReadOnlySpan<byte>)buffer).IsFixed);    // readonly span
+            Assert.False(new CString((Span<byte>)buffer, 2).IsFixed);         // span + length
+            Assert.False(new CString((ReadOnlySpan<byte>)buffer, 2).IsFixed); // ro span + length
+            Assert.False(new CString(ref buffer[0]).IsFixed);                 // byref
+            Assert.False(new CString(ref buffer[0], 4).IsFixed);              // byref + size
+            Assert.False(new CString(ref buffer[0], 4, 2).IsFixed);           // byref + size + len
+        }
+
+        [Fact]
+        public void Normalize_TracksEveryNonSelfManaged_IntPtrPaths()
+        {
+            var ptr = Marshal.AllocHGlobal(16);
+            try
+            {
+                var bytes = Encoding.ASCII.GetBytes("hi");
+                Marshal.Copy(bytes, 0, ptr, bytes.Length);
+                Marshal.WriteByte(ptr, bytes.Length, 0);
+
+                var explicitLen = new CString(ptr, 16, 2);        // Raw unowned -> tracked
+                var bounded = new CString(ptr, 16);
+                var unbounded = new CString(ptr);
+                Assert.False(explicitLen.IsFixed);
+                Assert.False(bounded.IsFixed);
+                Assert.False(unbounded.IsFixed);
+                Assert.Equal("hi", explicitLen.ToString());
+                Assert.Equal("hi", bounded.ToString());
+                Assert.Equal("hi", unbounded.ToString());
+
+                explicitLen.Dispose();                            // return the slots while the block lives
+                bounded.Dispose();
+                unbounded.Dispose();
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(ptr);
+            }
+        }
+
+        [Fact]
+        public void Normalize_SelfManagedIntPtr_StayRaw()
+        {
+            var ptr = Marshal.AllocHGlobal(16);
+            var bytes = Encoding.ASCII.GetBytes("hi");
+            Marshal.Copy(bytes, 0, ptr, bytes.Length);
+            Marshal.WriteByte(ptr, bytes.Length, 0);
+
+            var boxed = new CString(ptr, 16, 2, true);            // self-managed: NOT tracked
+            Assert.True(boxed.IsFixed);
+            Assert.Equal("hi", boxed.ToString());
+
+            boxed.Dispose();                                      // frees the block
+        }
+
+        [Fact]
+        public void Normalize_AlreadyTrackingView_TrackIsIdempotent()
+        {
+            // On .NET the string ctor builds a Tracking view; Normalize now calls
+            // Track() on it anyway - a no-op that keeps the SAME slot (Track only
+            // leases a fresh one when switching Raw -> Tracking).
+            //
+            // PITFALL this test must avoid: boxing an already-boxed view's Value
+            // (new CString(box.Value)) makes TWO boxes share ONE slot - both
+            // finalizers would return it and the IntBag bitmap fail-fasts with
+            // "returned twice", crashing the test host. One slot, one box.
+            var r = new CStringRef("hi");                 // Tracking, slot S
+            r.Track();                                    // no-op: already Tracking
+            r.Track();                                    // still a no-op
+            Assert.False(r.IsFixed);
+            Assert.Equal("hi", r.ToString());
+
+            var boxed = new CString(r);                   // Normalize -> Track() no-op -> same slot S
+            Assert.False(boxed.IsFixed);                  // still Tracking, nothing corrupted
+            Assert.Equal("hi", boxed.ToString());
+            Assert.Equal(2, boxed.Length);
+
+            boxed.Dispose();                              // returns S exactly once; r is stale now - not touched
+        }
+
+        [Fact]
+        public void Normalize_UntrackedRawViewOverManagedMemory_GetsTrackedBack()
+        {
+            // Untrack() flips a managed-memory view to Raw - the IL2CPP-like state
+            // (Raw tag over a managed buffer). Boxing it must track it back so the
+            // box keeps the buffer rooted.
+            var r = new CStringRef("hi");
+            Assert.False(r.IsFixed);
+            r.Untrack();
+            Assert.True(r.IsFixed);                               // Raw now
+
+            var boxed = new CString(r);
+            Assert.False(boxed.IsFixed);                          // tracked again
+            Assert.Equal("hi", boxed.ToString());
+        }
+
+        [Fact]
+        public void Normalize_DefaultAndEmptyViews_DoNotThrow()
+        {
+            // the unconditional Track also runs for empty/default views: the type
+            // tag flips on zeroed storage - must not throw, view stays empty
+            var fromEmpty = new CString(CStringRef.Empty);
+            Assert.True(fromEmpty.IsEmpty());
+            Assert.Equal(0, fromEmpty.Length);
+
+            var fromDefault = new CString(default(CStringRef));
+            Assert.True(fromDefault.IsEmpty());
+            Assert.Equal(0, fromDefault.Length);
+        }
+
+        [Fact]
+        public void Normalize_DisposeReturnsSlot_ManagedBufferStaysIntact()
+        {
+            // after the unconditional track, Dispose still only returns the slot:
+            // the caller's managed buffer is neither pinned nor freed
+            var buffer = new byte[] { (byte)'h', (byte)'i', 0 };
+            var boxed = new CString((Span<byte>)buffer);
+            boxed.Dispose();
+            Assert.Equal((byte)'h', buffer[0]);
+            Assert.Equal((byte)'i', buffer[1]);
+            Assert.Equal(0, buffer[2]);
+        }
+
         [Fact]
         public void Edits_ReturnNewInstances_ReceiverUnchanged()
         {

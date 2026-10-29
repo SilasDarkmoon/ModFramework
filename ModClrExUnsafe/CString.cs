@@ -84,9 +84,10 @@ namespace Mod.LowLevel
     ///
     /// <para>
     /// The wrapped view is normalized on construction: it is either self-managed
-    /// native (Dispose frees the AllocHGlobal block) or GC-tracked (Tracking mode).
-    /// A Raw view that owns nothing gets Track()ed so the box keeps its target alive;
-    /// IL2CPP has no Tracking mode, so Raw stays Raw there.
+    /// native (Dispose frees the AllocHGlobal block) or Track()ed so the box keeps
+    /// its target alive. EVERY non-self-managed view is tracked - including views
+    /// already in Tracking mode (the call is idempotent) and Raw views over managed
+    /// buffers (the IL2CPP/Mono case, where span/byref/string ctors build Raw).
     /// </para>
     /// </summary>
     public sealed class CString : DisposableBox<CStringRef>,
@@ -139,10 +140,12 @@ namespace Mod.LowLevel
 
         private static CStringRef Normalize(CStringRef value)
         {
-            if (!value.IsSelfManagedNative && value.IsFixed
-                && !RuntimeInfo.IsIl2Cpp)
+            if (!value.IsSelfManagedNative
+                //&& value.IsFixed
+                //&& !RuntimeInfo.IsIl2Cpp // maybe we should track more radically
+                )
             {
-                value.Track();   // a Raw view that owns nothing: track it so the box keeps the target alive
+                value.Track();   // every non-self-managed view: the box must keep the target alive (idempotent for Tracking views)
             }
             return value;
         }
