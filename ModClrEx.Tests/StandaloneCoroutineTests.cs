@@ -1208,5 +1208,65 @@ namespace ModClrEx.Tests
             Assert.Equal(Mod.CoroutinePhase.PostUpdate_WaitForSub, phaseW1);
             Assert.Equal(2, frameW1); // parent resumes one frame after completion
         }
+
+        // ---- Mixed providers (e.g. Unity runtime + editor) / StopCoroutine dispatch ----
+
+        [Fact]
+        public void TestFacadeStopCoroutineDispatchesToOwningProvider()
+        {
+            // Two coexisting providers (like Unity's runtime + editor providers): the static
+            // facade's Instance is A, but a handle started on B must be stopped through B —
+            // the handle records its owning provider and the facade dispatches by it
+            var a = new Mod.StandaloneCoroutineProvider();
+            var b = new Mod.StandaloneCoroutineProvider();
+            var traceA = new Trace { Provider = a };
+            var traceB = new Trace { Provider = b };
+            IEnumerator WorkA()
+            {
+                traceA.Mark("a0");
+                yield return null;
+                traceA.Mark("a1");
+            }
+            IEnumerator WorkB()
+            {
+                traceB.Mark("b0");
+                yield return null;
+                traceB.Mark("b1");
+            }
+            var ha = a.StartCoroutine(WorkA());
+            var hb = b.StartCoroutine(WorkB());
+            Assert.Same(a, ha.Provider);
+            Assert.Same(b, hb.Provider);
+            Mod.CoroutineProvider.Instance = a; // facade instance is A...
+            Mod.CoroutineProvider.StopCoroutine(hb); // ...yet the stop lands on B
+            Assert.True(hb.IsDone);
+            Assert.False(ha.IsDone);
+            int ticks = 0;
+            while (ticks++ < 200 && (a.TickCoroutineLooper() | b.TickCoroutineLooper())) { }
+            Assert.Equal(new[] { "a0", "a1" }, traceA.Tags); // A's coroutine unaffected
+            Assert.Equal(new[] { "b0" }, traceB.Tags); // B's coroutine halted by the stop
+        }
+
+        [Fact]
+        public void TestStopCoroutineWithForeignHandleThrows()
+        {
+            // Calling StopCoroutine directly on the wrong provider is a programming error
+            var a = new Mod.StandaloneCoroutineProvider();
+            var b = new Mod.StandaloneCoroutineProvider();
+            IEnumerator Work()
+            {
+                yield return null;
+            }
+            var hb = b.StartCoroutine(Work());
+            Assert.Throws<ArgumentException>(() => a.StopCoroutine(hb));
+            // the foreign stop must not have touched B's coroutine
+            Assert.False(hb.IsDone);
+        }
+
+        [Fact]
+        public void TestFacadeStopCoroutineWithNullHandleIsNoOp()
+        {
+            Mod.CoroutineProvider.StopCoroutine(null); // must not throw
+        }
     }
 }

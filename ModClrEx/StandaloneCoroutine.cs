@@ -47,7 +47,10 @@ namespace Mod
     /// polled via IsDone, and stopped via ICoroutineProvider.StopCoroutine.
     ///
     /// Unity-side implementation (for the Unity ICoroutineProvider):
-    /// - Derive a UnityCoroutineHandle : CoroutineHandle inside the Unity provider.
+    /// - Derive a UnityCoroutineHandle : CoroutineHandle inside the Unity provider, passing
+    ///   the provider into the base constructor: handles record their owning provider so
+    ///   CoroutineProvider.StopCoroutine(handle) dispatches to the right one even when several
+    ///   providers coexist (e.g. a runtime provider and an editor provider).
     /// - StartCoroutine: call MonoBehaviour.StartCoroutine(work) and keep the returned
     ///   UnityEngine.Coroutine inside the handle. ConvertInstruction must return that
     ///   UnityEngine.Coroutine for this handle, so "yield return handle.ToYield()" hands it
@@ -71,8 +74,13 @@ namespace Mod
     {
         public CoroutinePhase Phase => CoroutinePhase.PostUpdate_WaitForSub;
         public object Attachment { get; set; }
+        public ICoroutineProvider Provider { get; protected internal set; }
         /// <summary>Whether the coroutine has finished — completed normally or stopped.</summary>
         public abstract bool IsDone { get; }
+        public CoroutineHandle(ICoroutineProvider provider)
+        {
+            Provider = provider;
+        }
     }
     /// <summary>
     /// Waits for scaled virtual time (Unity's WaitForSeconds).
@@ -208,6 +216,11 @@ namespace Mod
             /// <summary>The queue node owning the coroutine's current checker; null when the coroutine completed synchronously.</summary>
             public LinkedListNode<ICoroutineInstructionChecker> Node;
             public override bool IsDone => Node == null || Node.List == null || Node.Value is DeadChecker;
+            public StandaloneCoroutineHandle(ICoroutineProvider provider, LinkedListNode<ICoroutineInstructionChecker> node = null)
+                : base(provider)
+            {
+                Node = node;
+            }
         }
         /// <summary>
         /// Marker checker swapped into a stopped coroutine's node. The node must stay in the
@@ -612,11 +625,11 @@ namespace Mod
             {
                 var node = _Checkers.AddLast(checker);
                 checker.OnEnqueued(node);
-                return new StandaloneCoroutineHandle() { Node = node };
+                return new StandaloneCoroutineHandle(this, node);
             }
             else
             {
-                return new StandaloneCoroutineHandle();
+                return new StandaloneCoroutineHandle(this);
             }
         }
         public void StopCoroutine(CoroutineHandle co)
@@ -625,6 +638,13 @@ namespace Mod
             {
                 if (co is StandaloneCoroutineHandle realco)
                 {
+                    // Dispatch guard: the handle records the provider that started it. The static
+                    // facade dispatches by co.Provider, so landing here with a foreign handle
+                    // means StopCoroutine was called directly on the wrong provider.
+                    if (realco.Provider != this)
+                    {
+                        throw new ArgumentException("trying to stop a coroutine with a foreign provider", nameof(co));
+                    }
                     // Node.List == _Checkers guards against double stops and against stopping a
                     // coroutine that already finished: LinkedList.Remove(node) throws
                     // InvalidOperationException for a node that does not belong to this list
@@ -777,7 +797,10 @@ namespace Mod
         }
         public static void StopCoroutine(CoroutineHandle co)
         {
-            Instance?.StopCoroutine(co);
+            // Dispatch to the provider that started the coroutine: handles may come from a
+            // different provider than the current Instance (e.g. mixed runtime/editor
+            // providers in Unity), and only the owning provider knows how to stop it.
+            co?.Provider?.StopCoroutine(co);
         }
         public static bool TickCoroutineLooper()
         {
