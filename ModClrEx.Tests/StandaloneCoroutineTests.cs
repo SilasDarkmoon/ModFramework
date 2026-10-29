@@ -867,5 +867,346 @@ namespace ModClrEx.Tests
             Assert.Throws<ArgumentNullException>(() => new Mod.CoroutineWaitWhile(null));
             Assert.Throws<ArgumentNullException>(() => new Mod.CoroutineWaitForSub(null));
         }
+
+        // ---- CoroutineHandle / StopCoroutine ----
+
+        [Fact]
+        public void TestHandleIsDoneTracksCompletion()
+        {
+            var provider = new Mod.StandaloneCoroutineProvider();
+            var trace = new Trace { Provider = provider };
+            var done = false;
+            IEnumerator Work()
+            {
+                trace.Mark("a");
+                yield return null;
+                trace.Mark("b");
+                done = true;
+            }
+            var handle = provider.StartCoroutine(Work());
+            Assert.NotNull(handle);
+            Assert.False(handle.IsDone);
+            RunUntil(provider, () => done);
+            Assert.True(handle.IsDone);
+        }
+
+        [Fact]
+        public void TestHandleIsDoneForSynchronouslyCompletedWork()
+        {
+            var provider = new Mod.StandaloneCoroutineProvider();
+            IEnumerator Work()
+            {
+                yield break;
+            }
+            var handle = provider.StartCoroutine(Work());
+            Assert.True(handle.IsDone);
+        }
+
+        [Fact]
+        public void TestStopCoroutineHaltsAdvancement()
+        {
+            var provider = new Mod.StandaloneCoroutineProvider();
+            var trace = new Trace { Provider = provider };
+            var done = false;
+            IEnumerator Work()
+            {
+                trace.Mark("a");
+                yield return null;
+                trace.Mark("b");
+                done = true;
+            }
+            var handle = provider.StartCoroutine(Work());
+            provider.StopCoroutine(handle);
+            Assert.True(handle.IsDone); // stopped counts as done
+            Assert.False(provider.TickCoroutineLooper()); // dead node removed, queue drained
+            Assert.Equal(new[] { "a" }, trace.Tags);
+            Assert.False(done);
+        }
+
+        [Fact]
+        public void TestStopCoroutineTwiceAndAfterCompletionAreNoOps()
+        {
+            var provider = new Mod.StandaloneCoroutineProvider();
+            IEnumerator Work()
+            {
+                yield return null;
+            }
+            IEnumerator Sync()
+            {
+                yield break;
+            }
+            // double stop on a suspended coroutine (node marked dead, still queued)
+            var h1 = provider.StartCoroutine(Work());
+            provider.StopCoroutine(h1);
+            provider.StopCoroutine(h1);
+            // stop on a synchronously completed coroutine (no node at all)
+            var h2 = provider.StartCoroutine(Sync());
+            provider.StopCoroutine(h2);
+            // stop on a naturally completed coroutine (node already detached)
+            var h3 = provider.StartCoroutine(Work());
+            for (int i = 0; i < 100; ++i)
+            {
+                provider.TickCoroutineLooper();
+            }
+            Assert.True(h3.IsDone);
+            provider.StopCoroutine(h3);
+            Assert.False(provider.TickCoroutineLooper());
+        }
+
+        [Fact]
+        public void TestStopSelfInsideCoroutineBodyStopsAfterCurrentMoveNext()
+        {
+            var provider = new Mod.StandaloneCoroutineProvider();
+            var trace = new Trace { Provider = provider };
+            Mod.CoroutineHandle self = null!;
+            IEnumerator Work()
+            {
+                trace.Mark("a");
+                yield return null; // frame 0 Phase 24
+                trace.Mark("b");
+                provider.StopCoroutine(self);
+                trace.Mark("c"); // the current MoveNext still finishes after the stop
+                yield return null; // the coroutine never resumes past this point
+                trace.Mark("d"); // must not execute
+            }
+            self = provider.StartCoroutine(Work());
+            RunUntil(provider, () => trace.Marks.Count >= 3);
+            Assert.Equal(new[] { "a", "b", "c" }, trace.Tags);
+            Assert.True(self.IsDone);
+        }
+
+        // ---- yield return handle (Unity's "yield return StartCoroutine(sub)") ----
+
+        [Fact]
+        public void TestYieldHandleWaitsOneFrameAfterCompletion()
+        {
+            // Unity's "yield return StartCoroutine(sub)": the parent is traversed before the
+            // sub (registration order), so it only sees the finished Coroutine on the next
+            // frame — the parent resumes one frame after the sub completes
+            var provider = new Mod.StandaloneCoroutineProvider();
+            var trace = new Trace { Provider = provider };
+            var done = false;
+            IEnumerator Sub()
+            {
+                trace.Mark("s0");
+                yield return null;
+                trace.Mark("s1");
+            }
+            IEnumerator Work()
+            {
+                trace.Mark("w0");
+                yield return provider.StartCoroutine(Sub());
+                trace.Mark("w1");
+                done = true;
+            }
+            provider.StartCoroutine(Work());
+            RunUntil(provider, () => done);
+            Assert.Equal(new[] { "w0", "s0", "s1", "w1" }, trace.Tags);
+            var (phaseS, frameS) = trace.At("s1");
+            Assert.Equal(Mod.CoroutinePhase.PostUpdate_WaitForDefault, phaseS);
+            Assert.Equal(0, frameS); // sub finishes in frame 0
+            var (phaseW, frameW) = trace.At("w1");
+            Assert.Equal(Mod.CoroutinePhase.PostUpdate_WaitForSub, phaseW);
+            Assert.Equal(1, frameW); // parent resumes one frame later
+        }
+
+        [Fact]
+        public void TestYieldHandleSynchronousCompletionPassesThrough()
+        {
+            var provider = new Mod.StandaloneCoroutineProvider();
+            var trace = new Trace { Provider = provider };
+            IEnumerator Sub()
+            {
+                trace.Mark("s0");
+                yield break;
+            }
+            IEnumerator Work()
+            {
+                trace.Mark("w0");
+                yield return provider.StartCoroutine(Sub());
+                trace.Mark("w1");
+            }
+            provider.StartCoroutine(Work());
+            Assert.Equal(new[] { "w0", "s0", "w1" }, trace.Tags);
+            Assert.False(provider.TickCoroutineLooper());
+        }
+
+        [Fact]
+        public void TestStopSubResumesWaitingParent()
+        {
+            // Unlike Unity (where a parent waiting on a stopped sub is stuck forever — a known
+            // pitfall), stopping the sub here resumes the waiting parent
+            var provider = new Mod.StandaloneCoroutineProvider();
+            var trace = new Trace { Provider = provider };
+            var done = false;
+            Mod.CoroutineHandle subhandle = null!;
+            IEnumerator Sub()
+            {
+                trace.Mark("s0");
+                yield return null;
+                trace.Mark("s1");
+            }
+            IEnumerator Work()
+            {
+                trace.Mark("w0");
+                yield return subhandle = provider.StartCoroutine(Sub());
+                trace.Mark("w1");
+                done = true;
+            }
+            provider.StartCoroutine(Work());
+            Assert.Equal(new[] { "w0", "s0" }, trace.Tags);
+            provider.StopCoroutine(subhandle);
+            RunUntil(provider, () => done);
+            Assert.Equal(new[] { "w0", "s0", "w1" }, trace.Tags); // s1 never ran
+            var (phaseW, frameW) = trace.At("w1");
+            Assert.Equal(Mod.CoroutinePhase.PostUpdate_WaitForSub, phaseW);
+            Assert.Equal(1, frameW);
+        }
+
+        [Fact]
+        public void TestStopParentKeepsIndependentSubRunning()
+        {
+            // Unity's "yield return StartCoroutine(sub)": the sub is an independent coroutine
+            // and keeps running after the parent is stopped
+            var provider = new Mod.StandaloneCoroutineProvider();
+            var trace = new Trace { Provider = provider };
+            var subdone = false;
+            IEnumerator Sub()
+            {
+                trace.Mark("s0");
+                yield return null;
+                trace.Mark("s1");
+                subdone = true;
+            }
+            IEnumerator Work()
+            {
+                trace.Mark("w0");
+                yield return provider.StartCoroutine(Sub());
+                trace.Mark("w1");
+            }
+            var phandle = provider.StartCoroutine(Work());
+            provider.StopCoroutine(phandle);
+            RunUntil(provider, () => subdone);
+            Assert.Equal(new[] { "w0", "s0", "s1" }, trace.Tags); // w1 never ran, sub finished
+        }
+
+        // ---- yield return IEnumerator (Unity's in-place nested iterator) ----
+
+        [Fact]
+        public void TestStopParentCascadesIntoNestedSub()
+        {
+            // Unity's "yield return subIEnumerator": the nested iterator is part of the
+            // parent's execution flow — stopping the parent stops the nested sub as well
+            var provider = new Mod.StandaloneCoroutineProvider();
+            var trace = new Trace { Provider = provider };
+            var subdone = false;
+            IEnumerator Sub()
+            {
+                trace.Mark("s0");
+                yield return null;
+                trace.Mark("s1");
+                subdone = true;
+            }
+            IEnumerator Work()
+            {
+                trace.Mark("w0");
+                yield return new Mod.CoroutineWaitForSub(Sub());
+                trace.Mark("w1");
+            }
+            var phandle = provider.StartCoroutine(Work());
+            provider.StopCoroutine(phandle);
+            int ticks = 0;
+            while (provider.TickCoroutineLooper() && ticks++ < 200) { }
+            Assert.False(subdone); // the sub was stopped together with the parent
+            Assert.Equal(new[] { "w0", "s0" }, trace.Tags);
+            Assert.False(provider.TickCoroutineLooper()); // queue fully drained
+        }
+
+        [Fact]
+        public void TestNestedSubSamePhaseSameFrameResume()
+        {
+            // In-place nested style started mid-frame (via Tick's in-place swap): the sub's
+            // node is moved in front of the parent's, so when the sub finishes exactly at the
+            // parent's phase, the parent still observes it in the same frame
+            var provider = new Mod.StandaloneCoroutineProvider();
+            var trace = new Trace { Provider = provider };
+            var done = false;
+            IEnumerator Grand()
+            {
+                trace.Mark("g0");
+                yield return null;
+                trace.Mark("g1");
+            }
+            IEnumerator Sub()
+            {
+                trace.Mark("s0");
+                yield return new Mod.CoroutineWaitForSub(Grand());
+                trace.Mark("s1");
+            }
+            IEnumerator Work()
+            {
+                yield return null; // frame 0 Phase 24
+                trace.Mark("w0");
+                yield return new Mod.CoroutineWaitForSub(Sub());
+                trace.Mark("w1");
+                done = true;
+            }
+            provider.StartCoroutine(Work());
+            RunUntil(provider, () => done);
+            Assert.Equal(new[] { "w0", "s0", "g0", "g1", "s1", "w1" }, trace.Tags);
+            var (phaseG, frameG) = trace.At("g1");
+            Assert.Equal(Mod.CoroutinePhase.PostUpdate_WaitForDefault, phaseG);
+            Assert.Equal(1, frameG);
+            var (phaseS, frameS) = trace.At("s1");
+            Assert.Equal(Mod.CoroutinePhase.PostUpdate_WaitForSub, phaseS);
+            Assert.Equal(1, frameS);
+            var (phaseW, frameW) = trace.At("w1");
+            Assert.Equal(Mod.CoroutinePhase.PostUpdate_WaitForSub, phaseW);
+            Assert.Equal(1, frameW); // same frame as the sub, despite sharing the same phase
+        }
+
+        [Fact]
+        public void TestYieldHandleAfterWaitStartsSubAtParentResumeAndResumesNextFrameAfterCompletion()
+        {
+            // "yield return StartCoroutine(sub)" after a preceding wait (Tick's in-place swap
+            // path, sub enqueued AFTER the parent — Unity's registration order):
+            // - the sub's first MoveNext happens at the very scheduling point the parent
+            //   resumes from its previous wait (s0 marks frame 0 Phase 24, same as w0);
+            // - the parent is traversed before the sub, so it only sees the finished
+            //   Coroutine on the following frame — w1 lands one frame after s1.
+            var provider = new Mod.StandaloneCoroutineProvider();
+            var trace = new Trace { Provider = provider };
+            var done = false;
+            IEnumerator Sub()
+            {
+                trace.Mark("s0");
+                yield return null;
+                trace.Mark("s1");
+            }
+            IEnumerator Work()
+            {
+                trace.Mark("a");
+                yield return null; // frame 0 Phase 24
+                trace.Mark("w0");
+                yield return provider.StartCoroutine(Sub());
+                trace.Mark("w1");
+                done = true;
+            }
+            provider.StartCoroutine(Work());
+            RunUntil(provider, () => done);
+            Assert.Equal(new[] { "a", "w0", "s0", "s1", "w1" }, trace.Tags);
+            var (phaseW0, frameW0) = trace.At("w0");
+            Assert.Equal(Mod.CoroutinePhase.PostUpdate_WaitForDefault, phaseW0);
+            Assert.Equal(0, frameW0);
+            var (phaseS0, frameS0) = trace.At("s0");
+            Assert.Equal(Mod.CoroutinePhase.PostUpdate_WaitForDefault, phaseS0);
+            Assert.Equal(0, frameS0); // sub's first MoveNext at the parent's resume point
+            var (phaseS1, frameS1) = trace.At("s1");
+            Assert.Equal(Mod.CoroutinePhase.PostUpdate_WaitForDefault, phaseS1);
+            Assert.Equal(1, frameS1); // sub completes in frame 1
+            var (phaseW1, frameW1) = trace.At("w1");
+            Assert.Equal(Mod.CoroutinePhase.PostUpdate_WaitForSub, phaseW1);
+            Assert.Equal(2, frameW1); // parent resumes one frame after completion
+        }
     }
 }

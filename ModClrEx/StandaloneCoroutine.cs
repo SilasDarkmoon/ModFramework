@@ -7,7 +7,8 @@ namespace Mod
 {
     public interface ICoroutineProvider
     {
-        void StartCoroutine(IEnumerator work);
+        CoroutineHandle StartCoroutine(IEnumerator work);
+        void StopCoroutine(CoroutineHandle co);
         bool TickCoroutineLooper();
         /// <summary>
         /// Converts a provider-agnostic ICoroutineInstruction into an object the current engine can yield.
@@ -39,6 +40,39 @@ namespace Mod
     {
         CoroutinePhase Phase { get; }
         object Attachment { get; set; }
+    }
+    /// <summary>
+    /// Handle to a started coroutine — the counterpart of Unity's Coroutine object.
+    /// It can be yielded (equivalent to Unity's "yield return StartCoroutine(sub)"),
+    /// polled via IsDone, and stopped via ICoroutineProvider.StopCoroutine.
+    ///
+    /// Unity-side implementation (for the Unity ICoroutineProvider):
+    /// - Derive a UnityCoroutineHandle : CoroutineHandle inside the Unity provider.
+    /// - StartCoroutine: call MonoBehaviour.StartCoroutine(work) and keep the returned
+    ///   UnityEngine.Coroutine inside the handle. ConvertInstruction must return that
+    ///   UnityEngine.Coroutine for this handle, so "yield return handle.ToYield()" hands it
+    ///   back to Unity's engine, which natively waits on a Coroutine object.
+    /// - StopCoroutine: call MonoBehaviour.StopCoroutine(unityCoroutine).
+    /// - IsDone: UnityEngine.Coroutine exposes no completion state; either wrap the user's
+    ///   IEnumerator with a completion-flag wrapper before handing it to
+    ///   MonoBehaviour.StartCoroutine, or conservatively return false.
+    ///
+    /// Standalone-side implementation (StandaloneCoroutineHandle):
+    /// - Wraps the LinkedListNode carrying the coroutine's current checker. Tick advances
+    ///   coroutines by replacing node.Value in place, so the node identity is stable for the
+    ///   coroutine's whole lifetime; the coroutine is done once the node is detached
+    ///   (List == null) or carries the dead marker (stopped).
+    /// - Stop does not detach the node immediately: removing an arbitrary node during Tick's
+    ///   traversal would sever the traversal chain (a detached node's Next is null). Instead
+    ///   the node's checker is swapped for a dead marker and the node is removed when the
+    ///   next traversal reaches it.
+    /// </summary>
+    public abstract class CoroutineHandle : ICoroutineInstruction
+    {
+        public CoroutinePhase Phase => CoroutinePhase.PostUpdate_WaitForSub;
+        public object Attachment { get; set; }
+        /// <summary>Whether the coroutine has finished — completed normally or stopped.</summary>
+        public abstract bool IsDone { get; }
     }
     /// <summary>
     /// Waits for scaled virtual time (Unity's WaitForSeconds).
@@ -116,12 +150,23 @@ namespace Mod
         }
     }
     /// <summary>
-    /// Waits for a sub-coroutine to finish (Unity's yield return StartCoroutine(...)).
-    /// The sub-coroutine runs to its first suspension point immediately when the instruction is created,
-    /// then advances in parallel with the parent; if the sub-coroutine completes synchronously
-    /// (or all of its instructions are immediately Done), the parent passes through right away.
-    /// The parent observes completion at its PostUpdate_WaitForSub phase:
-    /// same frame if the sub finished before that phase, otherwise the next frame.
+    /// Waits for a sub-coroutine driven in place — Unity's "yield return subIEnumerator" style.
+    /// The sub-coroutine runs to its first suspension point immediately when the instruction is
+    /// created, then advances in parallel with the parent; if the sub-coroutine completes
+    /// synchronously (or all of its instructions are immediately Done), the parent passes
+    /// through right away.
+    ///
+    /// Unity semantics reproduced:
+    /// - The sub's node is kept in front of the parent's, so within the same phase the sub is
+    ///   advanced first and the parent observes completion in the same frame — like Unity
+    ///   resuming the parent at the very point the nested iterator finishes.
+    /// - Stopping the parent cascades into the sub (and recursively any sub-of-sub): in Unity
+    ///   a nested iterator is part of the parent's execution flow.
+    /// - The sub has no handle of its own and cannot be stopped individually.
+    ///
+    /// For Unity's "yield return StartCoroutine(sub)" style (independent sub with its own
+    /// handle that survives the parent's stop; the parent resumes one frame after the sub
+    /// finishes) use: yield return provider.StartCoroutine(sub); — see CoroutineHandle.
     /// </summary>
     public class CoroutineWaitForSub : ICoroutineInstruction
     {
@@ -151,6 +196,39 @@ namespace Mod
             IEnumerator Work { get; set; }
             void Start();
             bool CheckDone();
+            /// <summary>
+            /// Invoked right after this checker becomes the value of a queue node — either
+            /// freshly enqueued by StartCoroutine or swapped in place by Tick. Overridden by
+            /// CheckerForWaitForSub to keep the sub-coroutine's node in front of the parent's.
+            /// </summary>
+            void OnEnqueued(LinkedListNode<ICoroutineInstructionChecker> node);
+        }
+        protected internal class StandaloneCoroutineHandle : CoroutineHandle
+        {
+            /// <summary>The queue node owning the coroutine's current checker; null when the coroutine completed synchronously.</summary>
+            public LinkedListNode<ICoroutineInstructionChecker> Node;
+            public override bool IsDone => Node == null || Node.List == null || Node.Value is DeadChecker;
+        }
+        /// <summary>
+        /// Marker checker swapped into a stopped coroutine's node. The node must stay in the
+        /// queue until the traversal reaches it: detaching an arbitrary node mid-traversal
+        /// would sever the chain (a detached node's Next is null). The phase loop removes dead
+        /// nodes when it reaches them (detaching the current node is safe — next is cached).
+        /// </summary>
+        protected internal class DeadChecker : BaseChecker<CoroutineWaitDefault>
+        {
+            public static readonly DeadChecker Instance = new DeadChecker();
+            private DeadChecker()
+                : base(null, new CoroutineWaitDefault())
+            {
+            }
+            public override void Start()
+            {
+            }
+            public override bool CheckDone()
+            {
+                return true;
+            }
         }
         protected internal abstract class BaseChecker : ICoroutineInstructionChecker
         {
@@ -161,6 +239,14 @@ namespace Mod
             public IEnumerator Work { get; set; }
             public abstract void Start();
             public abstract bool CheckDone();
+            /// <summary>
+            /// Invoked right after this checker becomes the value of a queue node — either
+            /// freshly enqueued by StartCoroutine or swapped in place by Tick. Overridden by
+            /// CheckerForWaitForSub to keep the sub-coroutine's node in front of the parent's.
+            /// </summary>
+            public virtual void OnEnqueued(LinkedListNode<ICoroutineInstructionChecker> node)
+            {
+            }
         }
         protected internal abstract class BaseChecker<T> : BaseChecker where T : ICoroutineInstruction
         {
@@ -316,10 +402,21 @@ namespace Mod
             }
         }
         /// <summary>
-        /// Sub-coroutine checker: Start drives the sub-coroutine to its first suspension point
-        /// and enqueues it; completion is then detected by whether that queue node has been
-        /// removed (node.List == null). Tick advances coroutines by replacing node.Value in place,
-        /// so node identity is stable and safe to track.
+        /// Sub-coroutine checker for the "yield return subIEnumerator" style — Unity's in-place
+        /// nested iterators. Start drives the sub to its first suspension point and enqueues it;
+        /// completion is detected by the sub's queue node having been detached (node.List == null).
+        ///
+        /// Unity semantics reproduced:
+        /// - The sub's node is kept in front of the parent's (OnEnqueued), so within the same
+        ///   phase the sub is advanced first and the parent observes completion in the same
+        ///   frame — like Unity resuming the parent at the very point the nested iterator finishes.
+        /// - Stopping the parent cascades into the sub (and recursively any sub-of-sub): in Unity
+        ///   a nested iterator is part of the parent's execution flow.
+        /// - The sub has no handle of its own and cannot be stopped individually.
+        ///
+        /// For Unity's "yield return StartCoroutine(sub)" style (independent sub with its own
+        /// handle that survives the parent's stop; the parent resumes one frame after the sub
+        /// finishes) use: yield return provider.StartCoroutine(sub); — see CoroutineHandle.
         /// </summary>
         protected internal class CheckerForWaitForSub : BaseChecker<CoroutineWaitForSub>
         {
@@ -334,7 +431,9 @@ namespace Mod
                 var subchecker = Provider.DriveWork(Target.Sub);
                 if (subchecker != null)
                 {
-                    _SubNode = Provider._Checkers.AddLast(subchecker);
+                    var subnode = Provider._Checkers.AddLast(subchecker);
+                    subchecker.OnEnqueued(subnode);
+                    _SubNode = subnode;
                 }
                 else
                 {
@@ -343,7 +442,88 @@ namespace Mod
             }
             public override bool CheckDone()
             {
-                return _SubDone || (_SubNode != null && _SubNode.List == null);
+                return _SubDone || (_SubNode != null && (_SubNode.List == null || _SubNode.Value is DeadChecker));
+            }
+            public override void OnEnqueued(LinkedListNode<ICoroutineInstructionChecker> parentnode)
+            {
+                // Keep the sub's node in front of the parent's so that, within the same phase,
+                // the sub is advanced first and the parent can observe its completion in the
+                // same frame (mirrors Unity's in-place nested iterator timing).
+                if (_SubNode != null && _SubNode.List != null)
+                {
+                    Provider._Checkers.Remove(_SubNode);
+                    Provider._Checkers.AddBefore(parentnode, _SubNode);
+                }
+            }
+            /// <summary>
+            /// Stops the sub (and recursively any sub-of-sub) when the parent is stopped.
+            /// Marks nodes dead instead of detaching them — see DeadChecker.
+            /// </summary>
+            internal void CascadeStop()
+            {
+                if (_SubNode != null && _SubNode.List != null && !(_SubNode.Value is DeadChecker))
+                {
+                    if (_SubNode.Value is CheckerForWaitForSub wfs)
+                    {
+                        wfs.CascadeStop();
+                    }
+                    _SubNode.Value = DeadChecker.Instance;
+                }
+            }
+        }
+        /// <summary>
+        /// Checker for yielding a CoroutineHandle — Unity's "yield return StartCoroutine(sub)" style.
+        /// The sub is already started and already enqueued behind the parent (mirroring Unity's
+        /// registration order), so this checker only observes its completion.
+        /// Unity semantics reproduced: the parent is always traversed before the sub, so it only
+        /// sees the finished Coroutine on the FOLLOWING frame — hence the parent resumes one
+        /// frame after completion was observed. A sub that completed synchronously passes
+        /// through immediately (Unity's already-finished Coroutine).
+        /// Difference from Unity (intentional): Unity leaves a parent waiting on a stopped sub
+        /// stuck forever (a known pitfall); here stopping the sub resumes the parent.
+        /// </summary>
+        protected internal class CheckerForHandle : BaseChecker<CoroutineHandle>
+        {
+            private int _DoneFrame = -1;
+            public CheckerForHandle(StandaloneCoroutineProvider provider, CoroutineHandle ci)
+                : base(provider, ci)
+            {
+            }
+            public override void Start()
+            {
+            }
+            public override bool CheckDone()
+            {
+                if (!(Target is StandaloneCoroutineHandle sch))
+                {
+                    throw new ArgumentException("non-recognizable CoroutineHandle");
+                }
+                if (sch.Node == null)
+                {
+                    return true; // completed synchronously: pass through
+                }
+                var list = sch.Node.List;
+                if (list == Provider._Checkers)
+                {
+                    if (sch.Node.Value is DeadChecker)
+                    {
+                        return true; // stopped: treat as finished so the waiting parent resumes
+                    }
+                    return false; // still running
+                }
+                if (list != null)
+                {
+                    throw new ArgumentException("CoroutineHandle belongs to another provider");
+                }
+                // Finished after suspension: resume the frame AFTER completion was observed
+                // (mirrors Unity's list order — the parent is traversed before the sub and
+                // only sees the finished Coroutine on the following frame).
+                if (_DoneFrame < 0)
+                {
+                    _DoneFrame = Provider._Looper.FrameCount;
+                    return false;
+                }
+                return Provider._Looper.FrameCount > _DoneFrame;
             }
         }
 
@@ -382,6 +562,10 @@ namespace Mod
             {
                 return new CheckerForWaitForSub(this, cs);
             }
+            if (ci is CoroutineHandle ch)
+            {
+                return new CheckerForHandle(this, ch);
+            }
             if (ci is ICoroutineInstruction instr)
             {
                 // custom instruction: waits at the phase it declares
@@ -397,12 +581,21 @@ namespace Mod
         /// Drives a coroutine body to its next suspension point: creates a checker for each
         /// yielded instruction; instructions that are immediately Done pass straight through
         /// (not suspended, the following code executes right away).
-        /// Returns the suspending checker (already associated with Work); null if the coroutine ran to completion.
+        /// Returns the suspending checker (already associated with Work); null if the coroutine
+        /// ran to completion. When a queue node is supplied (Tick's in-place swap path), a
+        /// coroutine stopping itself from inside its body is detected here: driving stops
+        /// right after the current MoveNext finishes, mirroring Unity's stop semantics.
         /// </summary>
-        protected internal ICoroutineInstructionChecker DriveWork(IEnumerator work)
+        protected internal ICoroutineInstructionChecker DriveWork(IEnumerator work, LinkedListNode<ICoroutineInstructionChecker> node = null)
         {
             while (work.MoveNext())
             {
+                if (node != null && (node.List == null || node.Value is DeadChecker))
+                {
+                    // The coroutine stopped itself while being driven: the body has run up to
+                    // its yield (the current MoveNext finished); it must never resume.
+                    return null;
+                }
                 var checker = CreateChecker(work.Current);
                 if (!checker.CheckDone())
                 {
@@ -412,12 +605,48 @@ namespace Mod
             }
             return null;
         }
-        public void StartCoroutine(IEnumerator work)
+        public CoroutineHandle StartCoroutine(IEnumerator work)
         {
             var checker = DriveWork(work);
             if (checker != null)
             {
-                _Checkers.AddLast(checker);
+                var node = _Checkers.AddLast(checker);
+                checker.OnEnqueued(node);
+                return new StandaloneCoroutineHandle() { Node = node };
+            }
+            else
+            {
+                return new StandaloneCoroutineHandle();
+            }
+        }
+        public void StopCoroutine(CoroutineHandle co)
+        {
+            if (co != null)
+            {
+                if (co is StandaloneCoroutineHandle realco)
+                {
+                    // Node.List == _Checkers guards against double stops and against stopping a
+                    // coroutine that already finished: LinkedList.Remove(node) throws
+                    // InvalidOperationException for a node that does not belong to this list
+                    // (a removed node's List is null and its Next/Prev are invalidated).
+                    if (realco.Node != null && realco.Node.List == _Checkers)
+                    {
+                        if (realco.Node.Value is CheckerForWaitForSub wfs)
+                        {
+                            // Unity: a nested iterator (yield return IEnumerator) is part of the
+                            // parent's execution flow — stopping the parent stops the nested sub too.
+                            wfs.CascadeStop();
+                        }
+                        // Mark dead instead of detaching: the node may sit ahead of Tick's current
+                        // traversal cursor, and detaching it would sever the traversal chain
+                        // (a detached node's Next is null). The next traversal removes it.
+                        realco.Node.Value = DeadChecker.Instance;
+                    }
+                }
+                else
+                {
+                    throw new ArgumentException("non-recognizable CoroutineHandle", nameof(co));
+                }
             }
         }
         public bool TickCoroutineLooper()
@@ -428,14 +657,22 @@ namespace Mod
             {
                 var next = node.Next;
                 var checker = node.Value;
-                if (_Looper.Phase == checker.Target.Phase && checker.CheckDone())
+                if (checker is DeadChecker)
+                {
+                    // A stopped coroutine: detach its node now that the traversal has reached it
+                    // (detaching the current node is safe — next is already cached).
+                    _Checkers.Remove(node);
+                }
+                else if (_Looper.Phase == checker.Target.Phase && checker.CheckDone())
                 {
                     // Instruction Done: drive the coroutine body; replace the checker in place
-                    // if it suspends again, remove the node if it ran to completion.
-                    var nextchecker = checker.Work != null ? DriveWork(checker.Work) : null;
+                    // if it suspends again, remove the node if it ran to completion (or stopped
+                    // itself while being driven — DriveWork returns null in both cases).
+                    var nextchecker = checker.Work != null ? DriveWork(checker.Work, node) : null;
                     if (nextchecker != null)
                     {
                         node.Value = nextchecker;
+                        nextchecker.OnEnqueued(node);
                     }
                     else
                     {
@@ -534,9 +771,13 @@ namespace Mod
     public static class CoroutineProvider
     {
         public static ICoroutineProvider Instance;
-        public static void StartCoroutine(IEnumerator work)
+        public static CoroutineHandle StartCoroutine(IEnumerator work)
         {
-            Instance?.StartCoroutine(work);
+            return Instance?.StartCoroutine(work);
+        }
+        public static void StopCoroutine(CoroutineHandle co)
+        {
+            Instance?.StopCoroutine(co);
         }
         public static bool TickCoroutineLooper()
         {
