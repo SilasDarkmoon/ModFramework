@@ -16,12 +16,27 @@ namespace Mod.LowLevel
             UnityMono,
             UnityIl2Cpp,
         }
+        public enum OSPlatform
+        {
+            Unknown = 0,
+            Windows,
+            Linux,
+            iOS,
+            Android,
+            Mac,
+        }
 
         private static RuntimeCategory _Runtime;
         public static RuntimeCategory Runtime => _Runtime;
 
+        private static OSPlatform _Platform;
+        public static OSPlatform Platform;
+
         private static bool _IsUnity;
         public static bool IsUnity => _IsUnity;
+
+        private static bool _IsEditor;
+        public static bool IsEditor => _IsEditor;
 
         private static bool _IsIl2Cpp;
         public static bool IsIl2Cpp => _IsIl2Cpp;
@@ -49,7 +64,8 @@ namespace Mod.LowLevel
         static RuntimeInfo()
         {
             _IsDynamicCodeEnabled = CheckIsDynamicCodeEnabled();
-            _IsUnity = Type.GetType("UnityEngine.Application, UnityEngine.CoreModule") != null;
+            Type unityApplicationType;
+            _IsUnity = (unityApplicationType = Type.GetType("UnityEngine.Application, UnityEngine.CoreModule")) != null;
             if (_IsUnity)
             {
                 _IsIl2Cpp = CheckIsIl2Cpp();
@@ -62,6 +78,46 @@ namespace Mod.LowLevel
                 {
                     _Runtime = RuntimeCategory.UnityMono;
                     _IsMono = true;
+                }
+                var uplat = Convert.ToInt32(unityApplicationType.GetProperty("platform", BindingFlags.Static | BindingFlags.Public).GetValue(null));
+                switch (uplat)
+                {
+                    case 0:
+                        _Platform = OSPlatform.Mac;
+                        _IsEditor = true;
+                        break;
+                    case 1:
+                        _Platform = OSPlatform.Mac;
+                        break;
+                    case 2:
+                        _Platform = OSPlatform.Windows;
+                        break;
+                    case 7:
+                        _Platform = OSPlatform.Windows;
+                        _IsEditor = true;
+                        break;
+                    case 8:
+                        _Platform = OSPlatform.iOS;
+                        break;
+                    case 11:
+                        _Platform = OSPlatform.Android;
+                        break;
+                    case 13:
+                        _Platform = OSPlatform.Linux;
+                        break;
+                    case 16:
+                        _Platform = OSPlatform.Linux;
+                        _IsEditor = true;
+                        break;
+                    case 43:
+                        _Platform = OSPlatform.Linux; // server
+                        break;
+                    case 44:
+                        _Platform = OSPlatform.Windows; // server
+                        break;
+                    case 45:
+                        _Platform = OSPlatform.Mac; // server
+                        break;
                 }
             }
             else
