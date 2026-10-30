@@ -10,6 +10,17 @@ bin/
 obj/
 ModLua.PlatDep/dist/
 
+# Local probe/repro projects (not part of the framework)
+/Probes/
+
+# Unity test projects (large generated Library/Temp, local-only)
+/UnityTests/
+
+# CodeBuddy local data - only Persistent/ is tracked (memory, finished PPTs,
+# tools, test runners); everything else (qa-slides PNGs, temp) is local-only.
+.codebuddy/*
+!.codebuddy/Persistent/
+
 # NuGet
 packages/
 .nuget/
