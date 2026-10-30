@@ -548,13 +548,20 @@ namespace Mod.Lua
         /// <remarks>arg1 is the single C vararg after default argument promotion: for %s a
         /// <c>char*</c> (CStringSpan/CStringRef address), for %d/%I an integer widened to
         /// pointer width, for %p a pointer, for %f a double (not passable here - use the
-        /// native-va_list pushvfstring or format in C# instead).</remarks>
+        /// native-va_list pushvfstring or format in C# instead).
+        /// WARNING (Apple arm64): the native function is variadic and Apple arm64 passes
+        /// varargs entirely on the stack (verified: Probes/VarargProbeApple, Mac arm64);
+        /// this fixed-arity binding delivers arg1 in a register (x2), which va_arg never
+        /// reads there - the native side consumes stale stack residue instead. Do not use
+        /// on Apple arm64 (until a padded stack-slot shape is dispatched); correct on
+        /// Windows x64 and Linux.</remarks>
         public static CStringRef pushfstring(this State L, CStringSpan fmt, IntPtr arg1)
         {
             var cloned = pushfstringCore(L, fmt, arg1);
             return new CStringRef(cloned);
         }
         /// <summary><c>[-0, +1, v]</c> void variant of pushfstring: identical stack effect, skips the CStringRef return construction.</summary>
+        /// <remarks>Same Apple-arm64 vararg caveat as the CStringRef-returning overload above.</remarks>
         public static void pushfstringn(this State L, CStringSpan fmt, IntPtr arg1) => pushfstringCore(L, fmt, arg1);
         private static IntPtr pushfstringCore(this State L, CStringSpan fmt, IntPtr arg1)
         {
@@ -846,11 +853,21 @@ namespace Mod.Lua
         public static int gc(this State L, int what) => LuaImport.lua_gc(Ptr(L), what, UIntPtr.Zero, 0);
 
         /// <summary><c>[-0, +0, -]</c> GCSTEP: performs an incremental GC step (lua_gc).</summary>
+        /// <remarks>WARNING (Apple arm64): lua_gc is variadic and Apple arm64 passes varargs
+        /// entirely on the stack (verified: Probes/VarargProbeApple, Mac arm64); this binding
+        /// delivers data in a register (x2), which va_arg never reads there - the native side
+        /// consumes stale stack residue as the step size instead. Do not use on Apple arm64
+        /// (until a padded stack-slot shape is dispatched); correct on Windows x64 and Linux.</remarks>
         /// <param name="data">Step size in bytes; 0 forces one basic step.</param>
         /// <returns>1 when the cycle finished (back to pause state).</returns>
         public static int gc(this State L, int what, UIntPtr data) => LuaImport.lua_gc(Ptr(L), what, data, 0);
 
         /// <summary><c>[-0, +0, -]</c> GCPARAM: gets/sets generational GC parameters (lua_gc).</summary>
+        /// <remarks>WARNING (Apple arm64): same vararg caveat as the GCSTEP overload - param and
+        /// value ride in registers (x2/x3), invisible to va_arg on Apple arm64 (varargs are
+        /// stack-only there; verified: Probes/VarargProbeApple); the native side consumes stale
+        /// stack residue instead. Do not use on Apple arm64 (until a padded stack-slot shape is
+        /// dispatched); correct on Windows x64 and Linux.</remarks>
         /// <param name="param">0..6 (GCPMINORMUL/GCPMAJORMINOR/GCPMINORMAJOR/GCPPAUSE/GCPSTEPMUL/
         /// GCPSTEPSIZE/GCPN).</param>
         /// <param name="value">value >= 0 sets, value < 0 (convention: -1) queries.</param>
@@ -886,7 +903,12 @@ namespace Mod.Lua
             }
         }
         /// <summary><c>[-0, +0, v]</c> Raises a formatted error message with a single conversion argument (luaL_error).</summary>
-        /// <remarks>WARNING: longjmps out (never returns normally).</remarks>
+        /// <remarks>WARNING: longjmps out (never returns normally).
+        /// WARNING (Apple arm64): same vararg caveat as pushfstring(fmt, arg1) - the native
+        /// function is variadic, Apple arm64 passes varargs entirely on the stack (verified:
+        /// Probes/VarargProbeApple), and arg1 in a register is invisible to va_arg there; the
+        /// native side consumes stale stack residue instead. Do not use on Apple arm64 (until
+        /// a padded stack-slot shape is dispatched); correct on Windows x64 and Linux.</remarks>
         /// <param name="arg1">The single C vararg after default argument promotion (same rules
         /// as the pushfstring single-argument form).</param>
         public static int error(this State L, CStringSpan fmt, IntPtr arg1)

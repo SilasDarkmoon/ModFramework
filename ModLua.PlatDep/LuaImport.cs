@@ -185,6 +185,12 @@ namespace Mod.Lua
         // this declaration is only usable when fmt contains no conversion specifiers.
         [DllImport(LuaDllName, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         public static extern IntPtr lua_pushfstring(IntPtr L, IntPtr fmt);
+        // Variadic function (single vararg): arg1 rides in a register (x2/R8) -
+        // exactly where va_arg reads it on Windows x64 and Linux, but NOT on
+        // Apple arm64: there varargs are passed entirely on the stack (verified:
+        // Probes/VarargProbeApple, Mac arm64), so va_arg reads stale stack
+        // residue instead of arg1. Unusable on Apple arm64 until a padded
+        // stack-slot shape is dispatched there.
         [DllImport(LuaDllName, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         public static extern IntPtr lua_pushfstring(IntPtr L, IntPtr fmt, IntPtr arg1);
 
@@ -318,6 +324,12 @@ namespace Mod.Lua
         // arg1 (param, int) and arg2 (value, int); all other commands read no
         // extra arguments (passing extras is harmless - cdecl cleanup is the
         // caller's job).
+        // WARNING (Apple arm64): varargs are stack-only there (verified:
+        // Probes/VarargProbeApple, Mac arm64), so arg1/arg2 in x2/x3 are
+        // invisible to va_arg - GCSTEP's data and GCPARAM's param/value read
+        // stale stack residue instead. Unusable on Apple arm64 until a padded
+        // stack-slot shape is dispatched there; correct on Windows x64 / Linux
+        // (varargs continue in registers).
         [DllImport(LuaDllName, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         public static extern int lua_gc(IntPtr L, int what, UIntPtr arg1, int arg2);
 
@@ -463,6 +475,10 @@ namespace Mod.Lua
         // this declaration is only usable when fmt contains no conversion specifiers.
         [DllImport(LuaDllName, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         public static extern int luaL_error(IntPtr L, IntPtr fmt);
+        // Variadic function (single vararg): same Apple-arm64 caveat as the
+        // 3-arg lua_pushfstring above - arg1 in x2 is invisible to va_arg there
+        // (varargs are stack-only; verified: Probes/VarargProbeApple, Mac arm64).
+        // Unusable on Apple arm64 until a padded stack-slot shape is dispatched.
         [DllImport(LuaDllName, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         public static extern int luaL_error(IntPtr L, IntPtr fmt, IntPtr arg1);
 
