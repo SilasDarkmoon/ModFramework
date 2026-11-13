@@ -8,7 +8,7 @@ namespace ModClrExUnsafe.Tests
     /// CreateDelegateUnsafe binding shapes not covered by DelegateExTests,
     /// migrated from TestScript.cs / TestScript_UnsafeInstanceDelegate.cs:
     /// "fake" instance bindings (a deliberately mismatching target object),
-    /// virtual dispatch through the bound target, binding to System.Func,
+    /// virtual dispatch through the bound target, binding to System.Invoker,
     /// struct-instance bindings and value-type ChangeTarget.
     /// </summary>
     public class DelegateUnsafeBindingTests

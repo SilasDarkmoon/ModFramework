@@ -8,19 +8,20 @@ namespace Mod.LowLevel
     {
         public static ref T ConvertRef<F, T>(ref F from)
         {
-            RawRef r = new RawRef();
-            for (; ; )
-            {
-                r.SetRef(ref from);
-                var preaddr = r.Address;
-                ref T rv = ref r.GetRef<T>();
-                r.SetRef(ref from);
-                var postaddr = r.Address;
-                if (postaddr == preaddr)
-                {
-                    return ref rv;
-                }
-            }
+            //RawRef r = new RawRef();
+            //for (; ; )
+            //{
+            //    r.SetRef(ref from);
+            //    var preaddr = r.Address;
+            //    ref T rv = ref r.GetRef<T>();
+            //    r.SetRef(ref from);
+            //    var postaddr = r.Address;
+            //    if (postaddr == preaddr)
+            //    {
+            //        return ref rv;
+            //    }
+            //}
+            return ref Ref.ConvertRef<F, T>(ref from);
         }
         public static T ConvertObjectTypeForcibly<T>(this object source)
         {

@@ -136,67 +136,67 @@ namespace Mod.LowLevel
             return new CurryWrapper<VoidReturn, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16>(act) { Target = target }.InvokeNoReturn;
         }
 
-        public static UnifiedRefFunc<R> Curry<R, U1>(this UnifiedRefFunc<R, U1> func, U1 target)
+        public static UnifiedDelegate<R> Curry<R, U1>(this UnifiedDelegate<R, U1> func, U1 target)
         {
             return new CurryWrapper<R, U1>(func) { Target = target }.UnifiedInvoke;
         }
-        public static UnifiedRefFunc<R, U2> Curry<R, U1, U2>(this UnifiedRefFunc<R, U1, U2> func, U1 target)
+        public static UnifiedDelegate<R, U2> Curry<R, U1, U2>(this UnifiedDelegate<R, U1, U2> func, U1 target)
         {
             return new CurryWrapper<R, U1, U2>(func) { Target = target }.UnifiedInvoke;
         }
-        public static UnifiedRefFunc<R, U2, U3> Curry<R, U1, U2, U3>(this UnifiedRefFunc<R, U1, U2, U3> func, U1 target)
+        public static UnifiedDelegate<R, U2, U3> Curry<R, U1, U2, U3>(this UnifiedDelegate<R, U1, U2, U3> func, U1 target)
         {
             return new CurryWrapper<R, U1, U2, U3>(func) { Target = target }.UnifiedInvoke;
         }
-        public static UnifiedRefFunc<R, U2, U3, U4> Curry<R, U1, U2, U3, U4>(this UnifiedRefFunc<R, U1, U2, U3, U4> func, U1 target)
+        public static UnifiedDelegate<R, U2, U3, U4> Curry<R, U1, U2, U3, U4>(this UnifiedDelegate<R, U1, U2, U3, U4> func, U1 target)
         {
             return new CurryWrapper<R, U1, U2, U3, U4>(func) { Target = target }.UnifiedInvoke;
         }
-        public static UnifiedRefFunc<R, U2, U3, U4, U5> Curry<R, U1, U2, U3, U4, U5>(this UnifiedRefFunc<R, U1, U2, U3, U4, U5> func, U1 target)
+        public static UnifiedDelegate<R, U2, U3, U4, U5> Curry<R, U1, U2, U3, U4, U5>(this UnifiedDelegate<R, U1, U2, U3, U4, U5> func, U1 target)
         {
             return new CurryWrapper<R, U1, U2, U3, U4, U5>(func) { Target = target }.UnifiedInvoke;
         }
-        public static UnifiedRefFunc<R, U2, U3, U4, U5, U6> Curry<R, U1, U2, U3, U4, U5, U6>(this UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6> func, U1 target)
+        public static UnifiedDelegate<R, U2, U3, U4, U5, U6> Curry<R, U1, U2, U3, U4, U5, U6>(this UnifiedDelegate<R, U1, U2, U3, U4, U5, U6> func, U1 target)
         {
             return new CurryWrapper<R, U1, U2, U3, U4, U5, U6>(func) { Target = target }.UnifiedInvoke;
         }
-        public static UnifiedRefFunc<R, U2, U3, U4, U5, U6, U7> Curry<R, U1, U2, U3, U4, U5, U6, U7>(this UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7> func, U1 target)
+        public static UnifiedDelegate<R, U2, U3, U4, U5, U6, U7> Curry<R, U1, U2, U3, U4, U5, U6, U7>(this UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7> func, U1 target)
         {
             return new CurryWrapper<R, U1, U2, U3, U4, U5, U6, U7>(func) { Target = target }.UnifiedInvoke;
         }
-        public static UnifiedRefFunc<R, U2, U3, U4, U5, U6, U7, U8> Curry<R, U1, U2, U3, U4, U5, U6, U7, U8>(this UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8> func, U1 target)
+        public static UnifiedDelegate<R, U2, U3, U4, U5, U6, U7, U8> Curry<R, U1, U2, U3, U4, U5, U6, U7, U8>(this UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8> func, U1 target)
         {
             return new CurryWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8>(func) { Target = target }.UnifiedInvoke;
         }
-        public static UnifiedRefFunc<R, U2, U3, U4, U5, U6, U7, U8, U9> Curry<R, U1, U2, U3, U4, U5, U6, U7, U8, U9>(this UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9> func, U1 target)
+        public static UnifiedDelegate<R, U2, U3, U4, U5, U6, U7, U8, U9> Curry<R, U1, U2, U3, U4, U5, U6, U7, U8, U9>(this UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9> func, U1 target)
         {
             return new CurryWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9>(func) { Target = target }.UnifiedInvoke;
         }
-        public static UnifiedRefFunc<R, U2, U3, U4, U5, U6, U7, U8, U9, U10> Curry<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10>(this UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10> func, U1 target)
+        public static UnifiedDelegate<R, U2, U3, U4, U5, U6, U7, U8, U9, U10> Curry<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10>(this UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10> func, U1 target)
         {
             return new CurryWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10>(func) { Target = target }.UnifiedInvoke;
         }
-        public static UnifiedRefFunc<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11> Curry<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11>(this UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11> func, U1 target)
+        public static UnifiedDelegate<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11> Curry<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11>(this UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11> func, U1 target)
         {
             return new CurryWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11>(func) { Target = target }.UnifiedInvoke;
         }
-        public static UnifiedRefFunc<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12> Curry<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12>(this UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12> func, U1 target)
+        public static UnifiedDelegate<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12> Curry<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12>(this UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12> func, U1 target)
         {
             return new CurryWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12>(func) { Target = target }.UnifiedInvoke;
         }
-        public static UnifiedRefFunc<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13> Curry<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13>(this UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13> func, U1 target)
+        public static UnifiedDelegate<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13> Curry<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13>(this UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13> func, U1 target)
         {
             return new CurryWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13>(func) { Target = target }.UnifiedInvoke;
         }
-        public static UnifiedRefFunc<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14> Curry<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14>(this UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14> func, U1 target)
+        public static UnifiedDelegate<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14> Curry<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14>(this UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14> func, U1 target)
         {
             return new CurryWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14>(func) { Target = target }.UnifiedInvoke;
         }
-        public static UnifiedRefFunc<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15> Curry<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15>(this UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15> func, U1 target)
+        public static UnifiedDelegate<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15> Curry<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15>(this UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15> func, U1 target)
         {
             return new CurryWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15>(func) { Target = target }.UnifiedInvoke;
         }
-        public static UnifiedRefFunc<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16> Curry<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16>(this UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16> func, U1 target)
+        public static UnifiedDelegate<R, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16> Curry<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16>(this UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16> func, U1 target)
         {
             return new CurryWrapper<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16>(func) { Target = target }.UnifiedInvoke;
         }
@@ -408,23 +408,23 @@ namespace Mod.LowLevel
         };
         internal static Type[] _UnifiedFuncTypes =
         {
-            typeof(UnifiedRefFunc<>),
-            typeof(UnifiedRefFunc<,>),
-            typeof(UnifiedRefFunc<,,>),
-            typeof(UnifiedRefFunc<,,,>),
-            typeof(UnifiedRefFunc<,,,,>),
-            typeof(UnifiedRefFunc<,,,,,>),
-            typeof(UnifiedRefFunc<,,,,,,>),
-            typeof(UnifiedRefFunc<,,,,,,,>),
-            typeof(UnifiedRefFunc<,,,,,,,,>),
-            typeof(UnifiedRefFunc<,,,,,,,,,>),
-            typeof(UnifiedRefFunc<,,,,,,,,,,>),
-            typeof(UnifiedRefFunc<,,,,,,,,,,,>),
-            typeof(UnifiedRefFunc<,,,,,,,,,,,,>),
-            typeof(UnifiedRefFunc<,,,,,,,,,,,,,>),
-            typeof(UnifiedRefFunc<,,,,,,,,,,,,,,>),
-            typeof(UnifiedRefFunc<,,,,,,,,,,,,,,,>),
-            typeof(UnifiedRefFunc<,,,,,,,,,,,,,,,,>),
+            typeof(UnifiedDelegate<>),
+            typeof(UnifiedDelegate<,>),
+            typeof(UnifiedDelegate<,,>),
+            typeof(UnifiedDelegate<,,,>),
+            typeof(UnifiedDelegate<,,,,>),
+            typeof(UnifiedDelegate<,,,,,>),
+            typeof(UnifiedDelegate<,,,,,,>),
+            typeof(UnifiedDelegate<,,,,,,,>),
+            typeof(UnifiedDelegate<,,,,,,,,>),
+            typeof(UnifiedDelegate<,,,,,,,,,>),
+            typeof(UnifiedDelegate<,,,,,,,,,,>),
+            typeof(UnifiedDelegate<,,,,,,,,,,,>),
+            typeof(UnifiedDelegate<,,,,,,,,,,,,>),
+            typeof(UnifiedDelegate<,,,,,,,,,,,,,>),
+            typeof(UnifiedDelegate<,,,,,,,,,,,,,,>),
+            typeof(UnifiedDelegate<,,,,,,,,,,,,,,,>),
+            typeof(UnifiedDelegate<,,,,,,,,,,,,,,,,>),
         };
 
         private abstract class CurryWrapper
@@ -475,7 +475,7 @@ namespace Mod.LowLevel
             public override void SetDelegate(Delegate del)
             {
                 base.SetDelegate(del);
-                if (!(del is Action<U1>) && !(del is Func<U1, R>) && !(del is UnifiedRefFunc<R, U1>))
+                if (!(del is Action<U1>) && !(del is Func<U1, R>) && !(del is UnifiedDelegate<R, U1>))
                 {
                     if (typeof(R) == typeof(VoidReturn))
                     {
@@ -497,7 +497,7 @@ namespace Mod.LowLevel
             {
                 InnerDel = func;
             }
-            public CurryWrapper(UnifiedRefFunc<R, U1> unified)
+            public CurryWrapper(UnifiedDelegate<R, U1> unified)
             {
                 InnerDel = unified;
             }
@@ -514,7 +514,7 @@ namespace Mod.LowLevel
                     {
                         func(Target);
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1> uni)
                     {
                         uni(out _, in Target);
                     }
@@ -537,7 +537,7 @@ namespace Mod.LowLevel
                     {
                         return func(Target);
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1> uni)
                     {
                         return uni(out _, in Target);
                     }
@@ -566,7 +566,7 @@ namespace Mod.LowLevel
                         r = func(Target);
                         return ref r;
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1> uni)
                     {
                         return ref uni(out r, in Target);
                     }
@@ -587,7 +587,7 @@ namespace Mod.LowLevel
             public override void SetDelegate(Delegate del)
             {
                 base.SetDelegate(del);
-                if (!(del is Action<U1, U2>) && !(del is Func<U1, U2, R>) && !(del is UnifiedRefFunc<R, U1, U2>))
+                if (!(del is Action<U1, U2>) && !(del is Func<U1, U2, R>) && !(del is UnifiedDelegate<R, U1, U2>))
                 {
                     if (typeof(R) == typeof(VoidReturn))
                     {
@@ -609,7 +609,7 @@ namespace Mod.LowLevel
             {
                 InnerDel = func;
             }
-            public CurryWrapper(UnifiedRefFunc<R, U1, U2> unified)
+            public CurryWrapper(UnifiedDelegate<R, U1, U2> unified)
             {
                 InnerDel = unified;
             }
@@ -626,7 +626,7 @@ namespace Mod.LowLevel
                     {
                         func(Target, u2);
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2> uni)
                     {
                         uni(out _, in Target, in u2);
                     }
@@ -649,7 +649,7 @@ namespace Mod.LowLevel
                     {
                         return func(Target, u2);
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2> uni)
                     {
                         return uni(out _, in Target, in u2);
                     }
@@ -678,7 +678,7 @@ namespace Mod.LowLevel
                         r = func(Target, u2);
                         return ref r;
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2> uni)
                     {
                         return ref uni(out r, in Target, in u2);
                     }
@@ -699,7 +699,7 @@ namespace Mod.LowLevel
             public override void SetDelegate(Delegate del)
             {
                 base.SetDelegate(del);
-                if (!(del is Action<U1, U2, U3>) && !(del is Func<U1, U2, U3, R>) && !(del is UnifiedRefFunc<R, U1, U2, U3>))
+                if (!(del is Action<U1, U2, U3>) && !(del is Func<U1, U2, U3, R>) && !(del is UnifiedDelegate<R, U1, U2, U3>))
                 {
                     if (typeof(R) == typeof(VoidReturn))
                     {
@@ -721,7 +721,7 @@ namespace Mod.LowLevel
             {
                 InnerDel = func;
             }
-            public CurryWrapper(UnifiedRefFunc<R, U1, U2, U3> unified)
+            public CurryWrapper(UnifiedDelegate<R, U1, U2, U3> unified)
             {
                 InnerDel = unified;
             }
@@ -738,7 +738,7 @@ namespace Mod.LowLevel
                     {
                         func(Target, u2, u3);
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3> uni)
                     {
                         uni(out _, in Target, in u2, in u3);
                     }
@@ -761,7 +761,7 @@ namespace Mod.LowLevel
                     {
                         return func(Target, u2, u3);
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3> uni)
                     {
                         return uni(out _, in Target, in u2, in u3);
                     }
@@ -790,7 +790,7 @@ namespace Mod.LowLevel
                         r = func(Target, u2, u3);
                         return ref r;
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3> uni)
                     {
                         return ref uni(out r, in Target, in u2, in u3);
                     }
@@ -811,7 +811,7 @@ namespace Mod.LowLevel
             public override void SetDelegate(Delegate del)
             {
                 base.SetDelegate(del);
-                if (!(del is Action<U1, U2, U3, U4>) && !(del is Func<U1, U2, U3, U4, R>) && !(del is UnifiedRefFunc<R, U1, U2, U3, U4>))
+                if (!(del is Action<U1, U2, U3, U4>) && !(del is Func<U1, U2, U3, U4, R>) && !(del is UnifiedDelegate<R, U1, U2, U3, U4>))
                 {
                     if (typeof(R) == typeof(VoidReturn))
                     {
@@ -833,7 +833,7 @@ namespace Mod.LowLevel
             {
                 InnerDel = func;
             }
-            public CurryWrapper(UnifiedRefFunc<R, U1, U2, U3, U4> unified)
+            public CurryWrapper(UnifiedDelegate<R, U1, U2, U3, U4> unified)
             {
                 InnerDel = unified;
             }
@@ -850,7 +850,7 @@ namespace Mod.LowLevel
                     {
                         func(Target, u2, u3, u4);
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4> uni)
                     {
                         uni(out _, in Target, in u2, in u3, in u4);
                     }
@@ -873,7 +873,7 @@ namespace Mod.LowLevel
                     {
                         return func(Target, u2, u3, u4);
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4> uni)
                     {
                         return uni(out _, in Target, in u2, in u3, in u4);
                     }
@@ -902,7 +902,7 @@ namespace Mod.LowLevel
                         r = func(Target, u2, u3, u4);
                         return ref r;
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4> uni)
                     {
                         return ref uni(out r, in Target, in u2, in u3, in u4);
                     }
@@ -923,7 +923,7 @@ namespace Mod.LowLevel
             public override void SetDelegate(Delegate del)
             {
                 base.SetDelegate(del);
-                if (!(del is Action<U1, U2, U3, U4, U5>) && !(del is Func<U1, U2, U3, U4, U5, R>) && !(del is UnifiedRefFunc<R, U1, U2, U3, U4, U5>))
+                if (!(del is Action<U1, U2, U3, U4, U5>) && !(del is Func<U1, U2, U3, U4, U5, R>) && !(del is UnifiedDelegate<R, U1, U2, U3, U4, U5>))
                 {
                     if (typeof(R) == typeof(VoidReturn))
                     {
@@ -945,7 +945,7 @@ namespace Mod.LowLevel
             {
                 InnerDel = func;
             }
-            public CurryWrapper(UnifiedRefFunc<R, U1, U2, U3, U4, U5> unified)
+            public CurryWrapper(UnifiedDelegate<R, U1, U2, U3, U4, U5> unified)
             {
                 InnerDel = unified;
             }
@@ -962,7 +962,7 @@ namespace Mod.LowLevel
                     {
                         func(Target, u2, u3, u4, u5);
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4, U5> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4, U5> uni)
                     {
                         uni(out _, in Target, in u2, in u3, in u4, in u5);
                     }
@@ -985,7 +985,7 @@ namespace Mod.LowLevel
                     {
                         return func(Target, u2, u3, u4, u5);
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4, U5> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4, U5> uni)
                     {
                         return uni(out _, in Target, in u2, in u3, in u4, in u5);
                     }
@@ -1014,7 +1014,7 @@ namespace Mod.LowLevel
                         r = func(Target, u2, u3, u4, u5);
                         return ref r;
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4, U5> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4, U5> uni)
                     {
                         return ref uni(out r, in Target, in u2, in u3, in u4, in u5);
                     }
@@ -1035,7 +1035,7 @@ namespace Mod.LowLevel
             public override void SetDelegate(Delegate del)
             {
                 base.SetDelegate(del);
-                if (!(del is Action<U1, U2, U3, U4, U5, U6>) && !(del is Func<U1, U2, U3, U4, U5, U6, R>) && !(del is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6>))
+                if (!(del is Action<U1, U2, U3, U4, U5, U6>) && !(del is Func<U1, U2, U3, U4, U5, U6, R>) && !(del is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6>))
                 {
                     if (typeof(R) == typeof(VoidReturn))
                     {
@@ -1057,7 +1057,7 @@ namespace Mod.LowLevel
             {
                 InnerDel = func;
             }
-            public CurryWrapper(UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6> unified)
+            public CurryWrapper(UnifiedDelegate<R, U1, U2, U3, U4, U5, U6> unified)
             {
                 InnerDel = unified;
             }
@@ -1074,7 +1074,7 @@ namespace Mod.LowLevel
                     {
                         func(Target, u2, u3, u4, u5, u6);
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6> uni)
                     {
                         uni(out _, in Target, in u2, in u3, in u4, in u5, in u6);
                     }
@@ -1097,7 +1097,7 @@ namespace Mod.LowLevel
                     {
                         return func(Target, u2, u3, u4, u5, u6);
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6> uni)
                     {
                         return uni(out _, in Target, in u2, in u3, in u4, in u5, in u6);
                     }
@@ -1126,7 +1126,7 @@ namespace Mod.LowLevel
                         r = func(Target, u2, u3, u4, u5, u6);
                         return ref r;
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6> uni)
                     {
                         return ref uni(out r, in Target, in u2, in u3, in u4, in u5, in u6);
                     }
@@ -1147,7 +1147,7 @@ namespace Mod.LowLevel
             public override void SetDelegate(Delegate del)
             {
                 base.SetDelegate(del);
-                if (!(del is Action<U1, U2, U3, U4, U5, U6, U7>) && !(del is Func<U1, U2, U3, U4, U5, U6, U7, R>) && !(del is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7>))
+                if (!(del is Action<U1, U2, U3, U4, U5, U6, U7>) && !(del is Func<U1, U2, U3, U4, U5, U6, U7, R>) && !(del is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7>))
                 {
                     if (typeof(R) == typeof(VoidReturn))
                     {
@@ -1169,7 +1169,7 @@ namespace Mod.LowLevel
             {
                 InnerDel = func;
             }
-            public CurryWrapper(UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7> unified)
+            public CurryWrapper(UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7> unified)
             {
                 InnerDel = unified;
             }
@@ -1186,7 +1186,7 @@ namespace Mod.LowLevel
                     {
                         func(Target, u2, u3, u4, u5, u6, u7);
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7> uni)
                     {
                         uni(out _, in Target, in u2, in u3, in u4, in u5, in u6, in u7);
                     }
@@ -1209,7 +1209,7 @@ namespace Mod.LowLevel
                     {
                         return func(Target, u2, u3, u4, u5, u6, u7);
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7> uni)
                     {
                         return uni(out _, in Target, in u2, in u3, in u4, in u5, in u6, in u7);
                     }
@@ -1238,7 +1238,7 @@ namespace Mod.LowLevel
                         r = func(Target, u2, u3, u4, u5, u6, u7);
                         return ref r;
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7> uni)
                     {
                         return ref uni(out r, in Target, in u2, in u3, in u4, in u5, in u6, in u7);
                     }
@@ -1259,7 +1259,7 @@ namespace Mod.LowLevel
             public override void SetDelegate(Delegate del)
             {
                 base.SetDelegate(del);
-                if (!(del is Action<U1, U2, U3, U4, U5, U6, U7, U8>) && !(del is Func<U1, U2, U3, U4, U5, U6, U7, U8, R>) && !(del is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8>))
+                if (!(del is Action<U1, U2, U3, U4, U5, U6, U7, U8>) && !(del is Func<U1, U2, U3, U4, U5, U6, U7, U8, R>) && !(del is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8>))
                 {
                     if (typeof(R) == typeof(VoidReturn))
                     {
@@ -1281,7 +1281,7 @@ namespace Mod.LowLevel
             {
                 InnerDel = func;
             }
-            public CurryWrapper(UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8> unified)
+            public CurryWrapper(UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8> unified)
             {
                 InnerDel = unified;
             }
@@ -1298,7 +1298,7 @@ namespace Mod.LowLevel
                     {
                         func(Target, u2, u3, u4, u5, u6, u7, u8);
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8> uni)
                     {
                         uni(out _, in Target, in u2, in u3, in u4, in u5, in u6, in u7, in u8);
                     }
@@ -1321,7 +1321,7 @@ namespace Mod.LowLevel
                     {
                         return func(Target, u2, u3, u4, u5, u6, u7, u8);
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8> uni)
                     {
                         return uni(out _, in Target, in u2, in u3, in u4, in u5, in u6, in u7, in u8);
                     }
@@ -1350,7 +1350,7 @@ namespace Mod.LowLevel
                         r = func(Target, u2, u3, u4, u5, u6, u7, u8);
                         return ref r;
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8> uni)
                     {
                         return ref uni(out r, in Target, in u2, in u3, in u4, in u5, in u6, in u7, in u8);
                     }
@@ -1371,7 +1371,7 @@ namespace Mod.LowLevel
             public override void SetDelegate(Delegate del)
             {
                 base.SetDelegate(del);
-                if (!(del is Action<U1, U2, U3, U4, U5, U6, U7, U8, U9>) && !(del is Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, R>) && !(del is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9>))
+                if (!(del is Action<U1, U2, U3, U4, U5, U6, U7, U8, U9>) && !(del is Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, R>) && !(del is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9>))
                 {
                     if (typeof(R) == typeof(VoidReturn))
                     {
@@ -1393,7 +1393,7 @@ namespace Mod.LowLevel
             {
                 InnerDel = func;
             }
-            public CurryWrapper(UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9> unified)
+            public CurryWrapper(UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9> unified)
             {
                 InnerDel = unified;
             }
@@ -1410,7 +1410,7 @@ namespace Mod.LowLevel
                     {
                         func(Target, u2, u3, u4, u5, u6, u7, u8, u9);
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9> uni)
                     {
                         uni(out _, in Target, in u2, in u3, in u4, in u5, in u6, in u7, in u8, in u9);
                     }
@@ -1433,7 +1433,7 @@ namespace Mod.LowLevel
                     {
                         return func(Target, u2, u3, u4, u5, u6, u7, u8, u9);
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9> uni)
                     {
                         return uni(out _, in Target, in u2, in u3, in u4, in u5, in u6, in u7, in u8, in u9);
                     }
@@ -1462,7 +1462,7 @@ namespace Mod.LowLevel
                         r = func(Target, u2, u3, u4, u5, u6, u7, u8, u9);
                         return ref r;
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9> uni)
                     {
                         return ref uni(out r, in Target, in u2, in u3, in u4, in u5, in u6, in u7, in u8, in u9);
                     }
@@ -1483,7 +1483,7 @@ namespace Mod.LowLevel
             public override void SetDelegate(Delegate del)
             {
                 base.SetDelegate(del);
-                if (!(del is Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10>) && !(del is Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, R>) && !(del is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10>))
+                if (!(del is Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10>) && !(del is Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, R>) && !(del is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10>))
                 {
                     if (typeof(R) == typeof(VoidReturn))
                     {
@@ -1505,7 +1505,7 @@ namespace Mod.LowLevel
             {
                 InnerDel = func;
             }
-            public CurryWrapper(UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10> unified)
+            public CurryWrapper(UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10> unified)
             {
                 InnerDel = unified;
             }
@@ -1522,7 +1522,7 @@ namespace Mod.LowLevel
                     {
                         func(Target, u2, u3, u4, u5, u6, u7, u8, u9, u10);
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10> uni)
                     {
                         uni(out _, in Target, in u2, in u3, in u4, in u5, in u6, in u7, in u8, in u9, in u10);
                     }
@@ -1545,7 +1545,7 @@ namespace Mod.LowLevel
                     {
                         return func(Target, u2, u3, u4, u5, u6, u7, u8, u9, u10);
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10> uni)
                     {
                         return uni(out _, in Target, in u2, in u3, in u4, in u5, in u6, in u7, in u8, in u9, in u10);
                     }
@@ -1574,7 +1574,7 @@ namespace Mod.LowLevel
                         r = func(Target, u2, u3, u4, u5, u6, u7, u8, u9, u10);
                         return ref r;
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10> uni)
                     {
                         return ref uni(out r, in Target, in u2, in u3, in u4, in u5, in u6, in u7, in u8, in u9, in u10);
                     }
@@ -1595,7 +1595,7 @@ namespace Mod.LowLevel
             public override void SetDelegate(Delegate del)
             {
                 base.SetDelegate(del);
-                if (!(del is Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11>) && !(del is Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, R>) && !(del is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11>))
+                if (!(del is Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11>) && !(del is Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, R>) && !(del is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11>))
                 {
                     if (typeof(R) == typeof(VoidReturn))
                     {
@@ -1617,7 +1617,7 @@ namespace Mod.LowLevel
             {
                 InnerDel = func;
             }
-            public CurryWrapper(UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11> unified)
+            public CurryWrapper(UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11> unified)
             {
                 InnerDel = unified;
             }
@@ -1634,7 +1634,7 @@ namespace Mod.LowLevel
                     {
                         func(Target, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11);
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11> uni)
                     {
                         uni(out _, in Target, in u2, in u3, in u4, in u5, in u6, in u7, in u8, in u9, in u10, in u11);
                     }
@@ -1657,7 +1657,7 @@ namespace Mod.LowLevel
                     {
                         return func(Target, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11);
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11> uni)
                     {
                         return uni(out _, in Target, in u2, in u3, in u4, in u5, in u6, in u7, in u8, in u9, in u10, in u11);
                     }
@@ -1686,7 +1686,7 @@ namespace Mod.LowLevel
                         r = func(Target, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11);
                         return ref r;
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11> uni)
                     {
                         return ref uni(out r, in Target, in u2, in u3, in u4, in u5, in u6, in u7, in u8, in u9, in u10, in u11);
                     }
@@ -1707,7 +1707,7 @@ namespace Mod.LowLevel
             public override void SetDelegate(Delegate del)
             {
                 base.SetDelegate(del);
-                if (!(del is Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12>) && !(del is Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, R>) && !(del is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12>))
+                if (!(del is Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12>) && !(del is Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, R>) && !(del is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12>))
                 {
                     if (typeof(R) == typeof(VoidReturn))
                     {
@@ -1729,7 +1729,7 @@ namespace Mod.LowLevel
             {
                 InnerDel = func;
             }
-            public CurryWrapper(UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12> unified)
+            public CurryWrapper(UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12> unified)
             {
                 InnerDel = unified;
             }
@@ -1746,7 +1746,7 @@ namespace Mod.LowLevel
                     {
                         func(Target, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12);
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12> uni)
                     {
                         uni(out _, in Target, in u2, in u3, in u4, in u5, in u6, in u7, in u8, in u9, in u10, in u11, in u12);
                     }
@@ -1769,7 +1769,7 @@ namespace Mod.LowLevel
                     {
                         return func(Target, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12);
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12> uni)
                     {
                         return uni(out _, in Target, in u2, in u3, in u4, in u5, in u6, in u7, in u8, in u9, in u10, in u11, in u12);
                     }
@@ -1798,7 +1798,7 @@ namespace Mod.LowLevel
                         r = func(Target, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12);
                         return ref r;
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12> uni)
                     {
                         return ref uni(out r, in Target, in u2, in u3, in u4, in u5, in u6, in u7, in u8, in u9, in u10, in u11, in u12);
                     }
@@ -1819,7 +1819,7 @@ namespace Mod.LowLevel
             public override void SetDelegate(Delegate del)
             {
                 base.SetDelegate(del);
-                if (!(del is Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13>) && !(del is Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, R>) && !(del is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13>))
+                if (!(del is Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13>) && !(del is Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, R>) && !(del is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13>))
                 {
                     if (typeof(R) == typeof(VoidReturn))
                     {
@@ -1841,7 +1841,7 @@ namespace Mod.LowLevel
             {
                 InnerDel = func;
             }
-            public CurryWrapper(UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13> unified)
+            public CurryWrapper(UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13> unified)
             {
                 InnerDel = unified;
             }
@@ -1858,7 +1858,7 @@ namespace Mod.LowLevel
                     {
                         func(Target, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13);
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13> uni)
                     {
                         uni(out _, in Target, in u2, in u3, in u4, in u5, in u6, in u7, in u8, in u9, in u10, in u11, in u12, in u13);
                     }
@@ -1881,7 +1881,7 @@ namespace Mod.LowLevel
                     {
                         return func(Target, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13);
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13> uni)
                     {
                         return uni(out _, in Target, in u2, in u3, in u4, in u5, in u6, in u7, in u8, in u9, in u10, in u11, in u12, in u13);
                     }
@@ -1910,7 +1910,7 @@ namespace Mod.LowLevel
                         r = func(Target, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13);
                         return ref r;
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13> uni)
                     {
                         return ref uni(out r, in Target, in u2, in u3, in u4, in u5, in u6, in u7, in u8, in u9, in u10, in u11, in u12, in u13);
                     }
@@ -1931,7 +1931,7 @@ namespace Mod.LowLevel
             public override void SetDelegate(Delegate del)
             {
                 base.SetDelegate(del);
-                if (!(del is Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14>) && !(del is Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, R>) && !(del is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14>))
+                if (!(del is Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14>) && !(del is Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, R>) && !(del is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14>))
                 {
                     if (typeof(R) == typeof(VoidReturn))
                     {
@@ -1953,7 +1953,7 @@ namespace Mod.LowLevel
             {
                 InnerDel = func;
             }
-            public CurryWrapper(UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14> unified)
+            public CurryWrapper(UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14> unified)
             {
                 InnerDel = unified;
             }
@@ -1970,7 +1970,7 @@ namespace Mod.LowLevel
                     {
                         func(Target, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13, u14);
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14> uni)
                     {
                         uni(out _, in Target, in u2, in u3, in u4, in u5, in u6, in u7, in u8, in u9, in u10, in u11, in u12, in u13, in u14);
                     }
@@ -1993,7 +1993,7 @@ namespace Mod.LowLevel
                     {
                         return func(Target, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13, u14);
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14> uni)
                     {
                         return uni(out _, in Target, in u2, in u3, in u4, in u5, in u6, in u7, in u8, in u9, in u10, in u11, in u12, in u13, in u14);
                     }
@@ -2022,7 +2022,7 @@ namespace Mod.LowLevel
                         r = func(Target, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13, u14);
                         return ref r;
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14> uni)
                     {
                         return ref uni(out r, in Target, in u2, in u3, in u4, in u5, in u6, in u7, in u8, in u9, in u10, in u11, in u12, in u13, in u14);
                     }
@@ -2043,7 +2043,7 @@ namespace Mod.LowLevel
             public override void SetDelegate(Delegate del)
             {
                 base.SetDelegate(del);
-                if (!(del is Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15>) && !(del is Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, R>) && !(del is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15>))
+                if (!(del is Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15>) && !(del is Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, R>) && !(del is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15>))
                 {
                     if (typeof(R) == typeof(VoidReturn))
                     {
@@ -2065,7 +2065,7 @@ namespace Mod.LowLevel
             {
                 InnerDel = func;
             }
-            public CurryWrapper(UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15> unified)
+            public CurryWrapper(UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15> unified)
             {
                 InnerDel = unified;
             }
@@ -2082,7 +2082,7 @@ namespace Mod.LowLevel
                     {
                         func(Target, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13, u14, u15);
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15> uni)
                     {
                         uni(out _, in Target, in u2, in u3, in u4, in u5, in u6, in u7, in u8, in u9, in u10, in u11, in u12, in u13, in u14, in u15);
                     }
@@ -2105,7 +2105,7 @@ namespace Mod.LowLevel
                     {
                         return func(Target, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13, u14, u15);
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15> uni)
                     {
                         return uni(out _, in Target, in u2, in u3, in u4, in u5, in u6, in u7, in u8, in u9, in u10, in u11, in u12, in u13, in u14, in u15);
                     }
@@ -2134,7 +2134,7 @@ namespace Mod.LowLevel
                         r = func(Target, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13, u14, u15);
                         return ref r;
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15> uni)
                     {
                         return ref uni(out r, in Target, in u2, in u3, in u4, in u5, in u6, in u7, in u8, in u9, in u10, in u11, in u12, in u13, in u14, in u15);
                     }
@@ -2155,7 +2155,7 @@ namespace Mod.LowLevel
             public override void SetDelegate(Delegate del)
             {
                 base.SetDelegate(del);
-                if (!(del is Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16>) && !(del is Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16, R>) && !(del is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16>))
+                if (!(del is Action<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16>) && !(del is Func<U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16, R>) && !(del is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16>))
                 {
                     if (typeof(R) == typeof(VoidReturn))
                     {
@@ -2177,7 +2177,7 @@ namespace Mod.LowLevel
             {
                 InnerDel = func;
             }
-            public CurryWrapper(UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16> unified)
+            public CurryWrapper(UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16> unified)
             {
                 InnerDel = unified;
             }
@@ -2194,7 +2194,7 @@ namespace Mod.LowLevel
                     {
                         func(Target, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13, u14, u15, u16);
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16> uni)
                     {
                         uni(out _, in Target, in u2, in u3, in u4, in u5, in u6, in u7, in u8, in u9, in u10, in u11, in u12, in u13, in u14, in u15, in u16);
                     }
@@ -2217,7 +2217,7 @@ namespace Mod.LowLevel
                     {
                         return func(Target, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13, u14, u15, u16);
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16> uni)
                     {
                         return uni(out _, in Target, in u2, in u3, in u4, in u5, in u6, in u7, in u8, in u9, in u10, in u11, in u12, in u13, in u14, in u15, in u16);
                     }
@@ -2246,7 +2246,7 @@ namespace Mod.LowLevel
                         r = func(Target, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12, u13, u14, u15, u16);
                         return ref r;
                     }
-                    else if (InnerDel is UnifiedRefFunc<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16> uni)
+                    else if (InnerDel is UnifiedDelegate<R, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16> uni)
                     {
                         return ref uni(out r, in Target, in u2, in u3, in u4, in u5, in u6, in u7, in u8, in u9, in u10, in u11, in u12, in u13, in u14, in u15, in u16);
                     }

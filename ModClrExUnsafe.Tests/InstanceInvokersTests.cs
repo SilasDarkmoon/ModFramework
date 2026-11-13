@@ -13,7 +13,7 @@ namespace ModClrExUnsafe.Tests
     /// used to be a manual Main-run - here every printed value became an assertion.
     ///
     /// The U/P convention: U are the target method's parameter types (ByRefParam
-    /// marks "address of the caller's variable"), P are the UnifiedRefFunc `in`
+    /// marks "address of the caller's variable"), P are the UnifiedDelegate `in`
     /// parameter types (the carrier for that address).
     /// </summary>
     public class InstanceInvokersTests
@@ -104,7 +104,7 @@ namespace ModClrExUnsafe.Tests
             var invoker = typeof(InstanceInvokersTests).CreateInvoker<long, IntPtr, IntPtr>(nameof(TestMethod1));
             int a = 0;
             var r = RawRef.Of(ref a);
-            Assert.Equal(r.Address + 1, invoker.Invoke(r.Address));
+            Assert.Equal(r.Address + 1, invoker.AsUnifiedFunc()(r.Address));
         }
 
         // =====================================================================
@@ -119,7 +119,7 @@ namespace ModClrExUnsafe.Tests
             var invoker = inst.CreateInstanceInvoker<long, object, ByRefParam, object, int>(nameof(inst.TestMethod));
             int a = 12;
             var r = RawRef.Of(ref a);
-            Assert.Equal(r.Address - 1, invoker.Invoke(in a));    // Child: p - 1
+            Assert.Equal(r.Address - 1, invoker.AsUnifiedFunc()(in a));    // Child: p - 1
         }
 
         [Fact]
@@ -129,7 +129,7 @@ namespace ModClrExUnsafe.Tests
             var invoker = inst.CreateInstanceInvoker<long, object, ByRefParam, object, int>(nameof(inst.TestMethod));
             int a = 13;
             var r = RawRef.Of(ref a);
-            Assert.Equal(r.Address + 1, invoker.Invoke(in a));    // TestMethod: addr + 1
+            Assert.Equal(r.Address + 1, invoker.AsUnifiedFunc()(in a));    // TestMethod: addr + 1
         }
 
         // =====================================================================
@@ -142,7 +142,7 @@ namespace ModClrExUnsafe.Tests
             var invoker = typeof(TestBaseClass).CreateInvoker<long, object, ByRefParam, object, int>(nameof(TestBaseClass.TestMethod));
             int a = 12;
             var r = RawRef.Of(ref a);
-            Assert.Equal(r.Address + 1, invoker.Invoke(new TestBaseClass(), in a));   // Base: p + 1
+            Assert.Equal(r.Address + 1, invoker.AsUnifiedFunc()(new TestBaseClass(), in a));   // Base: p + 1
         }
 
         [Fact]
@@ -152,7 +152,7 @@ namespace ModClrExUnsafe.Tests
             // writes the caller's struct (write-through, not a copy)
             var inst = new TestFieldsStruct(9, 8, 7, 6, 5, 4);
             var invoker = typeof(TestFieldsStruct).CreateInvoker<VoidReturn, ByRefParam, int, TestFieldsStruct, int>(nameof(TestFieldsStruct.TestValueTypeInstanceMethod));
-            invoker.Invoke(in inst, 100);
+            invoker.AsUnifiedFunc()(in inst, 100);
             Assert.Equal(100, inst.Field0);
             Assert.Equal(101, inst.Field1);
             Assert.Equal(105, inst.Field5);
@@ -164,7 +164,7 @@ namespace ModClrExUnsafe.Tests
             var invoker = typeof(TestFieldsClass<Guid>).CreateInvoker<long, object, ByRefParam, object, int>(nameof(TestFieldsClass<Guid>.TestMethod));
             int a = 13;
             var r = RawRef.Of(ref a);
-            Assert.Equal(r.Address + 1, invoker.Invoke(new TestFieldsClass<Guid>(), in a));
+            Assert.Equal(r.Address + 1, invoker.AsUnifiedFunc()(new TestFieldsClass<Guid>(), in a));
         }
 
         // =====================================================================
@@ -185,7 +185,7 @@ namespace ModClrExUnsafe.Tests
         {
             var invoker = typeof(InstanceInvokersTests).CreateInvoker<VoidReturn, ByRefParam, int>(nameof(TestMethod3));
             int a = 0;
-            invoker.Invoke(in a);
+            invoker.AsUnifiedFunc()(in a);
             Assert.Equal(1, a);
         }
 
@@ -198,7 +198,7 @@ namespace ModClrExUnsafe.Tests
         {
             var invoker = typeof(InstanceInvokersTests).CreateInvoker<SpanStub, string, string>(nameof(TestSpan1));
             string str = "Hello, World!";
-            var span = invoker.Invoke(str).ToReadOnlySpan<char>();
+            var span = invoker.AsUnifiedFunc()(str).ToReadOnlySpan<char>();
             Assert.Equal("Hello, World!", new string(span.ToArray()));
         }
 
@@ -207,7 +207,7 @@ namespace ModClrExUnsafe.Tests
         {
             var invoker = typeof(InstanceInvokersTests).CreateInvoker<string, SpanStub, SpanStub>(nameof(TestSpan2));
             Span<char> span = stackalloc char[] { 'H', 'e', 'l', 'l', 'o' };
-            Assert.Equal("Hello", invoker.Invoke(SpanStub.Of(span)));
+            Assert.Equal("Hello", invoker.AsUnifiedFunc()(SpanStub.Of(span)));
         }
     }
 }

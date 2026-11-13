@@ -17,7 +17,7 @@ namespace ModClrExUnsafe.Tests
     ///
     /// R/U/P convention (library-wide): R is the return type as seen by the caller
     /// (ByRefParam marks a ref return, VoidReturn marks void); U are the target
-    /// method's parameter types; P are the UnifiedRefFunc `in` parameter types.
+    /// method's parameter types; P are the UnifiedDelegate `in` parameter types.
     /// </summary>
     public class GenericInvokersTests
     {
@@ -69,8 +69,8 @@ namespace ModClrExUnsafe.Tests
             // genericTypes == null -> T inferred as int from U1
             var f = M("Echo").CreateGenericInvoker<int, int, int>();
 
-            Assert.Equal(42, f.Invoke(42));
-            Assert.Equal(-1, f.Invoke(-1));
+            Assert.Equal(42, f.AsUnifiedFunc()(42));
+            Assert.Equal(-1, f.AsUnifiedFunc()(-1));
         }
 
         [Fact]
@@ -79,7 +79,7 @@ namespace ModClrExUnsafe.Tests
             // reference-type instantiation through the calli pipeline
             var f = M("Echo").CreateGenericInvoker<string, string, string>();
 
-            Assert.Equal("hello", f.Invoke("hello"));
+            Assert.Equal("hello", f.AsUnifiedFunc()("hello"));
         }
 
         [Fact]
@@ -87,7 +87,7 @@ namespace ModClrExUnsafe.Tests
         {
             var f = M("Sum2").CreateGenericInvoker<int, int, int, int, int>();
 
-            Assert.Equal(42, f.Invoke(20, 22));
+            Assert.Equal(42, f.AsUnifiedFunc()(20, 22));
         }
 
         [Fact]
@@ -97,7 +97,7 @@ namespace ModClrExUnsafe.Tests
             var f = M("Sum8").CreateGenericInvoker<int, int, int, int, int, int, int, int, int,
                                                           int, int, int, int, int, int, int, int>();
 
-            Assert.Equal(36, f.Invoke(1, 2, 3, 4, 5, 6, 7, 8));
+            Assert.Equal(36, f.AsUnifiedFunc()(1, 2, 3, 4, 5, 6, 7, 8));
         }
 
         [Fact]
@@ -107,7 +107,7 @@ namespace ModClrExUnsafe.Tests
             var f = M("Sum16").CreateGenericInvoker<int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int,
                                                               int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int>();
 
-            Assert.Equal(136, f.Invoke(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16));
+            Assert.Equal(136, f.AsUnifiedFunc()(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16));
         }
 
         // =====================================================================
@@ -119,7 +119,7 @@ namespace ModClrExUnsafe.Tests
         {
             var f = typeof(GHost).CreateGenericInvoker<int, int, int>("Echo");
 
-            Assert.Equal(42, f.Invoke(42));
+            Assert.Equal(42, f.AsUnifiedFunc()(42));
         }
 
         [Fact]
@@ -135,7 +135,7 @@ namespace ModClrExUnsafe.Tests
             // test passes unchanged.
             var f = typeof(GHost).CreateGenericInvoker<int, int, int, int, int>("Sum2");
 
-            Assert.Equal(30, f.Invoke(10, 20));
+            Assert.Equal(30, f.AsUnifiedFunc()(10, 20));
         }
 
         // =====================================================================
@@ -148,7 +148,7 @@ namespace ModClrExUnsafe.Tests
             // explicit long instantiation; U1/P1 still describe the call shape
             var f = M("Echo").CreateGenericInvoker<long, long, long>(new[] { typeof(long) });
 
-            Assert.Equal(123456789012345L, f.Invoke(123456789012345L));
+            Assert.Equal(123456789012345L, f.AsUnifiedFunc()(123456789012345L));
         }
 
         // =====================================================================
@@ -158,7 +158,7 @@ namespace ModClrExUnsafe.Tests
         [Fact]
         public void RefReturn_FirstOf_WriteThrough()
         {
-            // FirstOf<T>(T[] arr) -> UnifiedRefFunc<ByRefParam, int[]>; the ref return
+            // FirstOf<T>(T[] arr) -> UnifiedDelegate<ByRefParam, int[]>; the ref return
             // comes back as a ByRefParam view of arr[0], restored with ToRef<T>.
             var f = M("FirstOf").CreateGenericInvoker<ByRefParam, int[], int[]>();
 
@@ -181,7 +181,7 @@ namespace ModClrExUnsafe.Tests
         {
             var f = M("Drop").CreateGenericInvoker<VoidReturn, int, int>();
 
-            var r = f.Invoke(42);                         // must not throw
+            var r = f.AsUnifiedFunc()(42);                // must not throw
             Assert.Null(r);                               // VoidReturn slot stays default
         }
 
@@ -193,15 +193,15 @@ namespace ModClrExUnsafe.Tests
         public void Instance_AddBase_Int()
         {
             // U1/P1 pair is the target (receiver type is P1); U2/P2 onward are the
-            // method's parameters. The returned UnifiedRefFunc has the target
+            // method's parameters. The returned UnifiedDelegate has the target
             // baked in (the P1 slot is consumed by the wrapper).
             // NOTE: currently HANGS via the same FindOverload bug as
             // TypeAndName_Sum2_Int - see the note there.
             var target = new GInst(40);
             var f = target.CreateGenericInstanceInvoker<int, GInst, int, GInst, int>("AddBase");
 
-            Assert.Equal(42, f.Invoke(2));
-            Assert.Equal(50, f.Invoke(10));
+            Assert.Equal(42, f.AsUnifiedFunc()(2));
+            Assert.Equal(50, f.AsUnifiedFunc()(10));
         }
 
         // =====================================================================
@@ -253,7 +253,7 @@ namespace ModClrExUnsafe.Tests
             // U1=ByRefParam: the struct `this` is passed by address; T is inferred
             // from the method argument (IntPtr)
             var invoker = typeof(ByRefHostStruct).CreateGenericInvoker<IntPtr, ByRefParam, IntPtr, ByRefHostStruct, IntPtr>(nameof(ByRefHostStruct.TestGeneric));
-            Assert.Equal((IntPtr)100, invoker.Invoke(default, (IntPtr)100));
+            Assert.Equal((IntPtr)100, invoker.AsUnifiedFunc()(default, (IntPtr)100));
         }
 
         [Fact]
@@ -263,7 +263,7 @@ namespace ModClrExUnsafe.Tests
             // the method never touches the receiver, so a 1-byte carrier is fine
             // (size-compatible through the lenient stage)
             var invoker = typeof(ByRefHostStruct<long>).CreateGenericInvoker<long, ByRefParam, IntPtr, byte, IntPtr>(nameof(ByRefHostStruct<long>.TestGeneric));
-            Assert.Equal(111L, invoker.Invoke(default, (IntPtr)111));
+            Assert.Equal(111L, invoker.AsUnifiedFunc()(default, (IntPtr)111));
         }
     }
 }

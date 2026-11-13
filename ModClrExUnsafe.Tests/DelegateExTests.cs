@@ -56,7 +56,7 @@ namespace ModClrExUnsafe.Tests
         [Fact]
         public void CreateDelegateUnsafe_BypassesSignatureValidation_ReferenceTypes()
         {
-            // Func<object, object> over EchoString(string): the official API rejects the
+            // Invoker<object, object> over EchoString(string): the official API rejects the
             // parameter mismatch; the unsafe path binds it (x64: all references are pointers).
             var mi = typeof(Helper).GetMethod(nameof(Helper.EchoString), BindingFlags.Public | BindingFlags.Static);
 
@@ -69,7 +69,7 @@ namespace ModClrExUnsafe.Tests
         [Fact]
         public void CreateDelegateUnsafe_BypassesSignatureValidation_ExtraArguments()
         {
-            // Func<int, int, int> over Square(int): binding succeeds (no signature check),
+            // Invoker<int, int, int> over Square(int): binding succeeds (no signature check),
             // but the unsafe path installs no argument-shuffle thunk, so a delegate with a
             // different arity misaligns registers (Square reads the target slot, not arg1).
             // Lock only "binds and does not crash"; the returned value is undefined ABI noise.

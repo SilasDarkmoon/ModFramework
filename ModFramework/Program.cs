@@ -21,6 +21,9 @@ class Program
 
     public static void Main()
     {
+        // Roots the DynamicDependency graph (RefInvoker/FreeFunc/PointerFunc families
+        // etc.) — without this call none of the DLA entries are honored under AOT.
+        NativeAOTHelper.Prepare();
         //TestScript.Test();
         //TestScript_UnsafeInstanceDelegate.Test();
         //TestScript_DelegateCurry.Test();

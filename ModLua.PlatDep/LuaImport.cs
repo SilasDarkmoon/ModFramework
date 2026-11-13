@@ -36,8 +36,12 @@ namespace Mod.Lua
         // (a compile-time symbol reference under IL2CPP).
         private const string LuaDllName = "__Internal";
 #else
-        // Dynamic-library mode: Windows -> lua55.dll;
-        // Unix -> liblua55.so / liblua55.dylib (matched by DllImport probing).
+        // Dynamic-library mode: Windows -> lua55.dll; Unix -> liblua55.so /
+        // liblua55.dylib (matched by DllImport probing). Android IL2CPP also
+        // completes the short name (device-verified 2026-11-05: "lua55" loads
+        // liblua55.so fine - the earlier "not found" was the .so missing from
+        // the APK, not the name; a full-soname branch existed briefly and was
+        // removed after the short name proved innocent).
         private const string LuaDllName = "lua55";
 #endif
 
@@ -193,6 +197,12 @@ namespace Mod.Lua
         // stack-slot shape is dispatched there.
         [DllImport(LuaDllName, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         public static extern IntPtr lua_pushfstring(IntPtr L, IntPtr fmt, IntPtr arg1);
+        // Variadic function (single vararg): - for doubles on Linux. - Notice on Windows, donot call this, instead, blit double to IntPtr
+        [DllImport(LuaDllName, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        public static extern IntPtr lua_pushfstring(IntPtr L, IntPtr fmt, double arg1);
+        // Variadic function (single vararg): arg1 rides in a register (x2/R8) - for iOS/Mac with paddings
+        [DllImport(LuaDllName, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        public static extern IntPtr lua_pushfstring(IntPtr L, IntPtr fmt, IntPtr padding3, IntPtr padding4, IntPtr padding5, IntPtr padding6, IntPtr padding7, IntPtr padding8, IntPtr arg1);
 
         [DllImport(LuaDllName, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         public static extern void lua_pushcclosure(IntPtr L, IntPtr fn, int n);
@@ -332,6 +342,9 @@ namespace Mod.Lua
         // (varargs continue in registers).
         [DllImport(LuaDllName, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         public static extern int lua_gc(IntPtr L, int what, UIntPtr arg1, int arg2);
+        // Variadic function: - with paddings for iOS/Mac arm64
+        [DllImport(LuaDllName, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        public static extern int lua_gc(IntPtr L, int what, IntPtr padding3, IntPtr padding4, IntPtr padding5, IntPtr padding6, IntPtr padding7, IntPtr padding8, UIntPtr arg1, int arg2);
 
         #endregion
 
@@ -481,6 +494,12 @@ namespace Mod.Lua
         // Unusable on Apple arm64 until a padded stack-slot shape is dispatched.
         [DllImport(LuaDllName, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         public static extern int luaL_error(IntPtr L, IntPtr fmt, IntPtr arg1);
+        // Variadic function (single vararg): - for doubles on Linux, Notice: on Windows donot call this, instead blit double to IntPtr.
+        [DllImport(LuaDllName, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        public static extern int luaL_error(IntPtr L, IntPtr fmt, double arg1);
+        // Variadic function (single vararg): - with paddings for iOS/Mac arm64
+        [DllImport(LuaDllName, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        public static extern int luaL_error(IntPtr L, IntPtr fmt, IntPtr padding3, IntPtr padding4, IntPtr padding5, IntPtr padding6, IntPtr padding7, IntPtr padding8, IntPtr arg1);
 
         [DllImport(LuaDllName, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         public static extern int luaL_checkoption(IntPtr L, int arg, IntPtr def, IntPtr lst); // const char* const* lst

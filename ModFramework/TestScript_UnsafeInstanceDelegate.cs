@@ -54,7 +54,7 @@ public static class TestScript_UnsafeInstanceDelegate
             Console.WriteLine($"{r} -> {del(ref a):X}");
         }
         // Pass4
-        { // bind to System.Func
+        { // bind to System.Invoker
             var mi = typeof(TestFieldsClass<Guid>).GetMethods(nameof(TestFieldsClass<Guid>.TestMethod)).FindOverload(new[] { typeof(IntPtr) });
             var del = "".CreateDelegateUnsafe<Func<IntPtr, long>>(mi);
             int a = 0;

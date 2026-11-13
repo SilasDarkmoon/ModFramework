@@ -85,7 +85,7 @@ namespace ModClrExUnsafe.Tests
         public void CtorInvoker_Struct()
         {
             var ctor = typeof(TestFieldsStruct).CreateCustructorInvoker<TestFieldsStruct, int, int, int, int, int, int, int, int, int, int, int, int>();
-            var inst = ctor.Invoke(1, 1, 1, 1, 1, 1);
+            var inst = ctor.AsUnifiedFunc()(1, 1, 1, 1, 1, 1);
             AssertFields(inst.Field0, inst.Field1, inst.Field2, inst.Field3, inst.Field4, inst.Field5,
                 1, 1, 1, 1, 1, 1);
         }
@@ -94,7 +94,7 @@ namespace ModClrExUnsafe.Tests
         public void CtorInvoker_Class()
         {
             var ctor = typeof(TestFieldsClass).CreateCustructorInvoker<TestFieldsClass, int, int, int, int, int, int, int, int, int, int, int, int>();
-            var inst = ctor.Invoke(2, 2, 2, 2, 2, 2);
+            var inst = ctor.AsUnifiedFunc()(2, 2, 2, 2, 2, 2);
             AssertFields(inst.Field0, inst.Field1, inst.Field2, inst.Field3, inst.Field4, inst.Field5,
                 2, 2, 2, 2, 2, 2);
         }
@@ -103,7 +103,7 @@ namespace ModClrExUnsafe.Tests
         public void CtorInvoker_GenericStruct()
         {
             var ctor = typeof(TestFieldsStruct<int>).CreateCustructorInvoker<TestFieldsStruct<int>, int, int, int, int, int, int, int, int, int, int, int, int>();
-            var inst = ctor.Invoke(3, 3, 3, 3, 3, 3);
+            var inst = ctor.AsUnifiedFunc()(3, 3, 3, 3, 3, 3);
             AssertFields(inst.Field0, inst.Field1, inst.Field2, inst.Field3, inst.Field4, inst.Field5,
                 3, 3, 3, 3, 3, 3);
         }
@@ -112,7 +112,7 @@ namespace ModClrExUnsafe.Tests
         public void CtorInvoker_GenericClass()
         {
             var ctor = typeof(TestFieldsClass<int>).CreateCustructorInvoker<TestFieldsClass<int>, int, int, int, int, int, int, int, int, int, int, int, int>();
-            var inst = ctor.Invoke(4, 4, 4, 4, 4, 4);
+            var inst = ctor.AsUnifiedFunc()(4, 4, 4, 4, 4, 4);
             AssertFields(inst.Field0, inst.Field1, inst.Field2, inst.Field3, inst.Field4, inst.Field5,
                 4, 4, 4, 4, 4, 4);
         }

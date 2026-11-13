@@ -555,20 +555,110 @@ namespace Mod.Lua
         /// reads there - the native side consumes stale stack residue instead. Do not use
         /// on Apple arm64 (until a padded stack-slot shape is dispatched); correct on
         /// Windows x64 and Linux.</remarks>
-        public static CStringRef pushfstring(this State L, CStringSpan fmt, IntPtr arg1)
+        public static CStringRef pushfstring<T>(this State L, CStringSpan fmt, T arg1)
         {
             var cloned = pushfstringCore(L, fmt, arg1);
             return new CStringRef(cloned);
         }
+        public static CStringRef pushfstring(this State L, CStringSpan fmt, CStringSpan argstr)
+        {
+            if (argstr.IsNull() || ((RuntimeInfo.IsUnity || argstr.IsFixed) && argstr.IsNullTerminated()))
+            {
+                return pushfstring<IntPtr>(L, fmt, argstr.Address);
+            }
+            using (NativeBuffer bargstr = default)
+            {
+                Span<byte> newspan = argstr.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bargstr) = new NativeBuffer(argstr.Length + 1)) : stackalloc byte[argstr.Length + 1];
+                argstr.Slice().CopyTo(newspan);
+                newspan[argstr.Length] = 0;   // terminator: stackalloc is not zeroed
+                IntPtr pargstr = RawRef.Of(ref newspan[0]).Address;
+                return pushfstring<IntPtr>(L, fmt, pargstr);
+            }
+        }
         /// <summary><c>[-0, +1, v]</c> void variant of pushfstring: identical stack effect, skips the CStringRef return construction.</summary>
         /// <remarks>Same Apple-arm64 vararg caveat as the CStringRef-returning overload above.</remarks>
-        public static void pushfstringn(this State L, CStringSpan fmt, IntPtr arg1) => pushfstringCore(L, fmt, arg1);
-        private static IntPtr pushfstringCore(this State L, CStringSpan fmt, IntPtr arg1)
+        public static void pushfstringn<T>(this State L, CStringSpan fmt, T arg1) => pushfstringCore(L, fmt, arg1);
+        public static void pushfstringn(this State L, CStringSpan fmt, CStringSpan argstr)
         {
+            if (argstr.IsNull() || ((RuntimeInfo.IsUnity || argstr.IsFixed) && argstr.IsNullTerminated()))
+            {
+                pushfstring<IntPtr>(L, fmt, argstr.Address);
+            }
+            using (NativeBuffer bargstr = default)
+            {
+                Span<byte> newspan = argstr.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bargstr) = new NativeBuffer(argstr.Length + 1)) : stackalloc byte[argstr.Length + 1];
+                argstr.Slice().CopyTo(newspan);
+                newspan[argstr.Length] = 0;   // terminator: stackalloc is not zeroed
+                IntPtr pargstr = RawRef.Of(ref newspan[0]).Address;
+                pushfstring<IntPtr>(L, fmt, pargstr);
+            }
+        }
+        private static IntPtr fstringConvArgToIntPtr<T>(T arg)
+        {
+            IntPtr parg = default;
+            if (typeof(T).IsValueType)
+            {
+                if (UnsafeEx.Size<T>() <= IntPtr.Size)
+                {
+                    RawRef.Of(ref parg).GetRef<T>() = arg;
+                }
+                else
+                {
+                    parg = UnsafeEx.ConvertRef<T, IntPtr>(ref arg);
+                }
+            }
+            else
+            {
+                parg = RawRef.Of((object)arg).Address;
+            }
+            return parg;
+        }
+        private static void fstringConvArg<T>(T arg, out IntPtr parg, out double farg, out int funccate)
+        {
+            if (RuntimeInfo.Platform == RuntimeInfo.OSPlatform.iOS || RuntimeInfo.Platform == RuntimeInfo.OSPlatform.Mac)
+            {
+                parg = fstringConvArgToIntPtr(arg);
+                farg = default;
+                funccate = 3;
+                return;
+            }
+            else if (RuntimeInfo.Platform != RuntimeInfo.OSPlatform.Windows)
+            {
+                if (typeof(T) == typeof(double))
+                {
+                    farg = UnsafeEx.ConvertRef<T, double>(ref arg);
+                    parg = default;
+                    funccate = 2;
+                    return;
+                }
+                else if (typeof(T) == typeof(float))
+                {
+                    farg = UnsafeEx.ConvertRef<T, float>(ref arg);
+                    parg = default;
+                    funccate = 2;
+                    return;
+                }
+            }
+            {
+                parg = fstringConvArgToIntPtr(arg);
+                farg = default;
+                funccate = 1;
+                return;
+            }
+        }
+        private static IntPtr pushfstringCore<T>(this State L, CStringSpan fmt, T arg1)
+        {
+            fstringConvArg(arg1, out var parg, out var farg, out var funccate);
             // Fast path: direct native address (fixed/Unity AND already NUL-terminated).
             if (fmt.IsNull() || ((RuntimeInfo.IsUnity || fmt.IsFixed) && fmt.IsNullTerminated()))
             {
-                return LuaImport.lua_pushfstring(Ptr(L), fmt.Address, arg1);
+                switch (funccate)
+                {
+                    case 1: return LuaImport.lua_pushfstring(Ptr(L), fmt.Address, parg);
+                    case 2: return LuaImport.lua_pushfstring(Ptr(L), fmt.Address, farg);
+                    case 3: return LuaImport.lua_pushfstring(Ptr(L), fmt.Address, default, default, default, default, default, default, parg);
+                    default: throw new NotSupportedException(); // Impossible to go here
+                }
             }
             using (NativeBuffer bfmt = default)
             {
@@ -576,7 +666,13 @@ namespace Mod.Lua
                 fmt.Slice().CopyTo(newspan);
                 newspan[fmt.Length] = 0;   // terminator: stackalloc is not zeroed
                 IntPtr pfmt = RawRef.Of(ref newspan[0]).Address;
-                return LuaImport.lua_pushfstring(Ptr(L), pfmt, arg1);
+                switch (funccate)
+                {
+                    case 1: return LuaImport.lua_pushfstring(Ptr(L), pfmt, parg);
+                    case 2: return LuaImport.lua_pushfstring(Ptr(L), pfmt, farg);
+                    case 3: return LuaImport.lua_pushfstring(Ptr(L), pfmt, default, default, default, default, default, default, parg);
+                    default: throw new NotSupportedException(); // Impossible to go here
+                }
             }
         }
         /// <summary><c>[-n, +1, m]</c> Pushes a C function with n upvalues as a closure (lua_pushcclosure).</summary>
@@ -860,7 +956,17 @@ namespace Mod.Lua
         /// (until a padded stack-slot shape is dispatched); correct on Windows x64 and Linux.</remarks>
         /// <param name="data">Step size in bytes; 0 forces one basic step.</param>
         /// <returns>1 when the cycle finished (back to pause state).</returns>
-        public static int gc(this State L, int what, UIntPtr data) => LuaImport.lua_gc(Ptr(L), what, data, 0);
+        public static int gc(this State L, int what, UIntPtr data)
+        {
+            if (RuntimeInfo.Platform == RuntimeInfo.OSPlatform.iOS || RuntimeInfo.Platform == RuntimeInfo.OSPlatform.Mac)
+            {
+                return LuaImport.lua_gc(Ptr(L), what, default, default, default, default, default, default, data, 0);
+            }
+            else
+            {
+                return LuaImport.lua_gc(Ptr(L), what, data, 0);
+            }
+        }
 
         /// <summary><c>[-0, +0, -]</c> GCPARAM: gets/sets generational GC parameters (lua_gc).</summary>
         /// <remarks>WARNING (Apple arm64): same vararg caveat as the GCSTEP overload - param and
@@ -873,7 +979,17 @@ namespace Mod.Lua
         /// <param name="value">value >= 0 sets, value < 0 (convention: -1) queries.</param>
         /// <returns>The previous value (percent-scaled; log-encoded internally, so round-trips
         /// are approximate).</returns>
-        public static int gc(this State L, int what, int param, int value) => LuaImport.lua_gc(Ptr(L), what, (UIntPtr)(uint)param, value);
+        public static int gc(this State L, int what, int param, int value)
+        {
+            if (RuntimeInfo.Platform == RuntimeInfo.OSPlatform.iOS || RuntimeInfo.Platform == RuntimeInfo.OSPlatform.Mac)
+            {
+                return LuaImport.lua_gc(Ptr(L), what, default, default, default, default, default, default, (UIntPtr)(uint)param, value);
+            }
+            else
+            {
+               return  LuaImport.lua_gc(Ptr(L), what, (UIntPtr)(uint)param, value);
+            }
+        }
 
         #endregion
 
@@ -911,12 +1027,19 @@ namespace Mod.Lua
         /// a padded stack-slot shape is dispatched); correct on Windows x64 and Linux.</remarks>
         /// <param name="arg1">The single C vararg after default argument promotion (same rules
         /// as the pushfstring single-argument form).</param>
-        public static int error(this State L, CStringSpan fmt, IntPtr arg1)
+        public static int error<T>(this State L, CStringSpan fmt, T arg1)
         {
+            fstringConvArg(arg1, out var parg, out var farg, out var funccate);
             // Fast path: direct native address (fixed/Unity AND already NUL-terminated).
             if (fmt.IsNull() || ((RuntimeInfo.IsUnity || fmt.IsFixed) && fmt.IsNullTerminated()))
             {
-                return LuaImport.luaL_error(Ptr(L), fmt.Address, arg1);
+                switch (funccate)
+                {
+                    case 1: return LuaImport.luaL_error(Ptr(L), fmt.Address, parg);
+                    case 2: return LuaImport.luaL_error(Ptr(L), fmt.Address, farg);
+                    case 3: return LuaImport.luaL_error(Ptr(L), fmt.Address, default, default, default, default, default, default, parg);
+                    default: throw new NotSupportedException(); // Impossible to go here
+                }
             }
             using (NativeBuffer bfmt = default)
             {
@@ -924,7 +1047,28 @@ namespace Mod.Lua
                 fmt.Slice().CopyTo(newspan);
                 newspan[fmt.Length] = 0;   // terminator: stackalloc is not zeroed
                 IntPtr pfmt = RawRef.Of(ref newspan[0]).Address;
-                return LuaImport.luaL_error(Ptr(L), pfmt, arg1);
+                switch (funccate)
+                {
+                    case 1: return LuaImport.luaL_error(Ptr(L), pfmt, parg);
+                    case 2: return LuaImport.luaL_error(Ptr(L), pfmt, farg);
+                    case 3: return LuaImport.luaL_error(Ptr(L), pfmt, default, default, default, default, default, default, parg);
+                    default: throw new NotSupportedException(); // Impossible to go here
+                }
+            }
+        }
+        public static int error(this State L, CStringSpan fmt, CStringSpan argstr)
+        {
+            if (argstr.IsNull() || ((RuntimeInfo.IsUnity || argstr.IsFixed) && argstr.IsNullTerminated()))
+            {
+                return error<IntPtr>(L, fmt, argstr.Address);
+            }
+            using (NativeBuffer bargstr = default)
+            {
+                Span<byte> newspan = argstr.Length >= _StackAllocMaxElements ? (Ref.Unprotect(in bargstr) = new NativeBuffer(argstr.Length + 1)) : stackalloc byte[argstr.Length + 1];
+                argstr.Slice().CopyTo(newspan);
+                newspan[argstr.Length] = 0;   // terminator: stackalloc is not zeroed
+                IntPtr pargstr = RawRef.Of(ref newspan[0]).Address;
+                return error<IntPtr>(L, fmt, pargstr);
             }
         }
         /// <summary><c>[-1, +(2|0), v]</c> Pops a key and pushes the next key-value pair (lua_next).</summary>
@@ -2127,7 +2271,7 @@ namespace Mod.Lua
         public static long optlong(this State L, int n, long d) => LuaImport.luaL_optinteger(Ptr(L), n, d);
 
         /// <summary><c>[-0, +0, -]</c> luaL_opt: d when the argument is absent/nil, otherwise f(L, n).</summary>
-        /// <remarks>The Func parameter allocates on non-cached lambdas - use a static lambda
+        /// <remarks>The Invoker parameter allocates on non-cached lambdas - use a static lambda
         /// (no captures) to get the compiler-cached delegate.</remarks>
         /// <param name="f">Any argument checker (checkinteger, checknumber, checklstring, ...).</param>
         public static T opt<T>(this State L, Func<State, int, T> f, int n, T d)

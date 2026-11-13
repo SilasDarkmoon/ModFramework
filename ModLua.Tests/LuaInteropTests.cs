@@ -635,7 +635,7 @@ namespace Mod.Lua.Tests
                 // 1) 常规：栈上 "b"，lst = {a, b, c}（无显式终止项，自动补）→ 索引 1
                 lua.settop(L, 0);
                 lua.pushstring(L, new Mod.LowLevel.CStringSpan("b"));
-                Mod.CStringRef[] small = { new Mod.CStringRef("a"), new Mod.CStringRef("b"), new Mod.CStringRef("c") };
+                Mod.LowLevel.CStringRef[] small = { new Mod.LowLevel.CStringRef("a"), new Mod.LowLevel.CStringRef("b"), new Mod.LowLevel.CStringRef("c") };
                 Assert.Equal(1, lua.checkoption(L, 1, default, small));
 
                 // 2) def 缺省：空栈（arg=1 为 TNONE）→ def="c" 匹配 → 索引 2
@@ -645,16 +645,16 @@ namespace Mod.Lua.Tests
                 // 3) 大选项表（300 项 > 256）：llst 走 AllocHGlobal
                 lua.settop(L, 0);
                 lua.pushstring(L, new Mod.LowLevel.CStringSpan("opt150"));
-                var big = new Mod.CStringRef[300];
-                for (int i = 0; i < big.Length; i++) big[i] = new Mod.CStringRef("opt" + i);
+                var big = new Mod.LowLevel.CStringRef[300];
+                for (int i = 0; i < big.Length; i++) big[i] = new Mod.LowLevel.CStringRef("opt" + i);
                 Assert.Equal(150, lua.checkoption(L, 1, default, big));
 
                 // 4) 大 item 累积：每项 100 字节 × 5 项 = 500 > 256，
                 //    第 3 项起走 AllocHGlobal（itemdisposerlist 路径）
                 lua.settop(L, 0);
                 lua.pushstring(L, new Mod.LowLevel.CStringSpan(new string('x', 100) + "2"));
-                var bigItems = new Mod.CStringRef[5];
-                for (int i = 0; i < bigItems.Length; i++) bigItems[i] = new Mod.CStringRef(new string('x', 100) + i);
+                var bigItems = new Mod.LowLevel.CStringRef[5];
+                for (int i = 0; i < bigItems.Length; i++) bigItems[i] = new Mod.LowLevel.CStringRef(new string('x', 100) + i);
                 Assert.Equal(2, lua.checkoption(L, 1, default, bigItems));
             }
             finally { lua.close(L); }
@@ -966,8 +966,9 @@ namespace Mod.Lua.Tests
                 int top0 = lua.gettop(L);
 
                 // pushlstringn vs pushlstring: same content, same stack effect
-                lua.pushlstringn(L, new CStringSpan("hello\0world", 11));
-                lua.pushlstring(L, new CStringSpan("hello\0world", 11));
+                byte[] embed = Encoding.UTF8.GetBytes("hello\0world");   // 11 bytes, embedded NUL
+                lua.pushlstringn(L, new CStringSpan(embed, embed.Length));
+                lua.pushlstring(L, new CStringSpan(embed, embed.Length));
                 Assert.Equal(top0 + 2, lua.gettop(L));
                 Assert.True(lua.rawequal(L, -1, -2) != 0);   // both interned -> identical object
                 lua.pop(L, 2);

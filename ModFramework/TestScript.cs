@@ -74,7 +74,7 @@ public static class TestScript
             Console.WriteLine($"{r} -> {del("", ref a):X}");
         }
         // Pass4
-        { // bind to System.Func
+        { // bind to System.Invoker
             var mi = typeof(TestFieldsClass<Guid>).GetMethods(nameof(TestFieldsClass<Guid>.TestMethod)).FindOverload(new[] { typeof(IntPtr) });
             var del = mi.CreateDelegateUnsafe<Func<object, IntPtr, long>>();
             int a = 0;
@@ -105,7 +105,7 @@ public static class TestScript
             var invoker = typeof(TestScript).CreateInvoker<long, IntPtr, IntPtr>(nameof(TestMethod1));
             int a = 0;
             var r = RawRef.Of(ref a);
-            Console.WriteLine($"{r} -> {invoker.Invoke(r.Address):X}");
+            Console.WriteLine($"{r} -> {invoker.AsUnifiedFunc()(r.Address):X}");
         }
         // Pass2
         { // instance invoker
@@ -113,7 +113,7 @@ public static class TestScript
             var invoker = inst.CreateInstanceInvoker<long, object, ByRefParam, object, int>(nameof(inst.TestMethod));
             int a = 12;
             var r = RawRef.Of(ref a);
-            Console.WriteLine($"{r} -> {invoker.Invoke(in a):X}");
+            Console.WriteLine($"{r} -> {invoker.AsUnifiedFunc()(in a):X}");
         }
         // Pass2.5
         { // open instance invoker
@@ -121,13 +121,13 @@ public static class TestScript
             var invoker = typeof(TestBaseClass).CreateInvoker<long, object, ByRefParam, object, int>(nameof(TestBaseClass.TestMethod));
             int a = 12;
             var r = RawRef.Of(ref a);
-            Console.WriteLine($"{r} -> {invoker.Invoke("", in a):X}");
+            Console.WriteLine($"{r} -> {invoker.AsUnifiedFunc()("", in a):X}");
         }
         // Pass2.8 value type open instance invoker
         {
             var inst = new TestFieldsStruct(9, 8, 7, 6, 5, 4);
             var invoker = typeof(TestFieldsStruct).CreateInvoker<VoidReturn, ByRefParam, int, TestFieldsStruct, int>(nameof(TestFieldsStruct.TestValueTypeInstanceMethod));
-            invoker.Invoke(in inst, 100);
+            invoker.AsUnifiedFunc()(in inst, 100);
             Console.WriteLine($"{inst.Field0}, {inst.Field1}, {inst.Field2}, {inst.Field3}, {inst.Field4}, {inst.Field5}");
         }
         // Pass3
@@ -136,7 +136,7 @@ public static class TestScript
             var invoker = inst.CreateInstanceInvoker<long, object, ByRefParam, object, int>(nameof(inst.TestMethod));
             int a = 13;
             var r = RawRef.Of(ref a);
-            Console.WriteLine($"{r} -> {invoker.Invoke(in a):X}");
+            Console.WriteLine($"{r} -> {invoker.AsUnifiedFunc()(in a):X}");
         }
         // Pass3.5
         { // generic open instance invoker
@@ -144,7 +144,7 @@ public static class TestScript
             var invoker = typeof(TestFieldsClass<Guid>).CreateInvoker<long, object, ByRefParam, object, int>(nameof(TestFieldsClass<Guid>.TestMethod));
             int a = 13;
             var r = RawRef.Of(ref a);
-            Console.WriteLine($"{r} -> {invoker.Invoke("", in a):X}");
+            Console.WriteLine($"{r} -> {invoker.AsUnifiedFunc()("", in a):X}");
         }
         // Pass4
         { // ref return
@@ -158,13 +158,13 @@ public static class TestScript
             var invoker = typeof(TestScript).CreateInvoker<VoidReturn, ByRefParam, int>(nameof(TestMethod3));
             int a = 0;
             var r = RawRef.Of(ref a);
-            Console.WriteLine($"{a} -> {invoker.Invoke(in a)}{a}");
+            Console.WriteLine($"{a} -> {invoker.AsUnifiedFunc()(in a)}{a}");
         }
         // Pass6
         { // Span return
             var invoker = typeof(TestScript).CreateInvoker<SpanStub, string, string>(nameof(TestSpan1));
             string str = "Hello, World!";
-            var span = invoker.Invoke(str).ToReadOnlySpan<char>();
+            var span = invoker.AsUnifiedFunc()(str).ToReadOnlySpan<char>();
             foreach (var ch in span) { Console.Write(ch); }
             Console.WriteLine();
         }
@@ -172,44 +172,44 @@ public static class TestScript
         { // Span argument
             var invoker = typeof(TestScript).CreateInvoker<string, SpanStub, SpanStub>(nameof(TestSpan2));
             Span<char> span = stackalloc char[] { 'H', 'e', 'l', 'l', 'o' };
-            var str = invoker.Invoke(SpanStub.Of(span));
+            var str = invoker.AsUnifiedFunc()(SpanStub.Of(span));
             Console.WriteLine(str);
         }
         Console.WriteLine("---------- Test For Ctor Invokers ----------");
         // Pass8
         { // struct ctor
             var ctor = typeof(TestFieldsStruct).CreateCustructorInvoker<TestFieldsStruct, int, int, int, int, int, int, int, int, int, int, int, int>();
-            var inst10 = ctor.Invoke(1, 1, 1, 1, 1, 1);
+            var inst10 = ctor.AsUnifiedFunc()(1, 1, 1, 1, 1, 1);
             Console.WriteLine($"{inst10.Field0}, {inst10.Field1}, {inst10.Field2}, {inst10.Field3}, {inst10.Field4}, {inst10.Field5}");
         }
         // Pass9
         { // class ctor
             var ctor = typeof(TestFieldsClass).CreateCustructorInvoker<TestFieldsClass, int, int, int, int, int, int, int, int, int, int, int, int>();
-            var inst10 = ctor.Invoke(2, 2, 2, 2, 2, 2);
+            var inst10 = ctor.AsUnifiedFunc()(2, 2, 2, 2, 2, 2);
             Console.WriteLine($"{inst10.Field0}, {inst10.Field1}, {inst10.Field2}, {inst10.Field3}, {inst10.Field4}, {inst10.Field5}");
         }
         // Pass10
         { // generic struct ctor
             var ctor = typeof(TestFieldsStruct<int>).CreateCustructorInvoker<TestFieldsStruct<int>, int, int, int, int, int, int, int, int, int, int, int, int>();
-            var inst10 = ctor.Invoke(3, 3, 3, 3, 3, 3);
+            var inst10 = ctor.AsUnifiedFunc()(3, 3, 3, 3, 3, 3);
             Console.WriteLine($"{inst10.Field0}, {inst10.Field1}, {inst10.Field2}, {inst10.Field3}, {inst10.Field4}, {inst10.Field5}");
         }
         // Pass11
         { // generic class ctor
             var ctor = typeof(TestFieldsClass<int>).CreateCustructorInvoker<TestFieldsClass<int>, int, int, int, int, int, int, int, int, int, int, int, int>();
-            var inst10 = ctor.Invoke(4, 4, 4, 4, 4, 4);
+            var inst10 = ctor.AsUnifiedFunc()(4, 4, 4, 4, 4, 4);
             Console.WriteLine($"{inst10.Field0}, {inst10.Field1}, {inst10.Field2}, {inst10.Field3}, {inst10.Field4}, {inst10.Field5}");
         }
         Console.WriteLine("---------- Test For Generic Invokers ----------");
         // Pass1
         { // generic method in normal struct
             var invoker = typeof(TestFieldsStruct).CreateGenericInvoker<IntPtr, ByRefParam, IntPtr, TestFieldsStruct, IntPtr>(nameof(TestFieldsStruct.TestGeneric));
-            Console.WriteLine($"100 -> {invoker.Invoke(default, (IntPtr)100)}");
+            Console.WriteLine($"100 -> {invoker.AsUnifiedFunc()(default, (IntPtr)100)}");
         }
         // Pass2
         { // generic method in generic struct
             var invoker = typeof(TestFieldsStruct<long>).CreateGenericInvoker<long, ByRefParam, IntPtr, byte, IntPtr>(nameof(TestFieldsStruct<long>.TestGeneric));
-            Console.WriteLine($"111 -> {invoker.Invoke(default, (IntPtr)111)}");
+            Console.WriteLine($"111 -> {invoker.AsUnifiedFunc()(default, (IntPtr)111)}");
         }
         #endregion
 

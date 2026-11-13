@@ -6,14 +6,14 @@ namespace ModClrExUnsafe.Tests
 {
     /// <summary>
     /// Tests for DelegateCurry.cs. The Curry family is template-generated 1..16 times
-    /// over three delegate kinds (Func / Action / UnifiedRefFunc); these tests sample
+    /// over three delegate kinds (Invoker / Invoker / UnifiedDelegate); these tests sample
     /// the endpoints (1, 16) and the middle (2, 8) of each family, plus the PostInvoke
     /// hook that fires after every curried invocation with the fixed target as payload.
     /// </summary>
     public class DelegateCurryTests
     {
         // =====================================================================
-        // Func family
+        // Invoker family
         // =====================================================================
 
         [Fact]
@@ -21,7 +21,7 @@ namespace ModClrExUnsafe.Tests
         {
             Func<int, int, int> add = (a, b) => a + b;
 
-            var curried = add.Curry<int, int, int>(10);      // Func<int, int>
+            var curried = add.Curry<int, int, int>(10);      // Invoker<int, int>
 
             Assert.Equal(15, curried(5));
             Assert.Equal(20, curried(10));
@@ -32,7 +32,7 @@ namespace ModClrExUnsafe.Tests
         {
             Func<int, int, int, int> sum3 = (a, b, c) => a + b + c;
 
-            var curried = sum3.Curry<int, int, int, int>(100);   // Func<int, int, int>
+            var curried = sum3.Curry<int, int, int, int>(100);   // Invoker<int, int, int>
 
             Assert.Equal(106, curried(1, 5));
         }
@@ -51,8 +51,8 @@ namespace ModClrExUnsafe.Tests
         [Fact]
         public void Curry_Func_16Arg()
         {
-            // Func is capped at 16 inputs (17 type args): the 16-slot Curry takes a
-            // 16-input Func and leaves 15 parameters.
+            // Invoker is capped at 16 inputs (17 type args): the 16-slot Curry takes a
+            // 16-input Invoker and leaves 15 parameters.
             Func<int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int> sum16 =
                 (a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p) =>
                     a + b + c + d + e + f + g + h + i + j + k + l + m + n + o + p;
@@ -63,7 +63,7 @@ namespace ModClrExUnsafe.Tests
         }
 
         // =====================================================================
-        // Action family
+        // Invoker family
         // =====================================================================
 
         [Fact]
@@ -84,7 +84,7 @@ namespace ModClrExUnsafe.Tests
             int sum = 0;
             Action<int, int, int> add = (a, b, c) => sum = a + b + c;
 
-            var curried = add.Curry<int, int, int>(10);      // Action<int, int>
+            var curried = add.Curry<int, int, int>(10);      // Invoker<int, int>
 
             curried(2, 3);
             Assert.Equal(15, sum);
@@ -118,10 +118,10 @@ namespace ModClrExUnsafe.Tests
         }
 
         // =====================================================================
-        // UnifiedRefFunc family
+        // UnifiedDelegate family
         // =====================================================================
 
-        // UnifiedRefFunc returns 'ref R'. Since ByRefUtils.dll now carries
+        // UnifiedDelegate returns 'ref R'. Since ByRefUtils.dll now carries
         // [module: RefSafetyRules(11)] (injected by ByRefUtilsGenerator), the
         // Ref.IgnoreOut bridge is consumable from C# latest: `return ref Ref.IgnoreOut(out r)`
         // compiles and the returned ref aliases the out slot itself (true
@@ -136,7 +136,7 @@ namespace ModClrExUnsafe.Tests
             // handler (Ref.IgnoreOut bridge) -> CurryWrapper.UnifiedInvoke (out
             // passthrough) -> caller's out slot. Writing the returned ref must
             // reach the caller's out variable.
-            UnifiedRefFunc<int, int> twice = TwiceImpl;
+            UnifiedDelegate<int, int> twice = TwiceImpl;
 
             var curried = twice.Curry<int, int>(21);
 
@@ -149,9 +149,9 @@ namespace ModClrExUnsafe.Tests
         [Fact]
         public void Curry_UnifiedRefFunc_1Arg()
         {
-            UnifiedRefFunc<int, int> twice = TwiceImpl;
+            UnifiedDelegate<int, int> twice = TwiceImpl;
 
-            var curried = twice.Curry<int, int>(21);        // UnifiedRefFunc<int>
+            var curried = twice.Curry<int, int>(21);        // UnifiedDelegate<int>
 
             curried(out int result);
             Assert.Equal(42, result);
@@ -162,9 +162,9 @@ namespace ModClrExUnsafe.Tests
         [Fact]
         public void Curry_UnifiedRefFunc_2Arg()
         {
-            UnifiedRefFunc<int, int, int> weighted = WeightedImpl;
+            UnifiedDelegate<int, int, int> weighted = WeightedImpl;
 
-            var curried = weighted.Curry<int, int, int>(2);    // UnifiedRefFunc<int, int>
+            var curried = weighted.Curry<int, int, int>(2);    // UnifiedDelegate<int, int>
 
             curried(out int result, 7);
             Assert.Equal(207, result);
@@ -180,7 +180,7 @@ namespace ModClrExUnsafe.Tests
         [Fact]
         public void Curry_UnifiedRefFunc_8Arg()
         {
-            UnifiedRefFunc<int, int, int, int, int, int, int, int, int> sum8 = Sum8Impl;
+            UnifiedDelegate<int, int, int, int, int, int, int, int, int> sum8 = Sum8Impl;
 
             var curried = sum8.Curry<int, int, int, int, int, int, int, int, int>(1);
 
@@ -199,7 +199,7 @@ namespace ModClrExUnsafe.Tests
         [Fact]
         public void Curry_UnifiedRefFunc_16Arg()
         {
-            UnifiedRefFunc<int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int> sum16 = Sum16Impl;
+            UnifiedDelegate<int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int> sum16 = Sum16Impl;
 
             var curried = sum16.Curry<int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int>(1);
 
@@ -252,7 +252,7 @@ namespace ModClrExUnsafe.Tests
         [Fact]
         public void Curry_ChangeDelegateType_MidChain()
         {
-            // custom 6-arg delegate -> Func (ChangeDelegateType) -> curry 5 steps
+            // custom 6-arg delegate -> Invoker (ChangeDelegateType) -> curry 5 steps
             // -> custom 1-arg delegate (ChangeDelegateType again)
             TestCurryDel odel = (f0, f1, f2, f3, f4, f5) => new CurryFields(f0, f1, f2, f3, f4, f5);
             var func = odel.ChangeDelegateType<Func<int, int, int, int, int, int, CurryFields>>()

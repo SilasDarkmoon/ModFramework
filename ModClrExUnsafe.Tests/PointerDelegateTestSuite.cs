@@ -6,7 +6,7 @@
 //
 // API 版本注意：本套件按 2026/9/22 换代后的 PointerDelegate.dll API 编写
 //   （ref R Invoke<P...>(out R, in P...) 主形态 + 非泛型 R Invoke(U...) + 便利包装 R Invoke<P>(in P...)；
-//    FreeFunc 构造收 Func<U...,R>/Action<U...>；ByRefParam 为 struct {IntPtr _Address}；
+//    FreeFunc 构造收 Invoker<U...,R>/Invoker<U...>；ByRefParam 为 struct {IntPtr _Address}；
 //    U=ByRefParam → 参数传调用方变量地址；R=ByRefParam → ref 返回直接是目标 byref，
 //    还原用 RawRef 一层链路：RawRef.Of(ref ret).GetRef<int>()（Unity 侧）；
 //    out 槽 _Address = 目标 byref 地址（备用还原路径）。
@@ -377,7 +377,7 @@ namespace ModClrExUnsafe.Tests
             }
         }
 // ---------------- N. IL2CPP native call final verdict (user's two questions) ----------------
-        // Q1: can GetDelegateForFunctionPointer bind generic Func<> (even AOT-instantiated)?
+        // Q1: can GetDelegateForFunctionPointer bind generic Invoker<> (even AOT-instantiated)?
         //   Build-output evidence (Il2CppInteropDataTable.cpp): 140 DelegatePInvokeWrapper
         //   entries in the 480-entry interopData table are ALL non-generic; Func_2/Action_1
         //   forms: 0 entries - il2cpp.exe hard-skips wrapper generation for generic delegates.
@@ -419,14 +419,14 @@ namespace ModClrExUnsafe.Tests
                     Log($"    INNER: {ie.GetType().Name}: {ie.Message}");
             }
 
-            // N-2: generic Func binding final check - reflection icall
+            // N-2: generic Invoker binding final check - reflection icall
             // (bypasses the managed-layer IsGenericType check; native layer only looks at
             //  interopData wrapper - build output already proves Func_2 has none)
             try
             {
                 if (Type.GetType("Mono.Runtime") != null)
                 {
-                    Log("  N-2: SKIPPED on Mono - same icall + generic Func SIGSEGV as M-B4b (2026-09-24)");
+                    Log("  N-2: SKIPPED on Mono - same icall + generic Invoker SIGSEGV as M-B4b (2026-09-24)");
                 }
                 else
                 {
@@ -441,7 +441,7 @@ namespace ModClrExUnsafe.Tests
                     {
                         var del = (Func<int, int>)icall.Invoke(null, new object[] { thunk, typeof(Func<int, int>) });
                         int r = del(41);
-                        Log($"  N-2 icall-bypass + generic Func<int,int>: {r} " +
+                        Log($"  N-2 icall-bypass + generic Invoker<int,int>: {r} " +
                             $"{(r == 42 ? "(SUPPORTED - wrapper exists after all)" : "(WRONG VALUE)")}");
                     }
                 }
@@ -888,7 +888,7 @@ Log($"  C0g-2 PointerFunc<int,int> EmitCache count = {countPF} " +
             try
             {
                 // 2026-09-24 修正（用户定位 + G1Repro 双平台实锤）：原版 fn 用
-                //   Marshal.GetFunctionPointerForDelegate(Func<string>) —— 产生的是
+                //   Marshal.GetFunctionPointerForDelegate(Invoker<string>) —— 产生的是
                 //   native marshal thunk（native 签名 char*()，string 按 LPStr 转换，
                 //   UnmanagedCallersOnly 标记），配 managed calli（期望托管 string 引用）
                 //   是非法组合：CoreCLR 直接 Fatal error 拦截（"attempted to call a
@@ -1205,7 +1205,7 @@ Log($"  C0g-2 PointerFunc<int,int> EmitCache count = {countPF} " +
             }
             catch (Exception ex) { Log($"  M-A2: {ex.GetType().Name}: {ex.Message}"); }
 
-            // M-A4: 泛型 delegate（Func<int,int>）
+            // M-A4: 泛型 delegate（Invoker<int,int>）
             try
             {
                 var d = (Func<int, int>)MInc;
@@ -1249,23 +1249,23 @@ Log($"  C0g-2 PointerFunc<int,int> EmitCache count = {countPF} " +
             catch (Exception ex) { Log($"  M-C2: {ex.GetType().Name}: {ex.Message}"); }
 
             // ================= M-B 系列（2026-09-24 用户方案实验）=================
-            // 最终方案候选：GetDelegateForFunctionPointer 绑定到【泛型 Func<>】——
+            // 最终方案候选：GetDelegateForFunctionPointer 绑定到【泛型 Invoker<>】——
             // IL2CPP 源码（PlatformInvoke.cpp:455）不检查 IsGenericType，只看 AOT 预生成
             // 的 interopData->delegatePInvokeWrapperFunction——泛型封闭类型是独立
             // Il2CppClass，wrapper 若被 AOT 生成则支持（与 CoreCLR 的入口拒绝不同）。
             // 着重测试 object/string 参数与返回值的【透传】问题。
 
-            // M-B1: 泛型 Func<int,int> roundtrip（基础支持判决）
+            // M-B1: 泛型 Invoker<int,int> roundtrip（基础支持判决）
             try
             {
                 Func<int, int> d = MInc;
                 var thunk = Marshal.GetFunctionPointerForDelegate(d);
                 var d2 = (Func<int, int>)Marshal.GetDelegateForFunctionPointer(thunk, typeof(Func<int, int>));
-                Log($"  M-B1 generic Func<int,int> roundtrip: {d2(41)} (expect 42)");
+                Log($"  M-B1 generic Invoker<int,int> roundtrip: {d2(41)} (expect 42)");
             }
             catch (Exception ex) { Log($"  M-B1: {ex.GetType().Name}: {ex.Message}"); }
 
-            // M-B2: 泛型 Func<string,string>——string 参数+返回值透传（重点）
+            // M-B2: 泛型 Invoker<string,string>——string 参数+返回值透传（重点）
             try
             {
                 Func<string, string> d = MIdentityStr;   // 原样返回——same-ref 判定透传
@@ -1273,12 +1273,12 @@ Log($"  C0g-2 PointerFunc<int,int> EmitCache count = {countPF} " +
                 var d2 = (Func<string, string>)Marshal.GetDelegateForFunctionPointer(thunk, typeof(Func<string, string>));
                 string s = "Hello_Transparent_Probe_0123456789ABCDEF";
                 var back = d2(s);
-                Log($"  M-B2 Func<string,string>: same-ref={ReferenceEquals(back, s)}, value-eq={back == s}" +
+                Log($"  M-B2 Invoker<string,string>: same-ref={ReferenceEquals(back, s)}, value-eq={back == s}" +
                     $" (same-ref=True = 引用透传; False+value-eq=True = marshal 拷贝转换)");
             }
             catch (Exception ex) { Log($"  M-B2: {ex.GetType().Name}: {ex.Message}"); }
 
-            // M-B3: 泛型 Func<object,object>——object 参数+返回值透传（重点）
+            // M-B3: 泛型 Invoker<object,object>——object 参数+返回值透传（重点）
             try
             {
                 Func<object, object> d = MIdentityObj;
@@ -1286,33 +1286,33 @@ Log($"  C0g-2 PointerFunc<int,int> EmitCache count = {countPF} " +
                 var d2 = (Func<object, object>)Marshal.GetDelegateForFunctionPointer(thunk, typeof(Func<object, object>));
                 var obj = new object();
                 var back = d2(obj);
-                Log($"  M-B3 Func<object,object>: same-ref={ReferenceEquals(back, obj)}" +
+                Log($"  M-B3 Invoker<object,object>: same-ref={ReferenceEquals(back, obj)}" +
                     $" (True = 引用透传; False = marshal 包装)");
             }
             catch (Exception ex) { Log($"  M-B3: {ex.GetType().Name}: {ex.Message}"); }
 
-            // M-B4: 真 native 地址 + 泛型 delegate（kernel32!GetCurrentProcessId → Func<int>）
+            // M-B4: 真 native 地址 + 泛型 delegate（kernel32!GetCurrentProcessId → Invoker<int>）
             try
             {
                 var h = MLoadLibrary("kernel32.dll");
                 var fp = MGetProcAddress(h, "GetCurrentProcessId");
                 var d2 = (Func<int>)Marshal.GetDelegateForFunctionPointer(fp, typeof(Func<int>));
                 int pid = d2();
-                Log($"  M-B4 real-native + generic Func<int>: pid={pid}, " +
+                Log($"  M-B4 real-native + generic Invoker<int>: pid={pid}, " +
                     $"matches={pid == System.Diagnostics.Process.GetCurrentProcess().Id}");
             }
             catch (Exception ex) { Log($"  M-B4: {ex.GetType().Name}: {ex.Message}"); }
 
             // M-B4b: 反射直调 GetDelegateForFunctionPointerInternal（绕过托管层 IsGenericType
             // 检查——native 层 MarshalFunctionPointerToDelegate 无泛型检查，只看 AOT wrapper）
-            // 2026-09-24 Editor verdict: on Mono this icall + generic Func<int> SIGSEGVs
+            // 2026-09-24 Editor verdict: on Mono this icall + generic Invoker<int> SIGSEGVs
             // natively (ves_icall_..._GetDelegateForFunctionPointerInternal_raw, uncatchable).
             // Mono: skip. IL2CPP: keep going (there it throws MarshalDirectiveException).
             try
             {
                 if (Type.GetType("Mono.Runtime") != null)
                 {
-                    Log("  M-B4b: SKIPPED on Mono - icall + generic Func<int> = native SIGSEGV (2026-09-24 Editor crash)");
+                    Log("  M-B4b: SKIPPED on Mono - icall + generic Invoker<int> = native SIGSEGV (2026-09-24 Editor crash)");
                 }
                 else
                 {
@@ -1325,7 +1325,7 @@ Log($"  C0g-2 PointerFunc<int,int> EmitCache count = {countPF} " +
                     {
                         var del = (Func<int>)icall.Invoke(null, new object[] { fp, typeof(Func<int>) });
                         int pid = del();
-                        Log($"  M-B4b icall-bypass + generic Func<int>: pid={pid}, " +
+                        Log($"  M-B4b icall-bypass + generic Invoker<int>: pid={pid}, " +
                             $"matches={pid == System.Diagnostics.Process.GetCurrentProcess().Id}");
                     }
                 }
@@ -1358,7 +1358,7 @@ Log($"  C0g-2 PointerFunc<int,int> EmitCache count = {countPF} " +
                 var thunk = Marshal.GetFunctionPointerForDelegate(d);
                 var d2 = (Func<object, string>)Marshal.GetDelegateForFunctionPointer(thunk, typeof(Func<object, string>));
                 string back = d2("mixed");
-                Log($"  M-B6 Func<object,string> mixed: back=\"{back}\" (expect got:mixed)");
+                Log($"  M-B6 Invoker<object,string> mixed: back=\"{back}\" (expect got:mixed)");
             }
             catch (Exception ex) { Log($"  M-B6: {ex.GetType().Name}: {ex.Message}"); }
         }
@@ -1549,19 +1549,9 @@ Log($"  C0g-2 PointerFunc<int,int> EmitCache count = {countPF} " +
                 Check("B3 ref IntPtr param reads heap field", r3 == (IntPtr)0xABCD);
             }
 
-            // B4: ByRefParam 参数强制 ByValue（SetParamFlag）——native 收到值本身（2026-09-23 同步）
-            if (TryGetFnPtr(nameof(EchoIntPtr), out var fnEcho2))
-            {
-                var inv = MakePF<IntPtr, ByRefParam>(fnEcho2);
-                inv.SetParamFlag(0, ParamFlag.ByValue);   // force param by-value despite ByRefParam
-                inv.SetParamFlag(-1, ParamFlag.ByValue);   // force return by-value too
-                IntPtr arg = (IntPtr)0xABCD;
-                IntPtr r;
-                ref var ret = ref inv.Invoke(out r, in arg);
-                // ByValue: native receives the value 0xABCD, echoes it back.
-                Check("B4 PF ByRefParam forced ByValue: r == 0xABCD", r == (IntPtr)0xABCD);
-                Check("B4 PF ByRefParam forced ByValue: ref r == r", Ref.RefEquals(ref ret, ref r));
-            }
+            // B4 (SetParamFlag force-ByValue) removed: SetParamFlag no longer exists
+            // on PointerFunc/FreeFunc (the per-param flag override was dropped from
+            // the PointerDelegate API; ByRefParam params are always byref now).
         }
 
         // ---------------- C. 多参数 ----------------
@@ -1631,43 +1621,34 @@ Log($"  C0g-2 PointerFunc<int,int> EmitCache count = {countPF} " +
                 Check("D0 path probe: invoke works", r0 == 5);
             }
 
-            // D1: Func<U,R> 包装，非泛型 Invoke
+            // D1: Invoker<U,R> 包装，非泛型 Invoke
             Func<IntPtr, IntPtr> echo = EchoIntPtr;
             var f1 = new FreeFunc<IntPtr, IntPtr>(echo);
-            Check("D1 Func wrapper, non-generic", f1.Invoke((IntPtr)0x4321) == (IntPtr)0x4321);
+            Check("D1 Invoker wrapper, non-generic", f1.Invoke((IntPtr)0x4321) == (IntPtr)0x4321);
 
-            // D2: Func 包装，泛型 Invoke（in 传参）
+            // D2: Invoker 包装，泛型 Invoke（in 传参）
             IntPtr a2 = (IntPtr)0x8888;
-            Check("D2 Func wrapper, generic", f1.Invoke(in a2) == (IntPtr)0x8888);
+            Check("D2 Invoker wrapper, generic", f1.Invoke(in a2) == (IntPtr)0x8888);
 
-            // D3: Action 包装（R=VoidReturn）
+            // D3: Invoker 包装（R=VoidReturn）
             int observed = 0;
             Action<int> act = x => { observed = x; };
             var f3 = new FreeFunc<VoidReturn, int>(act);
             f3.Invoke(77);
-            Check("D3 Action wrapper side effect", observed == 77);
+            Check("D3 Invoker wrapper side effect", observed == 77);
 
             // D4: 泛型 Invoke + U=IntPtr：注入 IL 对堆字段 ldobj（byref 槽活跃于注入帧），传值给 delegate
             var slot = new Slot { Addr = (IntPtr)0x5678 };
             Check("D4 generic Invoke derefs heap field (ldobj path)",
                 f1.Invoke(in slot.Addr) == (IntPtr)0x5678);
 
-            // D5: 多参 Func
+            // D5: 多参 Invoker
             Func<int, int, int> addDel = AddInts;
             var f5 = new FreeFunc<int, int, int>(addDel);
-            Check("D5 multi-param Func wrapper", f5.Invoke(20, 22) == 42);
+            Check("D5 multi-param Invoker wrapper", f5.Invoke(20, 22) == 42);
 
-            // D6: IntPtr 参数强制 ByValue（SetParamFlag）——delegate 收值本身（2026-09-23 同步）
-            {
-                var inv = new FreeFunc<IntPtr, IntPtr>(EchoIntPtr);
-                inv.SetParamFlag(0, ParamFlag.ByValue);
-                inv.SetParamFlag(-1, ParamFlag.ByValue);   // IntPtr 返回默认 ByRef，强制 ByValue
-                IntPtr arg = (IntPtr)0xDEAD;
-                IntPtr r;
-                ref var ret = ref inv.Invoke(out r, in arg);
-                Check("D6 FF IntPtr param forced ByValue: r == 0xDEAD", r == (IntPtr)0xDEAD);
-                Check("D6 FF IntPtr param forced ByValue: ref r == r", Ref.RefEquals(ref ret, ref r));
-            }
+            // D6 (SetParamFlag force-ByValue) removed: SetParamFlag no longer exists
+            // on PointerFunc/FreeFunc (see the B4 note above).
 
             // D7: void 返回（R=VoidReturn）+ ByRef 参数——delegate 收 &slot 写 0xBEEF（2026-09-23 同步）
             {
@@ -1710,7 +1691,7 @@ Log($"  C0g-2 PointerFunc<int,int> EmitCache count = {countPF} " +
                 Check("D8 FF byref ret: *ret == 0x9999 (ret refs slot)", retVal == (IntPtr)0x9999);
             }
 
-            // D9: Action + ByRef 参数——action 收 &slot 写 0xCAFE（FreeAction 已并入 FreeFunc）（2026-09-23 同步）
+            // D9: Invoker + ByRef 参数——action 收 &slot 写 0xCAFE（FreeAction 已并入 FreeFunc）（2026-09-23 同步）
             {
                 IntPtr slot9 = IntPtr.Zero;
                 IntPtr slotAddr;
@@ -1722,9 +1703,9 @@ Log($"  C0g-2 PointerFunc<int,int> EmitCache count = {countPF} " +
                 var inv = new FreeFunc<VoidReturn, IntPtr>(act9);
                 VoidReturn r;
                 ref var ret = ref inv.Invoke(out r, in slotAddr);
-                Check("D9 FF Action ByRef param: *slot == 0xCAFE", slot9 == (IntPtr)0xCAFE);
-                Check("D9 FF Action ByRef param: r == default", r == null);
-                Check("D9 FF Action ByRef param: ref r == r", Ref.RefEquals(ref ret, ref r));
+                Check("D9 FF Invoker ByRef param: *slot == 0xCAFE", slot9 == (IntPtr)0xCAFE);
+                Check("D9 FF Invoker ByRef param: r == default", r == null);
+                Check("D9 FF Invoker ByRef param: ref r == r", Ref.RefEquals(ref ret, ref r));
             }
 
             // D10: FF byval ret + ByRef 语义参数（delegate 收 &target 解引用）（2026-09-23 同步）
