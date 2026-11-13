@@ -197,7 +197,17 @@ namespace Mod.LowLevel
                             }
                         }
                     }
+                    if (cdmi == null)
+                    {
+                        // Diagnostics: the 5-param pointer-first CreateDelegate was trimmed
+                        // (or never existed on this runtime). Report how much survived.
+                        throw new InvalidOperationException("[UnsafeDelegateWrapperNativeAOT] No 5-param pointer-first CreateDelegate on this runtime.");
+                    }
                     var cmi = cdmi.GetType().GetMethod("CreateDelegateWithoutSignatureValidation", BindingFlags.Instance | BindingFlags.NonPublic);
+                    if (cmi == null)
+                    {
+                        throw new InvalidOperationException("[UnsafeDelegateWrapperNativeAOT] RuntimeMethodInfo.CreateDelegateWithoutSignatureValidation not found.");
+                    }
                     _CreateDelegateWithoutSignatureValidationFunc = (CreateDelegateWithoutSignatureValidationDel)cmi.Invoke(cmi, new object[] { typeof(CreateDelegateWithoutSignatureValidationDel), null, false, true });
                     _UnsafeCreateDelegateFunc = (UnsafeCreateDelegateDel)_CreateDelegateWithoutSignatureValidationFunc(cdmi, typeof(UnsafeCreateDelegateDel), null, true, true);
                 }
@@ -237,6 +247,15 @@ namespace Mod.LowLevel
                 }
                 public override object CreateDelegate(Type delType, object target, MethodBase method)
                 {
+                    if (method.IsStatic && target == null)
+                    {
+                        // Open static: the fn-pointer path below has no null-target
+                        // special case - a null receiver would be injected as the
+                        // first parameter (closed-over-null, parameter misalignment).
+                        // The other runtimes' ctor-stub paths treat a null receiver
+                        // as an open binding, so keep that behavior here.
+                        return _CreateDelegateWithoutSignatureValidationFunc((MethodInfo)method, delType, null, true, true);
+                    }
                     RuntimeHelpers.PrepareMethod(method.MethodHandle);
                     var fn = method.MethodHandle.GetFunctionPointer();
                     var rvdel = _UnsafeCreateDelegateFunc(delType.TypeHandle.Value, fn, target, false, false);
