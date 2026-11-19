@@ -372,7 +372,7 @@ namespace Mod.LowLevel
                     var miTls = FindStaticMethod(ra, "GetThreadStaticBase", typeof(IntPtr));
                     if (miLoad == null || miTls == null)
                     {
-                        throw new PlatformNotSupportedException("NativeAOT static field helpers were trimmed; root them through NativeAOTHelper.");
+                        throw new PlatformNotSupportedException("NativeAOT static field helpers were trimmed; root them through AOTPreserve.");
                     }
                     _LoadReferenceTypeField = (LoadReferenceTypeFieldDel)Delegate.CreateDelegate(typeof(LoadReferenceTypeFieldDel), miLoad);
                     _GetThreadStaticBase = (GetThreadStaticBaseDel)Delegate.CreateDelegate(typeof(GetThreadStaticBaseDel), miTls);
@@ -412,7 +412,7 @@ namespace Mod.LowLevel
                         var pFieldBase = FindProperty(t, "FieldBase");
                         if (fStaticsBase == null || fFieldOffset == null || pFieldBase == null)
                         {
-                            throw new PlatformNotSupportedException("NativeAOT RegularStaticFieldAccessor members were trimmed; root them through NativeAOTHelper.");
+                            throw new PlatformNotSupportedException("NativeAOT RegularStaticFieldAccessor members were trimmed; root them through AOTPreserve.");
                         }
                         var entry = new Entry
                         {

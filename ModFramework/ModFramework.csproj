@@ -39,8 +39,4 @@
       <HintPath>..\ModClrExUnsafe\SpanEx.dll</HintPath>
     </Reference>
   </ItemGroup>
-
-    <ItemGroup>
-        <RdXmlFile Include="Rd.xml" />
-    </ItemGroup>
 </Project>

@@ -12,7 +12,7 @@ public static class TestScript_WeakEvent
 #if NET7_0_OR_GREATER
         if (RuntimeInfo.IsNativeAOT)
         {
-            NativeAOTHelper.Prepare();
+            AOTPreserve.Prepare();
         }
 #endif
 

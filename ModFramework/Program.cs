@@ -22,8 +22,12 @@ class Program
     public static void Main()
     {
         // Roots the DynamicDependency graph (RefInvoker/FreeFunc/PointerFunc families
-        // etc.) — without this call none of the DLA entries are honored under AOT.
-        NativeAOTHelper.Prepare();
+        // etc.). RuntimeInfo's cctor also calls AOTPreserve.Prepare(), but this
+        // explicit call keeps rooting independent of implicit reachability.
+        AOTPreserve.Prepare();
+        // Roots the generic method instantiations consumed through MakeGenericMethod
+        // (replaces the Rd.xml <GenericArgument> directives).
+        AotGenericRoots.Prepare();
         //TestScript.Test();
         //TestScript_UnsafeInstanceDelegate.Test();
         //TestScript_DelegateCurry.Test();

@@ -78,6 +78,7 @@ namespace Mod.LowLevel
 
         static RuntimeInfo()
         {
+            AOTPreserve.Prepare();
             _IsDynamicCodeEnabled = CheckIsDynamicCodeEnabled();
             Type unityApplicationType;
             _IsUnity = (unityApplicationType = Type.GetType("UnityEngine.Application, UnityEngine.CoreModule")) != null;

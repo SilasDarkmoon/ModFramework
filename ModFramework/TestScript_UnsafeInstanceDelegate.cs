@@ -11,7 +11,7 @@ public static class TestScript_UnsafeInstanceDelegate
 #if NET7_0_OR_GREATER
         if (RuntimeInfo.IsNativeAOT)
         {
-            NativeAOTHelper.Prepare();
+            AOTPreserve.Prepare();
         }
 #endif
 
@@ -156,7 +156,7 @@ public static class TestScript_UnsafeInstanceDelegate
             Field5 = i5;
         }
     }
-    struct TestFieldsStruct
+    internal struct TestFieldsStruct
     {
         public int Field0;
         public int Field1;
@@ -221,7 +221,7 @@ public static class TestScript_UnsafeInstanceDelegate
             return (long)(rr.Address + 1);
         }
     }
-    struct TestFieldsStruct<T>
+    internal struct TestFieldsStruct<T>
     {
         public T Field0;
         public T Field1;
