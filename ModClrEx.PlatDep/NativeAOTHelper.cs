@@ -105,6 +105,22 @@ namespace Mod.LowLevel
         [DynamicDependency(DynamicallyAccessedMemberTypes.All, "Mod.LowLevel.PointerFunc`15", "PointerDelegate")]
         [DynamicDependency(DynamicallyAccessedMemberTypes.All, "Mod.LowLevel.PointerFunc`16", "PointerDelegate")]
         [DynamicDependency(DynamicallyAccessedMemberTypes.All, "Mod.LowLevel.PointerFunc`17", "PointerDelegate")]
+
+        // StaticFieldPlatDep (FieldExStatic.cs) reflects into the NativeAOT
+        // FieldAccessor chain to rebuild static field addresses. Root every
+        // member it reads, otherwise the trimmer drops the reflection metadata
+        // and the runtime throws PlatformNotSupportedException from GetEntry.
+        // Verified with Probes/StaticFieldAddressProbe (NativeAOT publish).
+        [DynamicDependency(DynamicallyAccessedMemberTypes.All, "System.Reflection.Runtime.FieldInfos.RuntimeFieldInfo", "System.Private.CoreLib")]
+        [DynamicDependency(DynamicallyAccessedMemberTypes.All, "Internal.Reflection.Core.Execution.FieldAccessor", "System.Private.CoreLib")]
+        [DynamicDependency(DynamicallyAccessedMemberTypes.All, "Internal.Reflection.Execution.FieldAccessors.StaticFieldAccessor", "System.Private.Reflection.Execution")]
+        [DynamicDependency(DynamicallyAccessedMemberTypes.All, "Internal.Reflection.Execution.FieldAccessors.WritableStaticFieldAccessor", "System.Private.Reflection.Execution")]
+        [DynamicDependency(DynamicallyAccessedMemberTypes.All, "Internal.Reflection.Execution.FieldAccessors.RegularStaticFieldAccessor", "System.Private.Reflection.Execution")]
+        [DynamicDependency(DynamicallyAccessedMemberTypes.All, "Internal.Reflection.Execution.FieldAccessors.ValueTypeFieldAccessorForStaticFields", "System.Private.Reflection.Execution")]
+        [DynamicDependency(DynamicallyAccessedMemberTypes.All, "Internal.Reflection.Execution.FieldAccessors.ReferenceTypeFieldAccessorForStaticFields", "System.Private.Reflection.Execution")]
+        [DynamicDependency(DynamicallyAccessedMemberTypes.All, "Internal.Reflection.Execution.FieldAccessors.PointerTypeFieldAccessorForStaticFields", "System.Private.Reflection.Execution")]
+        [DynamicDependency(DynamicallyAccessedMemberTypes.All, "Internal.Runtime.FieldTableFlags", "System.Private.Reflection.Execution")]
+        [DynamicDependency(DynamicallyAccessedMemberTypes.All, "Internal.Runtime.Augments.RuntimeAugments", "System.Private.CoreLib")]
 #endif
         public static void Prepare()
         {
