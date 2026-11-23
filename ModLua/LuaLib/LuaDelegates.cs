@@ -44,19 +44,27 @@ namespace Mod.Lua
 
         /// <summary>lua_CFunction: int (*)(lua_State *L) - a C function registered with Lua.</summary>
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        public delegate int CFunction(IntPtr L);
+        public delegate int CFunctionRaw(IntPtr L);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        public delegate int CFunction(State L);
 
         /// <summary>lua_KFunction: int (*)(lua_State *L, int status, lua_KContext ctx) - continuation.</summary>
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        public delegate int KFunction(IntPtr L, int status, IntPtr ctx);
+        public delegate int KFunctionRaw(IntPtr L, int status, IntPtr ctx);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        public delegate int KFunction(State L, int status, IntPtr ctx);
 
         /// <summary>lua_Reader: const char* (*)(lua_State *L, void *ud, size_t *sz) - lua_load reader.</summary>
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        public delegate IntPtr Reader(IntPtr L, IntPtr ud, IntPtr sz);
+        public delegate IntPtr ReaderRaw(IntPtr L, IntPtr ud, IntPtr sz);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        public delegate IntPtr Reader(State L, IntPtr ud, IntPtr sz);
 
         /// <summary>lua_Writer: int (*)(lua_State *L, const void *p, size_t sz, void *ud) - lua_dump writer.</summary>
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        public delegate int Writer(IntPtr L, IntPtr p, UIntPtr sz, IntPtr ud);
+        public delegate int WriterRaw(IntPtr L, IntPtr p, UIntPtr sz, IntPtr ud);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        public delegate int Writer(State L, IntPtr p, UIntPtr sz, IntPtr ud);
 
         /// <summary>lua_Alloc: void* (*)(void *ud, void *ptr, size_t osize, size_t nsize) - memory allocator.</summary>
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -68,6 +76,8 @@ namespace Mod.Lua
 
         /// <summary>lua_Hook: void (*)(lua_State *L, lua_Debug *ar) - debug hook (ar is a lua_Debug*).</summary>
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        public delegate void Hook(IntPtr L, IntPtr ar);
+        public delegate void HookRaw(IntPtr L, IntPtr ar);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        public delegate void Hook(State L, IntPtr ar);
     }
 }

@@ -29,7 +29,7 @@ namespace Mod.Lua.Tests
 
         // ---------------- C# 回调群（静态方法 + 保活字段 + 缓存 thunk 地址） ----------------
 
-        [AOT.MonoPInvokeCallback(typeof(lua.CFunction))]
+        [AOT.MonoPInvokeCallback(typeof(lua.CFunctionRaw))]
         private static int CAdd(IntPtr L)
         {
             long a = LuaImport.lua_tointegerx(L, 1, IntPtr.Zero);
@@ -37,11 +37,11 @@ namespace Mod.Lua.Tests
             LuaImport.lua_pushinteger(L, a + b);
             return 1;
         }
-        private static readonly lua.CFunction s_CAdd = CAdd;
+        private static readonly lua.CFunctionRaw s_CAdd = CAdd;
         private static readonly IntPtr s_CAddFn = Marshal.GetFunctionPointerForDelegate(s_CAdd);
 
         // upvalue 1 = lightuserdata（乘数因子）——实例上下文走 Lua 通道的标准模式
-        [AOT.MonoPInvokeCallback(typeof(lua.CFunction))]
+        [AOT.MonoPInvokeCallback(typeof(lua.CFunctionRaw))]
         private static int CMulByUpvalue(IntPtr L)
         {
             long factor = LuaImport.lua_touserdata(L, LuaTestUtil.LuaUpvalueIndex(1)).ToInt64();
@@ -49,11 +49,11 @@ namespace Mod.Lua.Tests
             LuaImport.lua_pushinteger(L, x * factor);
             return 1;
         }
-        private static readonly lua.CFunction s_CMulByUpvalue = CMulByUpvalue;
+        private static readonly lua.CFunctionRaw s_CMulByUpvalue = CMulByUpvalue;
         private static readonly IntPtr s_CMulByUpvalueFn = Marshal.GetFunctionPointerForDelegate(s_CMulByUpvalue);
 
         // 字符串双向：读 Lua 字符串参数 → 拼接 → pushlstring 回
-        [AOT.MonoPInvokeCallback(typeof(lua.CFunction))]
+        [AOT.MonoPInvokeCallback(typeof(lua.CFunctionRaw))]
         private static int CGreet(IntPtr L)
         {
             string? name = LuaTestUtil.ToClrString(L, 1);
@@ -68,7 +68,7 @@ namespace Mod.Lua.Tests
             finally { Marshal.FreeHGlobal(p); }
             return 1;
         }
-        private static readonly lua.CFunction s_CGreet = CGreet;
+        private static readonly lua.CFunctionRaw s_CGreet = CGreet;
         private static readonly IntPtr s_CGreetFn = Marshal.GetFunctionPointerForDelegate(s_CGreet);
 
         // ---------------- helpers ----------------
@@ -373,7 +373,7 @@ namespace Mod.Lua.Tests
         public void Facade_MacrosAndDelegates_RoundTrip()
         {
             // 宏函数（dostring/pcall/pop/newtable/is*/tonumber）+ 常量 + delegate
-            // 参数（pushcfunction 收 CFunction，Keep 保活 + thunk 转换）链路。
+            // 参数（pushcfunction 收 CFunctionRaw，Keep 保活 + thunk 转换）链路。
             lua.State L = lua.newstate();
             try
             {
@@ -395,7 +395,7 @@ namespace Mod.Lua.Tests
                 lua.pop(L, 1);
                 Assert.True(lua.isnone(L, lua.gettop(L) + 1)); // 越界 = TNONE
 
-                // delegate 参数：pushcfunction(CFunction) + pcall 调用（Keep 链路）
+                // delegate 参数：pushcfunction(CFunctionRaw) + pcall 调用（Keep 链路）
                 lua.pushcfunction(L, s_CAdd);
                 lua.pushinteger(L, 3);
                 lua.pushinteger(L, 4);
@@ -475,10 +475,10 @@ namespace Mod.Lua.Tests
                 // atpanic 返回旧 panic 的 delegate。luaL_newstate 装了默认
                 // panic（lauxlib.c:1187 lua_atpanic(L, &panic)）——卸载时
                 // 返回它的 native 地址 → GetDelegateForFunctionPointer 链路。
-                lua.CFunction defPanic = lua.atpanic(L, null); // 卸载默认 panic
+                lua.CFunctionRaw defPanic = lua.atpanic(L, null); // 卸载默认 panic
                 Assert.NotNull(defPanic); // fnptr -> delegate 成功
                 Assert.Null(lua.atpanic(L, s_CAdd)); // 装自定义，旧值是 NULL（刚卸载）
-                lua.CFunction installed = lua.atpanic(L, null); // 卸载，返回刚装的 thunk
+                lua.CFunctionRaw installed = lua.atpanic(L, null); // 卸载，返回刚装的 thunk
                 Assert.NotNull(installed); // Keep 的 thunk 地址往返
                 lua.atpanic(L, defPanic); // 恢复默认 panic（delegate -> fnptr -> Lua）
 
@@ -1025,19 +1025,19 @@ namespace Mod.Lua.Tests
         private static byte[] s_ShortKeyBytes = Array.Empty<byte>(); // managed UTF8 + NUL (IsFixed=false path)
         private static int s_ShortKeyRef;      // registry ref of the key string
 
-        private static readonly lua.CFunction s_BenchEmpty = BenchEmpty;
-        private static readonly lua.CFunction s_BenchPushLString = BenchPushLString;
-        private static readonly lua.CFunction s_BenchPushLStringManaged = BenchPushLStringManaged;
-        private static readonly lua.CFunction s_BenchPushLStringN = BenchPushLStringN;
-        private static readonly lua.CFunction s_BenchPushLStringRaw = BenchPushLStringRaw;
-        private static readonly lua.CFunction s_BenchRawGetI = BenchRawGetI;
-        private static readonly lua.CFunction s_BenchUpvalue = BenchUpvalue;
+        private static readonly lua.CFunctionRaw s_BenchEmpty = BenchEmpty;
+        private static readonly lua.CFunctionRaw s_BenchPushLString = BenchPushLString;
+        private static readonly lua.CFunctionRaw s_BenchPushLStringManaged = BenchPushLStringManaged;
+        private static readonly lua.CFunctionRaw s_BenchPushLStringN = BenchPushLStringN;
+        private static readonly lua.CFunctionRaw s_BenchPushLStringRaw = BenchPushLStringRaw;
+        private static readonly lua.CFunctionRaw s_BenchRawGetI = BenchRawGetI;
+        private static readonly lua.CFunctionRaw s_BenchUpvalue = BenchUpvalue;
 
-        [AOT.MonoPInvokeCallback(typeof(lua.CFunction))]
+        [AOT.MonoPInvokeCallback(typeof(lua.CFunctionRaw))]
         private static int BenchEmpty(IntPtr L) => 0;
 
         // A2: LuaImport 直调（跳过 facade 的 CStringSpan/stackalloc 拷贝）——分离 facade 开销与 native interning 开销
-        [AOT.MonoPInvokeCallback(typeof(lua.CFunction))]
+        [AOT.MonoPInvokeCallback(typeof(lua.CFunctionRaw))]
         private static int BenchPushLStringRaw(IntPtr L)
         {
             LuaImport.lua_pushlstring(L, s_ShortKeyPtr, (UIntPtr)ShortKey.Length);
@@ -1046,7 +1046,7 @@ namespace Mod.Lua.Tests
             return 0;
         }
 
-        [AOT.MonoPInvokeCallback(typeof(lua.CFunction))]
+        [AOT.MonoPInvokeCallback(typeof(lua.CFunctionRaw))]
         private static int BenchPushLString(IntPtr L)
         {
             lua.State s = new lua.State { _L = L };
@@ -1061,7 +1061,7 @@ namespace Mod.Lua.Tests
         // A0: facade + managed byte[] span (IsFixed=false -> copy path on non-Unity).
         // Length-explicit ctor: no StrLen scan (the scan variant would re-derive
         // a length the caller already knows).
-        [AOT.MonoPInvokeCallback(typeof(lua.CFunction))]
+        [AOT.MonoPInvokeCallback(typeof(lua.CFunctionRaw))]
         private static int BenchPushLStringManaged(IntPtr L)
         {
             lua.State s = new lua.State { _L = L };
@@ -1072,7 +1072,7 @@ namespace Mod.Lua.Tests
         }
 
         // An: same as A but the void variant (skips the CStringRef return construction)
-        [AOT.MonoPInvokeCallback(typeof(lua.CFunction))]
+        [AOT.MonoPInvokeCallback(typeof(lua.CFunctionRaw))]
         private static int BenchPushLStringN(IntPtr L)
         {
             lua.State s = new lua.State { _L = L };
@@ -1082,7 +1082,7 @@ namespace Mod.Lua.Tests
             return 0;
         }
 
-        [AOT.MonoPInvokeCallback(typeof(lua.CFunction))]
+        [AOT.MonoPInvokeCallback(typeof(lua.CFunctionRaw))]
         private static int BenchRawGetI(IntPtr L)
         {
             lua.State s = new lua.State { _L = L };
@@ -1092,7 +1092,7 @@ namespace Mod.Lua.Tests
             return 0;
         }
 
-        [AOT.MonoPInvokeCallback(typeof(lua.CFunction))]
+        [AOT.MonoPInvokeCallback(typeof(lua.CFunctionRaw))]
         private static int BenchUpvalue(IntPtr L)
         {
             lua.State s = new lua.State { _L = L };
@@ -1128,7 +1128,7 @@ namespace Mod.Lua.Tests
                 s_ShortKeyRef = lua.refer(L, lua.REGISTRYINDEX);
 
                 // 四个闭包：表统一 upvalue 1；C 组 key 额外作 upvalue 2
-                void MakeClosure(lua.CFunction f, int nup, string name)
+                void MakeClosure(lua.CFunctionRaw f, int nup, string name)
                 {
                     lua.pushcclosure(L, f, nup);
                     IntPtr p = LuaTestUtil.AllocUtf8(name);

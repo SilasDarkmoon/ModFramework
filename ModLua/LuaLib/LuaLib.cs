@@ -53,6 +53,9 @@ namespace Mod.Lua
         public struct State
         {
             internal IntPtr _L;
+
+            public IntPtr L => _L;
+            public bool IsValid => _L != IntPtr.Zero;
         }
 
         /// <summary>State -> lua_State* (direct field access).</summary>
@@ -273,6 +276,7 @@ namespace Mod.Lua
         public static int closethread(this State L, State from) => LuaImport.lua_closethread(Ptr(L), Ptr(from));
         /// <summary><c>[-0, +0, -]</c> Sets a new panic function; returns the old one (lua_atpanic).</summary>
         /// <remarks>The returned delegate is the previous panic function wrapped via GetDelegateForFunctionPointer.</remarks>
+        public static CFunctionRaw atpanic(this State L, CFunctionRaw panicf) => ToDel<CFunctionRaw>(LuaImport.lua_atpanic(Ptr(L), Keep(panicf)));
         public static CFunction atpanic(this State L, CFunction panicf) => ToDel<CFunction>(LuaImport.lua_atpanic(Ptr(L), Keep(panicf)));
         /// <summary><c>[-0, +0, -]</c> Returns the version number of the core (lua_version).</summary>
         /// <param name="L">may be default(State) (NULL) to query the linked core without a state.</param>
@@ -327,15 +331,15 @@ namespace Mod.Lua
         #region access functions (stack -> C)
 
         /// <summary><c>[-0, +0, -]</c> Returns 1 if the value at idx is convertible to a number (lua_isnumber).</summary>
-        public static int isnumber(this State L, int idx) => LuaImport.lua_isnumber(Ptr(L), idx);
+        public static bool isnumber(this State L, int idx) => LuaImport.lua_isnumber(Ptr(L), idx) != 0;
         /// <summary><c>[-0, +0, -]</c> Returns 1 if the value at idx is a string or a number (lua_isstring).</summary>
-        public static int isstring(this State L, int idx) => LuaImport.lua_isstring(Ptr(L), idx);
+        public static bool isstring(this State L, int idx) => LuaImport.lua_isstring(Ptr(L), idx) != 0;
         /// <summary><c>[-0, +0, -]</c> Returns 1 if the value at idx is a C function (lua_iscfunction).</summary>
-        public static int iscfunction(this State L, int idx) => LuaImport.lua_iscfunction(Ptr(L), idx);
+        public static bool iscfunction(this State L, int idx) => LuaImport.lua_iscfunction(Ptr(L), idx) != 0;
         /// <summary><c>[-0, +0, -]</c> Returns 1 if the value at idx is an integer-valued number (lua_isinteger).</summary>
-        public static int isinteger(this State L, int idx) => LuaImport.lua_isinteger(Ptr(L), idx);
+        public static bool isinteger(this State L, int idx) => LuaImport.lua_isinteger(Ptr(L), idx) != 0;
         /// <summary><c>[-0, +0, -]</c> Returns 1 if the value at idx is a (full or light) userdata (lua_isuserdata).</summary>
-        public static int isuserdata(this State L, int idx) => LuaImport.lua_isuserdata(Ptr(L), idx);
+        public static bool isuserdata(this State L, int idx) => LuaImport.lua_isuserdata(Ptr(L), idx) != 0;
         /// <summary><c>[-0, +0, -]</c> Returns the type of the value at idx, or TNONE for a bad index (lua_type).</summary>
         public static int type(this State L, int idx) => LuaImport.lua_type(Ptr(L), idx);
         /// <summary><c>[-0, +0, -]</c> Returns the name of the type tag tp (lua_typename).</summary>
@@ -383,6 +387,7 @@ namespace Mod.Lua
         /// <summary><c>[-0, +0, -]</c> Returns the raw length of the value at idx (lua_rawlen).</summary>
         public static ulong rawlen(this State L, int idx) => LuaImport.lua_rawlen(Ptr(L), idx);
         /// <summary><c>[-0, +0, -]</c> Returns the C function at idx as a delegate, or null (lua_tocfunction).</summary>
+        public static CFunctionRaw tocfunctionraw(this State L, int idx) => ToDel<CFunctionRaw>(LuaImport.lua_tocfunction(Ptr(L), idx));
         public static CFunction tocfunction(this State L, int idx) => ToDel<CFunction>(LuaImport.lua_tocfunction(Ptr(L), idx));
         /// <summary><c>[-0, +0, -]</c> Returns the memory block of the userdata at idx (lua_touserdata).</summary>
         /// <returns>A C <c>void*</c> to the raw memory block of a FULL userdata (the size you
@@ -679,6 +684,7 @@ namespace Mod.Lua
         /// <remarks>The delegate is kept alive for the lifetime of the process (Keep registry -
         /// Lua holds a raw thunk pointer).</remarks>
         /// <param name="n">Number of upvalues to pop from the stack.</param>
+        public static void pushcclosure(this State L, CFunctionRaw fn, int n) => LuaImport.lua_pushcclosure(Ptr(L), Keep(fn), n);
         public static void pushcclosure(this State L, CFunction fn, int n) => LuaImport.lua_pushcclosure(Ptr(L), Keep(fn), n);
         /// <summary><c>[-0, +1, -]</c> Pushes a boolean with the given truth value (lua_pushboolean).</summary>
         public static void pushboolean(this State L, int b) => LuaImport.lua_pushboolean(Ptr(L), b);
@@ -745,6 +751,7 @@ namespace Mod.Lua
         /// layout through it (e.g. UnsafeEx.ToRef&lt;T&gt;); the memory is managed by the Lua GC
         /// (freed when the userdata is collected; pair with a __gc metamethod for native sub-resources).</returns>
         public static IntPtr newuserdatauv(this State L, UIntPtr sz, int nuvalue) => LuaImport.lua_newuserdatauv(Ptr(L), sz, nuvalue);
+        public static IntPtr newuserdatauv(this State L, int sz, int nuvalue) => sz < 0 ? IntPtr.Zero : newuserdatauv(L, new UIntPtr((uint)sz), nuvalue);
         /// <summary><c>[-0, +(0|1), -]</c> Pushes the metatable of the value at objindex if it has one (lua_getmetatable).</summary>
         public static int getmetatable(this State L, int objindex) => LuaImport.lua_getmetatable(Ptr(L), objindex);
         /// <summary><c>[-0, +1, -]</c> Pushes the n-th user value of the userdata at idx (lua_getiuservalue).</summary>
@@ -832,21 +839,23 @@ namespace Mod.Lua
         /// <remarks>WARNING: longjmps out on error (never returns normally); do not rely on
         /// finally/using semantics on this call path.</remarks>
         /// <param name="ctx">A C <c>lua_KContext</c> (intptr_t): an INTEGER context of your
-        /// choice, not a pointer - it is passed back verbatim to the KFunction continuation
+        /// choice, not a pointer - it is passed back verbatim to the KFunctionRaw continuation
         /// (e.g. a GCHandle.ToIntPtr root, or any small value).</param>
+        public static void callk(this State L, int nargs, int nresults, IntPtr ctx, KFunctionRaw k) => LuaImport.lua_callk(Ptr(L), nargs, nresults, ctx, Keep(k));
         public static void callk(this State L, int nargs, int nresults, IntPtr ctx, KFunction k) => LuaImport.lua_callk(Ptr(L), nargs, nresults, ctx, Keep(k));
         /// <summary><c>[-(nargs+1), +(nresults|1), -]</c> Protected call with a continuation; errors come back as return codes (lua_pcallk).</summary>
         /// <remarks>On error pushes the error object (hence +(nresults|1)). Does not longjmp for
         /// called-code errors; memory errors still longjmp.</remarks>
         /// <param name="ctx">A C <c>lua_KContext</c> (intptr_t): an INTEGER context of your
-        /// choice, not a pointer - passed back verbatim to the KFunction continuation.</param>
+        /// choice, not a pointer - passed back verbatim to the KFunctionRaw continuation.</param>
+        public static int pcallk(this State L, int nargs, int nresults, int errfunc, IntPtr ctx, KFunctionRaw k) => LuaImport.lua_pcallk(Ptr(L), nargs, nresults, errfunc, ctx, Keep(k));
         public static int pcallk(this State L, int nargs, int nresults, int errfunc, IntPtr ctx, KFunction k) => LuaImport.lua_pcallk(Ptr(L), nargs, nresults, errfunc, ctx, Keep(k));
         /// <summary><c>[-0, +1, -]</c> Loads a chunk with a reader callback; errors come back as return codes (lua_load).</summary>
         /// <param name="mode">"b"/"t"/"bt" (null span = "bt").</param>
         /// <param name="chunkname">The source name for error messages and debug info.</param>
         /// <param name="dt">A C <c>void*</c>: an opaque cookie of your choice passed back
-        /// verbatim to every Reader callback.</param>
-        public static int load(this State L, Reader reader, IntPtr dt, CStringSpan chunkname, CStringSpan mode)
+        /// verbatim to every ReaderRaw callback.</param>
+        public static int loadCore(this State L, Delegate reader, IntPtr dt, CStringSpan chunkname, CStringSpan mode)
         {
             // Fast path: both spans direct (fixed/Unity AND already NUL-terminated).
             if ((chunkname.IsNull() || ((RuntimeInfo.IsUnity || chunkname.IsFixed) && chunkname.IsNullTerminated())) &&
@@ -883,11 +892,14 @@ namespace Mod.Lua
                 return LuaImport.lua_load(Ptr(L), Keep(reader), dt, pchunkname, pmode);
             }
         }
+        public static int load(this State L, ReaderRaw reader, IntPtr dt, CStringSpan chunkname, CStringSpan mode) => loadCore(L, reader, dt, chunkname, mode);
+        public static int load(this State L, Reader reader, IntPtr dt, CStringSpan chunkname, CStringSpan mode) => loadCore(L, reader, dt, chunkname, mode);
         /// <summary><c>[-0, +0, -]</c> Dumps the function on top as a binary chunk via a writer callback (lua_dump).</summary>
         /// <remarks>The writer's return value controls abort.</remarks>
         /// <param name="strip">Removes debug information when nonzero.</param>
         /// <param name="data">A C <c>void*</c>: an opaque cookie of your choice passed back
-        /// verbatim to every Writer callback.</param>
+        /// verbatim to every WriterRaw callback.</param>
+        public static int dump(this State L, WriterRaw writer, IntPtr data, int strip) => LuaImport.lua_dump(Ptr(L), Keep(writer), data, strip);
         public static int dump(this State L, Writer writer, IntPtr data, int strip) => LuaImport.lua_dump(Ptr(L), Keep(writer), data, strip);
 
         #endregion
@@ -898,7 +910,8 @@ namespace Mod.Lua
         /// <remarks>WARNING: longjmps if the thread is not yieldable; never returns normally
         /// in the successful case either (control goes back to the resumer).</remarks>
         /// <param name="ctx">A C <c>lua_KContext</c> (intptr_t): an INTEGER context of your
-        /// choice, not a pointer - passed back verbatim to the KFunction continuation when resumed.</param>
+        /// choice, not a pointer - passed back verbatim to the KFunctionRaw continuation when resumed.</param>
+        public static int yieldk(this State L, int nresults, IntPtr ctx, KFunctionRaw k) => LuaImport.lua_yieldk(Ptr(L), nresults, ctx, Keep(k));
         public static int yieldk(this State L, int nresults, IntPtr ctx, KFunction k) => LuaImport.lua_yieldk(Ptr(L), nresults, ctx, Keep(k));
         /// <summary><c>[-?, +?, -]</c> Starts/resumes a coroutine; nres receives the number of transferred values (lua_resume).</summary>
         public static int resume(this State L, State from, int narg, out int nres)
@@ -911,7 +924,7 @@ namespace Mod.Lua
         /// <summary><c>[-0, +0, -]</c> Returns the status of the thread (lua_status).</summary>
         public static int status(this State L) => LuaImport.lua_status(Ptr(L));
         /// <summary><c>[-0, +0, -]</c> Returns 1 if the thread can yield (lua_isyieldable).</summary>
-        public static int isyieldable(this State L) => LuaImport.lua_isyieldable(Ptr(L));
+        public static bool isyieldable(this State L) => LuaImport.lua_isyieldable(Ptr(L)) != 0;
 
         #endregion
 
@@ -1217,8 +1230,10 @@ namespace Mod.Lua
         /// <summary><c>[-0, +0, -]</c> Makes the n1-th upvalue of fidx1 share its cell with the n2-th of fidx2 (lua_upvaluejoin).</summary>
         public static void upvaluejoin(this State L, int fidx1, int n1, int fidx2, int n2) => LuaImport.lua_upvaluejoin(Ptr(L), fidx1, n1, fidx2, n2);
         /// <summary><c>[-0, +0, -]</c> Sets the debug hook (lua_sethook).</summary>
+        public static void sethook(this State L, HookRaw func, int mask, int count) => LuaImport.lua_sethook(Ptr(L), Keep(func), mask, count);
         public static void sethook(this State L, Hook func, int mask, int count) => LuaImport.lua_sethook(Ptr(L), Keep(func), mask, count);
         /// <summary><c>[-0, +0, -]</c> Returns the current hook as a delegate (lua_gethook).</summary>
+        public static HookRaw gethookraw(this State L) => ToDel<HookRaw>(LuaImport.lua_gethook(Ptr(L)));
         public static Hook gethook(this State L) => ToDel<Hook>(LuaImport.lua_gethook(Ptr(L)));
         /// <summary><c>[-0, +0, -]</c> Returns the current hook mask (lua_gethookmask).</summary>
         public static int gethookmask(this State L) => LuaImport.lua_gethookmask(Ptr(L));
@@ -1735,7 +1750,7 @@ namespace Mod.Lua
         /// <remarks>WARNING: openf is called unprotected - an error raised inside it longjmps
         /// out (hence 'e').</remarks>
         /// <param name="glb">Nonzero also sets the module as a global.</param>
-        public static void requiref(this State L, CStringSpan modname, CFunction openf, int glb)
+        public static void requirefCore(this State L, CStringSpan modname, Delegate openf, int glb)
         {
             // Fast path: direct native address (fixed/Unity AND already NUL-terminated).
             if (modname.IsNull() || ((RuntimeInfo.IsUnity || modname.IsFixed) && modname.IsNullTerminated()))
@@ -1752,6 +1767,8 @@ namespace Mod.Lua
                 LuaImport.luaL_requiref(Ptr(L), pmodname, Keep(openf), glb);
             }
         }
+        public static void requiref(this State L, CStringSpan modname, CFunctionRaw openf, int glb) => requirefCore(L, modname, openf, glb);
+        public static void requiref(this State L, CStringSpan modname, CFunction openf, int glb) => requirefCore(L, modname, openf, glb);
 
         #endregion
 
@@ -1977,10 +1994,11 @@ namespace Mod.Lua
         public static void newtable(this State L) => LuaImport.lua_createtable(Ptr(L), 0, 0);
 
         /// <summary><c>[-0, +1, -]</c> lua_pushcfunction: pushes a C function with no upvalues (lua_pushcclosure with n=0).</summary>
+        public static void pushcfunction(this State L, CFunctionRaw fn) => LuaImport.lua_pushcclosure(Ptr(L), Keep(fn), 0);
         public static void pushcfunction(this State L, CFunction fn) => LuaImport.lua_pushcclosure(Ptr(L), Keep(fn), 0);
 
         /// <summary><c>[-0, +0, e]</c> lua_register: pushcfunction + setglobal - registers f as global name.</summary>
-        public static void register(this State L, CStringSpan name, CFunction f)
+        public static void registerCore(this State L, CStringSpan name, Delegate f)
         {
             // Fast path: direct native address (fixed/Unity AND already NUL-terminated).
             if (name.IsNull() || ((RuntimeInfo.IsUnity || name.IsFixed) && name.IsNullTerminated()))
@@ -1999,6 +2017,8 @@ namespace Mod.Lua
                 LuaImport.lua_setglobal(Ptr(L), pname);
             }
         }
+        public static void register(this State L, CStringSpan name, CFunctionRaw f) => registerCore(L, name, f);
+        public static void register(this State L, CStringSpan name, CFunction f) => registerCore(L, name, f);
 
         /// <summary><c>[-0, +0, -]</c> lua_is* family: type checks against the lua_type result (bool forms).</summary>
         public static bool isfunction(this State L, int idx) => LuaImport.lua_type(Ptr(L), idx) == TFUNCTION;
@@ -2048,6 +2068,7 @@ namespace Mod.Lua
         /// <returns>A C <c>void*</c> to the freshly zeroed sz-byte block (same semantics as
         /// newuserdatauv).</returns>
         public static IntPtr newuserdata(this State L, UIntPtr sz) => LuaImport.lua_newuserdatauv(Ptr(L), sz, 1);
+        public static IntPtr newuserdata(this State L, int sz) => sz < 0 ? IntPtr.Zero : newuserdata(L, new UIntPtr((uint)sz));
 
         /// <summary><c>[-0, +1, -]</c> lua_getuservalue: pushes the (single) user value (getiuservalue with n=1).</summary>
         public static int getuservalue(this State L, int idx) => LuaImport.lua_getiuservalue(Ptr(L), idx, 1);
