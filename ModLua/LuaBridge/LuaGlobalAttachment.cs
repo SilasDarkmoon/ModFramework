@@ -39,7 +39,7 @@ namespace Mod.Lua
                     }
                 }
 
-                var ukey = new IntPtr(lua.Consts._UKEY_MAIN_ATTACHMENT);
+                var ukey = lua.Consts._UKEY_MAIN_ATTACHMENT;
                 l.pushlightuserdata(ukey);
                 l.rawget(-2);
                 if (l.type(-1) == lua.TUSERDATA)

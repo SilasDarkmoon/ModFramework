@@ -475,10 +475,10 @@ namespace Mod.Lua.Tests
                 // atpanic 返回旧 panic 的 delegate。luaL_newstate 装了默认
                 // panic（lauxlib.c:1187 lua_atpanic(L, &panic)）——卸载时
                 // 返回它的 native 地址 → GetDelegateForFunctionPointer 链路。
-                lua.CFunctionRaw defPanic = lua.atpanic(L, null); // 卸载默认 panic
+                lua.CFunctionRaw defPanic = lua.atpanic(L, (lua.CFunctionRaw)null); // 卸载默认 panic
                 Assert.NotNull(defPanic); // fnptr -> delegate 成功
                 Assert.Null(lua.atpanic(L, s_CAdd)); // 装自定义，旧值是 NULL（刚卸载）
-                lua.CFunctionRaw installed = lua.atpanic(L, null); // 卸载，返回刚装的 thunk
+                lua.CFunctionRaw installed = lua.atpanic(L, (lua.CFunctionRaw)null); // 卸载，返回刚装的 thunk
                 Assert.NotNull(installed); // Keep 的 thunk 地址往返
                 lua.atpanic(L, defPanic); // 恢复默认 panic（delegate -> fnptr -> Lua）
 
@@ -570,7 +570,7 @@ namespace Mod.Lua.Tests
                 // pushlstring 空 -> push 空串（lua_pushlstring(L, NULL, 0) 合法）
                 lua.pushlstring(L, default);
                 Assert.Equal(1, lua.gettop(L));
-                Assert.NotEqual(0, lua.isstring(L, -1)); // isstring is a real function returning int
+                Assert.True(lua.isstring(L, -1)); // isstring is a real function returning bool
                 Assert.Equal(0UL, lua.rawlen(L, -1));
                 lua.pop(L, 1);
 
