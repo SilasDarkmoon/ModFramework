@@ -8,8 +8,7 @@ namespace Mod.Lua
 {
     internal partial class LuaGlobalAttachment : IDisposable
     {
-        [ThreadStatic]
-        private static Dictionary<IntPtr, LuaGlobalAttachment> _Cache;
+        [ThreadStatic] private static Dictionary<IntPtr, LuaGlobalAttachment> _Cache;
 
         public static LuaGlobalAttachment Get(lua.State l)
         {
@@ -92,6 +91,7 @@ namespace Mod.Lua
         {
             _L = l;
             ObjectPool = new LuaObjectPool(this);
+            StringPool = new LuaStringPool(this);
         }
 
         public void Dispose()
@@ -103,6 +103,6 @@ namespace Mod.Lua
         }
 
         public readonly LuaObjectPool ObjectPool;
-        //public readonly 
+        public readonly LuaStringPool StringPool;
     }
 }

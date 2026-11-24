@@ -19,6 +19,8 @@ namespace Mod.Lua
 
         public void Reg(IntPtr id, object obj)
         {
+            Unreg(id);
+            Unreg(obj);
             _Pool[id] = obj;
             _ReversePool[obj] = id;
         }
@@ -41,19 +43,17 @@ namespace Mod.Lua
                 _Pool.Remove(id);
             }
         }
+        internal object TryGet(IntPtr id)
+        {
+            _Pool.TryGetValue(id, out var obj);
+            return obj;
+        }
         public object TryGetPooled(lua.State l, int index, out IntPtr id)
         {
             id = l.topointer(index);
-            if (_Pool.TryGetValue(id, out var obj))
-            {
-                return obj;
-            }
-            else
-            {
-                return null;
-            }
+            return TryGet(id);
         }
-        private void PushPoolTable(lua.State l)
+        internal void PushPoolTable(lua.State l)
         {
             l.pushlightuserdata(lua.Consts._UKEY_OBJECT_POOL);
             l.rawget(lua.REGISTRYINDEX);
@@ -63,6 +63,11 @@ namespace Mod.Lua
                 l.newtable();
                 l.pushlightuserdata(lua.Consts._UKEY_OBJECT_POOL);
                 l.pushvalue(-2);
+                l.newtable();
+                l.pushlstring(lua.Consts.SKEY_MODE.CString);
+                l.pushlstring(lua.Consts.STR_V.CString);
+                l.rawset(-3);
+                l.setmetatable(-2);
                 l.rawset(lua.REGISTRYINDEX);
             }
         }
@@ -73,13 +78,16 @@ namespace Mod.Lua
                 PushPoolTable(l);
                 l.pushlightuserdata(id);
                 l.rawget(-2);
-                l.remove(-2);
                 if (l.isnoneornil(-1))
                 {
+                    _ReversePool.Remove(obj);
+                    _Pool.Remove(id);
+                    l.pop(2);
                     return IntPtr.Zero;
                 }
                 else
                 {
+                    l.remove(-2);
                     return id;
                 }
             }

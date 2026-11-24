@@ -169,6 +169,25 @@ namespace Mod
                 _HashCode = _Value.GetHashCode();
             }
         }
+        private PString(string str, int index, int hash)
+        {
+            _Value = str;
+            _Index = index;
+            _HashCode = hash;
+        }
+        public static PString TryGet(string str)
+        {
+            var index = _StringPool.IsPooled(str);
+            if (index < 0)
+            {
+                return null;
+            }
+            return new PString(string.Intern(str), index, str.GetHashCode());
+        }
+        public static int IsPooled(string str)
+        {
+            return _StringPool.IsPooled(str);
+        }
 
         public string Value => _Value;
         public int Index => _Index;
@@ -225,6 +244,21 @@ namespace Mod
                 }
             }
             return null;
+        }
+        public static PCString TryGet(string str)
+        {
+            if (str == null)
+            {
+                return null;
+            }
+            if (PString.IsPooled(str) >= 0)
+            {
+                return GetOrCreate(str);
+            }
+            else
+            {
+                return null;
+            }
         }
 
         public static PCString GetOrCreate(string str)
