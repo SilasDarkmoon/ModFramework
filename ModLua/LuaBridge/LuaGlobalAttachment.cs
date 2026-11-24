@@ -50,9 +50,9 @@ namespace Mod.Lua
                     attachment = new LuaGlobalAttachment(l);
                     l.pop(1);
                     l.pushlightuserdata(ukey);
-                    var attachaddr = l.newuserdata(LuaObject.Size);
-                    var lobj = new LuaObject(attachment);
-                    RawRef.Of(attachaddr).GetRef<LuaObject>() = lobj;
+                    var attachaddr = l.newuserdata(LuaUserData.Size);
+                    var lobj = new LuaUserData(attachment);
+                    RawRef.Of(attachaddr).GetRef<LuaUserData>() = lobj;
                     l.newtable();
                     l.pushlstringn(lua.Consts.SKEY_GC.CString);
                     l.pushcfunction(_LuaFuncGlobalAttachmentGC);

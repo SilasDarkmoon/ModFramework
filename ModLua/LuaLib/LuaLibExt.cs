@@ -42,10 +42,10 @@ namespace Mod.Lua
             return new LuaScope(l);
         }
 
-        internal static LuaObject GetUserData(this lua.State l, int index)
+        internal static LuaUserData GetUserData(this lua.State l, int index)
         {
             IntPtr addr = l.touserdata(index);
-            return RawRef.Of(addr).GetValue<LuaObject>();
+            return RawRef.Of(addr).GetValue<LuaUserData>();
         }
         public static T GetUserData<T>(this lua.State l, int index)
         {

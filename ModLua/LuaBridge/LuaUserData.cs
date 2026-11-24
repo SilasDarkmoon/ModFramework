@@ -6,14 +6,14 @@ using System.Runtime.InteropServices;
 namespace Mod.Lua
 {
     [StructLayout(LayoutKind.Sequential)]
-    internal struct LuaObject : IDisposable
+    internal struct LuaUserData : IDisposable
     {
-        public IntPtr TypeHandle;
         public ulong Flags;
+        public IntPtr TypeHandle;
         public IntPtr ExtraHandle;
         public IntPtr ObjectHandle;
 
-        public static readonly int Size = Marshal.SizeOf<LuaObject>();
+        public static readonly int Size = Marshal.SizeOf<LuaUserData>();
 
         public object TypeProcessor => TypeHandle == IntPtr.Zero ? null : GCHandle.FromIntPtr(TypeHandle).Target;
         public object ExtraAttached
@@ -36,14 +36,14 @@ namespace Mod.Lua
         }
         public object TargetObject => ObjectHandle == IntPtr.Zero ? null : GCHandle.FromIntPtr(ObjectHandle).Target;
 
-        public LuaObject(object obj)
+        public LuaUserData(object obj)
         {
             TypeHandle = IntPtr.Zero;
             Flags = 0;
             ExtraHandle = IntPtr.Zero;
             ObjectHandle = obj == null ? IntPtr.Zero : GCHandle.ToIntPtr(GCHandle.Alloc(obj));
         }
-        public LuaObject(IntPtr typeHandle, object obj)
+        public LuaUserData(IntPtr typeHandle, object obj)
         {
             TypeHandle = typeHandle;
             Flags = 0;
