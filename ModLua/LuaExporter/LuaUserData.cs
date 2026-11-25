@@ -6,68 +6,61 @@ using System.Runtime.InteropServices;
 namespace Mod.Lua
 {
     [StructLayout(LayoutKind.Sequential)]
-    internal struct LuaUserData : IDisposable
+    internal struct LuaUserDataHeader
     {
-        public ulong Flags;
+        public int UserDataSize;
+        public uint Flags;
         public IntPtr TypeHandle;
-        public IntPtr ExtraHandle;
-        public IntPtr ObjectHandle;
 
-        public static readonly int Size = Marshal.SizeOf<LuaUserData>();
+        public static readonly int Size = Marshal.SizeOf<LuaUserDataHeader>();
+        public LuaUserDataHeader(int size)
+        {
+            UserDataSize = size > 0 ? size : Size;
+            Flags = 0;
+            TypeHandle = default;
+        }
 
         public object TypeProcessor => TypeHandle == IntPtr.Zero ? null : GCHandle.FromIntPtr(TypeHandle).Target;
-        public object ExtraAttached
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct LuaUserDataValueType<T>
+    {
+        public LuaUserDataHeader Header;
+        public T Data;
+
+        public static readonly int Size = LuaUserDataHeader.Size + UnsafeEx.Size<T>();
+        public LuaUserDataValueType(T value)
         {
-            get => ExtraHandle == IntPtr.Zero ? null : GCHandle.FromIntPtr(ExtraHandle).Target;
-            set
-            {
-                var current = ExtraHandle;
-                if (current != IntPtr.Zero)
-                {
-                    var gchandle = GCHandle.FromIntPtr(current);
-                    if (gchandle.Target is IDisposable disp)
-                    {
-                        disp.Dispose();
-                    }
-                    gchandle.Free();
-                }
-                ExtraHandle = value == null ? IntPtr.Zero : GCHandle.ToIntPtr(GCHandle.Alloc(value));
-            }
+            Header = new LuaUserDataHeader(Size);
+            Data = value;
         }
+
+        public object TypeProcessor => Header.TypeProcessor;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct LuaUserData : IDisposable
+    {
+        public LuaUserDataHeader Header;
+        public IntPtr ObjectHandle;
+
+        public static readonly int Size = LuaUserDataHeader.Size + IntPtr.Size;
+
+        public object TypeProcessor => Header.TypeProcessor;
         public object TargetObject => ObjectHandle == IntPtr.Zero ? null : GCHandle.FromIntPtr(ObjectHandle).Target;
 
         public LuaUserData(object obj)
         {
-            TypeHandle = IntPtr.Zero;
-            Flags = 0;
-            ExtraHandle = IntPtr.Zero;
+            Header = new LuaUserDataHeader(Size);
             ObjectHandle = obj == null ? IntPtr.Zero : GCHandle.ToIntPtr(GCHandle.Alloc(obj));
         }
-        public LuaUserData(IntPtr typeHandle, object obj)
+        public LuaUserData(IntPtr typeHandle, object obj) : this(obj)
         {
-            TypeHandle = typeHandle;
-            Flags = 0;
-            ExtraHandle = IntPtr.Zero;
-            ObjectHandle = obj == null ? IntPtr.Zero : GCHandle.ToIntPtr(GCHandle.Alloc(obj));
+            Header.TypeHandle = typeHandle;
         }
         public void Dispose()
         {
-            // Notice: TypeHandle is global instance, should not be freed.
-            //if (TypeHandle != IntPtr.Zero)
-            //{
-            //    GCHandle.FromIntPtr(TypeHandle).Free();
-            //    TypeHandle = IntPtr.Zero;
-            //}
-            if (ExtraHandle != IntPtr.Zero)
-            {
-                var gchandle = GCHandle.FromIntPtr(ExtraHandle);
-                if (gchandle.Target is IDisposable disp)
-                {
-                    disp.Dispose();
-                }
-                gchandle.Free();
-                ExtraHandle = IntPtr.Zero;
-            }
             if (ObjectHandle != IntPtr.Zero)
             {
                 var gchandle = GCHandle.FromIntPtr(ObjectHandle);
@@ -82,16 +75,6 @@ namespace Mod.Lua
         }
         public object GetTargetAndDispose()
         {
-            if (ExtraHandle != IntPtr.Zero)
-            {
-                var gchandle = GCHandle.FromIntPtr(ExtraHandle);
-                if (gchandle.Target is IDisposable disp)
-                {
-                    disp.Dispose();
-                }
-                gchandle.Free();
-                ExtraHandle = IntPtr.Zero;
-            }
             object target = null;
             if (ObjectHandle != IntPtr.Zero)
             {
