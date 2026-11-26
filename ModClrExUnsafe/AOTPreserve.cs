@@ -19,6 +19,11 @@ namespace Mod.LowLevel
         // so its override chain must be rooted explicitly.
         [DynamicDependency(DynamicallyAccessedMemberTypes.All, "System.Reflection.Runtime.MethodInfos.RuntimeNamedMethodInfo`1", "System.Private.CoreLib")]
         [DynamicDependency(DynamicallyAccessedMemberTypes.All, "System.Delegate", "System.Private.CoreLib")]
+
+        // SizeMeasurer (FieldEx.cs) resolves the allocation counter BY NAME on
+        // NativeAOT (the netstandard2.0 contract has no such API) - keep the
+        // method's reflection metadata or the counter falls back to the walk.
+        [DynamicDependency("GetAllocatedBytesForCurrentThread()", "System.GC", "System.Private.CoreLib")]
         [DynamicDependency(DynamicallyAccessedMemberTypes.All, "Mod.LowLevel.ByRefParam", "PointerDelegate")]
         [DynamicDependency(DynamicallyAccessedMemberTypes.All, "Mod.LowLevel.ByRefLocalSlot", "PointerDelegate")]
 

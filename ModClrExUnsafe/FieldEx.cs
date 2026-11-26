@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace Mod.LowLevel
@@ -607,6 +608,212 @@ namespace Mod.LowLevel
                     return GetSizeByFields(type);
                 }
             }
+
+            // ---- IL2CPP: il2cpp C API over DllImport ----------------------------
+            // The three library names cover every IL2CPP player platform:
+            // GameAssembly (Windows / macOS / Linux players), libil2cpp (Android
+            // player), __Internal (iOS static link). All variants are declared
+            // unconditionally - a DllImport is inert until its method runs, and
+            // the binding is probed lazily with the constant-returning
+            // il2cpp_object_header_size (probing through class_from_type would
+            // dereference a null klass natively). A miss throws
+            // DllNotFoundException inside the probe and the next candidate is
+            // tried; the final miss falls through to the field walk. Never called
+            // off an IL2CPP runtime (gated by RuntimeInfo.IsIl2Cpp).
+            private static class Il2CppSizeApi
+            {
+                private const int BindingUnresolved = 0;
+                private const int BindingGameAssembly = 1;
+                private const int BindingLibIl2Cpp = 2;
+                private const int BindingInternal = 3;
+                private const int BindingNone = -1;
+                private static int _Binding = BindingUnresolved;
+                private static readonly object _BindingLock = new object();
+
+                private static void ResolveBinding()
+                {
+                    lock (_BindingLock)
+                    {
+                        if (_Binding != BindingUnresolved)
+                        {
+                            return;
+                        }
+                        try { object_header_size_ga(); _Binding = BindingGameAssembly; return; } catch (Exception) { }
+                        try { object_header_size_li(); _Binding = BindingLibIl2Cpp; return; } catch (Exception) { }
+                        try { object_header_size_ia(); _Binding = BindingInternal; return; } catch (Exception) { }
+                        _Binding = BindingNone;
+                    }
+                }
+
+                [DllImport("GameAssembly", CallingConvention = CallingConvention.Cdecl, EntryPoint = "il2cpp_object_header_size")]
+                private static extern uint object_header_size_ga();
+                [DllImport("libil2cpp", CallingConvention = CallingConvention.Cdecl, EntryPoint = "il2cpp_object_header_size")]
+                private static extern uint object_header_size_li();
+                [DllImport("__Internal", CallingConvention = CallingConvention.Cdecl, EntryPoint = "il2cpp_object_header_size")]
+                private static extern uint object_header_size_ia();
+
+                [DllImport("GameAssembly", CallingConvention = CallingConvention.Cdecl, EntryPoint = "il2cpp_class_from_type")]
+                private static extern IntPtr class_from_type_ga(IntPtr type);
+                [DllImport("libil2cpp", CallingConvention = CallingConvention.Cdecl, EntryPoint = "il2cpp_class_from_type")]
+                private static extern IntPtr class_from_type_li(IntPtr type);
+                [DllImport("__Internal", CallingConvention = CallingConvention.Cdecl, EntryPoint = "il2cpp_class_from_type")]
+                private static extern IntPtr class_from_type_ia(IntPtr type);
+
+                [DllImport("GameAssembly", CallingConvention = CallingConvention.Cdecl, EntryPoint = "il2cpp_class_instance_size")]
+                private static extern int instance_size_ga(IntPtr klass);
+                [DllImport("libil2cpp", CallingConvention = CallingConvention.Cdecl, EntryPoint = "il2cpp_class_instance_size")]
+                private static extern int instance_size_li(IntPtr klass);
+                [DllImport("__Internal", CallingConvention = CallingConvention.Cdecl, EntryPoint = "il2cpp_class_instance_size")]
+                private static extern int instance_size_ia(IntPtr klass);
+
+                [DllImport("GameAssembly", CallingConvention = CallingConvention.Cdecl, EntryPoint = "il2cpp_class_value_size")]
+                private static extern int value_size_ga(IntPtr klass, out uint align);
+                [DllImport("libil2cpp", CallingConvention = CallingConvention.Cdecl, EntryPoint = "il2cpp_class_value_size")]
+                private static extern int value_size_li(IntPtr klass, out uint align);
+                [DllImport("__Internal", CallingConvention = CallingConvention.Cdecl, EntryPoint = "il2cpp_class_value_size")]
+                private static extern int value_size_ia(IntPtr klass, out uint align);
+
+                /// <summary>Il2CppClass* of a managed Type. The reflection object
+                /// on IL2CPP is an Il2CppReflectionType whose first field (behind
+                /// the object header) is the const Il2CppType* - TypeHandle.Value
+                /// is the SAME metadata pointer, not the class pointer, and feeds
+                /// garbage to the size APIs. Zero on an unresolved binding
+                /// (callers fall back to the walk).</summary>
+                public static IntPtr ClassFromClass(Type type)
+                {
+                    if (_Binding == BindingUnresolved)
+                    {
+                        ResolveBinding();
+                    }
+                    IntPtr typePtr = Marshal.ReadIntPtr(RawRef.Of(type).Address, GetObjectHeaderSize());
+                    switch (_Binding)
+                    {
+                        case BindingGameAssembly: return class_from_type_ga(typePtr);
+                        case BindingLibIl2Cpp: return class_from_type_li(typePtr);
+                        case BindingInternal: return class_from_type_ia(typePtr);
+                        default: return IntPtr.Zero;
+                    }
+                }
+
+                /// <summary>sizeof semantics (exact for hot-update value types).</summary>
+                public static int ValueSize(IntPtr klass)
+                {
+                    if (_Binding == BindingUnresolved)
+                    {
+                        ResolveBinding();
+                    }
+                    uint align;
+                    switch (_Binding)
+                    {
+                        case BindingGameAssembly: return value_size_ga(klass, out align);
+                        case BindingLibIl2Cpp: return value_size_li(klass, out align);
+                        case BindingInternal: return value_size_ia(klass, out align);
+                        default: return 0;
+                    }
+                }
+
+                /// <summary>Instance size minus the object header: the payload
+                /// the Size semantics reports for reference types.</summary>
+                public static int InstanceDataSize(IntPtr klass)
+                {
+                    if (_Binding == BindingUnresolved)
+                    {
+                        ResolveBinding();
+                    }
+                    int total;
+                    switch (_Binding)
+                    {
+                        case BindingGameAssembly: total = instance_size_ga(klass); break;
+                        case BindingLibIl2Cpp: total = instance_size_li(klass); break;
+                        case BindingInternal: total = instance_size_ia(klass); break;
+                        default: return 0;
+                    }
+                    return total - GetObjectHeaderSize();
+                }
+            }
+
+            // ---- NativeAOT: uninitialized-instance allocation delta -------------
+            // Generic instantiation over an unrooted type throws there, but the
+            // runtime can still ALLOCATE any type it can name: the delta of one
+            // GetUninitializedObject call against the per-thread allocation
+            // counter is header + payload (constructors never run, static
+            // constructors only fire on the warm-up call, and a finalizer changes
+            // neither the size nor this thread's counter - measured in
+            // Probes/UninitializedSizeProbe). GetUninitializedObject itself has a
+            // constant per-call allocation on NativeAOT (32 on x64, 0 on JIT),
+            // calibrated once against a direct new of a same-layout twin.
+
+            // GC.GetAllocatedBytesForCurrentThread is not in the netstandard2.0
+            // contract - resolved by name. On NativeAOT the method's reflection
+            // metadata is kept by the DynamicDependency in AOTPreserve.
+            private static Func<long> _AllocatedBytesCounter;
+            private static Func<long> AllocCounter()
+            {
+                var get = _AllocatedBytesCounter;
+                if (get != null)
+                {
+                    return get;
+                }
+                var mi = typeof(GC).GetMethod("GetAllocatedBytesForCurrentThread", Type.EmptyTypes);
+                if (mi == null)
+                {
+                    throw new PlatformNotSupportedException("GC.GetAllocatedBytesForCurrentThread is unavailable on this runtime.");
+                }
+                get = (Func<long>)Delegate.CreateDelegate(typeof(Func<long>), mi);
+                _AllocatedBytesCounter = get;
+                return get;
+            }
+
+            // Direct-new twin for the overhead calibration: known payload (32 on
+            // x64, 16 on x86), constructed here so ILC sees it as constructed.
+            private class AllocCalib { public long A, B, C, D; }
+
+            private static int _UninitOverhead = -1;
+            private static int UninitOverhead()
+            {
+                int overhead = _UninitOverhead;
+                if (overhead < 0)
+                {
+                    new AllocCalib(); new AllocCalib(); // warm the direct route
+                    var get = AllocCounter();
+                    long before = get();
+                    var a = new AllocCalib();
+                    long direct = get() - before;
+                    GC.KeepAlive(a);
+                    before = get();
+                    object b = typeof(AllocCalib).GetUninitializedObject();
+                    long viaReflection = get() - before;
+                    GC.KeepAlive(b);
+                    GC.SuppressFinalize(b);
+                    overhead = (int)(viaReflection - direct);
+                    if (overhead < 0)
+                    {
+                        overhead = 0;
+                    }
+                    _UninitOverhead = overhead;
+                }
+                return overhead;
+            }
+
+            private static int MeasureByUninitializedObject(Type type)
+            {
+                var get = AllocCounter(); // resolve first - the lookup itself allocates
+                // Per-type warm-up: the first allocation of a type can carry
+                // one-time costs (finalizer registration infrastructure measured
+                // at +200/+296 on JIT/AOT) that must not leak into the delta.
+                GC.SuppressFinalize(type.GetUninitializedObject());
+                long before = get();
+                object keep = type.GetUninitializedObject();
+                long delta = get() - before;
+                GC.KeepAlive(keep);
+                // A measured instance must not leave finalizable litter behind:
+                // its finalizer would run on the finalizer thread - which this
+                // per-thread counter never sees (measured pollution = 0) - but
+                // the object would still accumulate.
+                GC.SuppressFinalize(keep);
+                return (int)(delta - UninitOverhead() - 2 * IntPtr.Size);
+            }
+
             public static int GetSize<T>()
             {
                 var type = typeof(T);
@@ -701,24 +908,137 @@ namespace Mod.LowLevel
                 }
                 if (RuntimeInfo.IsIl2Cpp)
                 {
-                    // import func from il2cpp c library
+                    // The il2cpp C API: the size lives in the runtime's own
+                    // class metadata - exact for AOT and HybridCLR hot types
+                    // alike, immune to the lying StructLayoutAttribute (item
+                    // 4) and to trimming. A null class (unresolvable type) or
+                    // a nonsense size falls through to the walk;
+                    // class_from_type throws for unresolvable types - caught,
+                    // same destination.
+                    try
+                    {
+                        IntPtr klass = Il2CppSizeApi.ClassFromClass(type);
+                        if (klass != IntPtr.Zero)
+                        {
+                            size = type.IsValueType
+                                ? Il2CppSizeApi.ValueSize(klass)
+                                : Il2CppSizeApi.InstanceDataSize(klass);
+                            if (size > 0)
+                            {
+                                lock (_Cache)
+                                {
+                                    _Cache[type.TypeHandle] = size;
+                                }
+                                return size;
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // fall through to the field walk
+                    }
                 }
                 else if (RuntimeInfo.IsNativeAOT)
                 {
-                    // alloc on gc heap, and calculate allocated delta.
+                    // Generic instantiation over an unrooted type throws
+                    // there (missing native code); the allocation delta of an
+                    // uninitialized instance needs neither field metadata nor
+                    // dynamic code. Loud failures (string/array/delegate/
+                    // abstract/open generic) fall through to the walk - and
+                    // on a trimmed build that walk fallback can return
+                    // SILENTLY WRONG values (GetFields yields the trimmed,
+                    // possibly empty set): callers querying runtime-determined
+                    // types under NativeAOT must keep the type's members
+                    // rooted ([DynamicDependency] / TrimmerRootAssembly), or
+                    // use the statically-known generic form Size<T>() which
+                    // needs no roots. Value types come back boxed from this
+                    // route: the result is align8(sizeof) - exact for
+                    // default-layout structs, rounded to 8 for packed ones
+                    // (the generic route above is the exact path; this is its
+                    // fallback).
+                    try
+                    {
+                        size = MeasureByUninitializedObject(type);
+                        if (size > 0)
+                        {
+                            lock (_Cache)
+                            {
+                                _Cache[type.TypeHandle] = size;
+                            }
+                            return size;
+                        }
+                    }
+                    catch
+                    {
+                        // fall through to the field walk
+                    }
                 }
                 return GetSizeByFields(type);
             }
         }
 
+        /// <summary>
+        /// The number of bytes the type occupies as data. Value types: the
+        /// managed instance size (sizeof semantics). Reference types: the
+        /// on-heap payload with the object header (method table / sync)
+        /// removed; reference fields count as one pointer each.
+        /// </summary>
+        /// <remarks>
+        /// <para>On IL2CPP (HybridCLR hot-update types included) the value
+        /// comes from the runtime's own class metadata
+        /// (<c>il2cpp_class_value_size</c> / <c>il2cpp_class_instance_size</c>)
+        /// and is allocation-consistent: it includes the internal padding the
+        /// runtime puts into instance sizes. The unreliable
+        /// <see cref="StructLayoutAttribute"/> of hot types is bypassed
+        /// entirely; a hot type whose declared Size truncates its fields is
+        /// reported the way the runtime actually laid it out.</para>
+        /// <para>On NativeAOT, value types resolve through generic
+        /// instantiation; a type the AOT compiler never instantiated falls
+        /// back to measuring an uninitialized allocation (packed structs come
+        /// back rounded to 8). Querying arbitrary <see cref="Type"/> objects
+        /// under trimming requires keeping the type's members rooted
+        /// (<c>[DynamicDependency]</c> / TrimmerRootAssembly): without roots
+        /// the routes fail asymmetrically - generic instantiation throws
+        /// NotSupportedException (loud), while the field-walk fallback sees
+        /// the trimmed (empty) field set and returns silently wrong values.
+        /// Prefer <see cref="Size{T}()"/> wherever the type is statically
+        /// known - the trimmer sees everything there and no roots are
+        /// needed.</para>
+        /// </remarks>
         public static int Size(this Type t)
         {
             return SizeMeasurer.GetSizePlatDep(t);
         }
+        /// <summary>
+        /// Generic form of <see cref="Size(Type)"/>: sizeof semantics for
+        /// value types (compiled in - exact on every runtime, IL2CPP shared
+        /// generics included); the payload walk for reference types.
+        /// </summary>
+        /// <remarks>
+        /// Under NativeAOT / trimming this is the preferred form: the type
+        /// argument is statically known, so the trimmer keeps everything the
+        /// call needs and no reflection roots are required.
+        /// </remarks>
         public static int Size<T>()
         {
             return SizeMeasurer.GetSize<T>();
         }
+        /// <summary>
+        /// The number of bytes the instance occupies as data (header
+        /// removed). null returns 0. Strings measure the real content:
+        /// first-char offset + (length + 1) * 2 (chars plus terminator, no
+        /// trailing allocator padding). Arrays measure the elements:
+        /// first-element offset + length * stride (a Pack=1 struct array
+        /// strides by its raw size). Fixed-layout instances equal
+        /// <see cref="Size(Type)"/> of their runtime type.
+        /// </summary>
+        /// <remarks>
+        /// Multi-dimensional (rank &gt; 1) and non-zero-lower-bound arrays
+        /// return a LOWER BOUND: the per-dimension bounds block stored
+        /// between the length and the data is not counted (CoreCLR keeps it
+        /// inline - the real payload is larger by roughly rank * 8; IL2CPP
+        /// keeps the bounds out-of-line).
+        /// </remarks>
         public static int Size(this object obj)
         {
             if (obj == null)
@@ -753,6 +1073,10 @@ namespace Mod.LowLevel
             }
             return Size(obj.GetType());
         }
+        /// <summary>
+        /// Dispatch form: value types take the generic (sizeof) path,
+        /// reference types take <see cref="Size(object)"/>.
+        /// </summary>
         public static int Size<T>(ref T obj)
         {
             if (typeof(T).IsValueType)
@@ -766,6 +1090,11 @@ namespace Mod.LowLevel
                 return Size((object)obj);
             }
         }
+        /// <summary>
+        /// Dispatch form, same as <see cref="Size{T}(ref T)"/>. The cast
+        /// inside prevents the call from re-binding to this overload itself
+        /// (infinite recursion).
+        /// </summary>
         public static int Size<T>(this T obj)
         {
             if (typeof(T).IsValueType)
@@ -780,10 +1109,24 @@ namespace Mod.LowLevel
             }
         }
 
+        /// <summary>
+        /// Raw sizeof semantics: value types = the managed instance size
+        /// (identical to <see cref="Size(Type)"/> there); reference types =
+        /// one pointer (<see cref="IntPtr.Size"/>).
+        /// </summary>
+        /// <remarks>
+        /// Value types route through the same generic-instantiation /
+        /// allocation-measurement chain as <see cref="Size(Type)"/> - the
+        /// NativeAOT trimming notes there apply to this form as well.
+        /// </remarks>
         public static int RawSize(this Type t)
         {
             return SizeMeasurer.RawSizePlatDep(t);
         }
+        /// <summary>
+        /// Compiled-in sizeof: value types = the instance size, reference
+        /// types = <see cref="IntPtr.Size"/>.
+        /// </summary>
         public static int RawSize<T>()
         {
             unsafe
