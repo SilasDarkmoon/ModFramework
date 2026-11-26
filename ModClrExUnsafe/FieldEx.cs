@@ -495,6 +495,53 @@ namespace Mod.LowLevel
                 }
             }
 
+            public static int GetSizeByFields(Type type)
+            {
+                int size = 0;
+                var fields = GetAllFields(type);
+                foreach (var field in fields)
+                {
+                    var foffset = GetFieldOffset(field);
+                    var fieldType = field.FieldType;
+                    // The extent is the largest field END, not the end of
+                    // the field with the largest offset: overlapping
+                    // (explicit/union) layouts would be cut short otherwise
+                    // ({byte@0, long@0} -> 1 instead of 8).
+                    int end;
+                    if (fieldType.IsValueType && !fieldType.IsPointer && !fieldType.IsByRef)
+                    {
+                        end = foffset + GetSize(fieldType);
+                    }
+                    else
+                    {
+                        end = foffset + IntPtr.Size;
+                    }
+                    if (end > size)
+                    {
+                        size = end;
+                    }
+                }
+                var packInfo = GetBlittablePack(type);
+                if (packInfo.pack > 0)
+                {
+                    size = (size + packInfo.pack - 1) / packInfo.pack * packInfo.pack;
+                }
+                // A declared StructLayoutAttribute.Size is a floor the
+                // runtime applies AFTER the trailing round - it is never
+                // re-rounded (Size=9 -> 9, not 16) - but only where the
+                // runtime honors it at all.
+                var sla = type.StructLayoutAttribute;
+                int attrSize = sla?.Size ?? 0;
+                if (attrSize > 0 && HonorsDeclaredSize(type, sla, packInfo.hasObjectField))
+                {
+                    size = Math.Max(size, attrSize);
+                }
+                lock (_Cache)
+                {
+                    _Cache[type.TypeHandle] = size;
+                }
+                return size;
+            }
             public static int GetSize(Type type)
             {
                 if (type.IsByRef || type.IsPointer)
@@ -548,50 +595,7 @@ namespace Mod.LowLevel
                 }
                 //else
                 {
-                    int size = 0;
-                    var fields = GetAllFields(type);
-                    foreach (var field in fields)
-                    {
-                        var foffset = GetFieldOffset(field);
-                        var fieldType = field.FieldType;
-                        // The extent is the largest field END, not the end of
-                        // the field with the largest offset: overlapping
-                        // (explicit/union) layouts would be cut short otherwise
-                        // ({byte@0, long@0} -> 1 instead of 8).
-                        int end;
-                        if (fieldType.IsValueType && !fieldType.IsPointer && !fieldType.IsByRef)
-                        {
-                            end = foffset + GetSize(fieldType);
-                        }
-                        else
-                        {
-                            end = foffset + IntPtr.Size;
-                        }
-                        if (end > size)
-                        {
-                            size = end;
-                        }
-                    }
-                    var packInfo = GetBlittablePack(type);
-                    if (packInfo.pack > 0)
-                    {
-                        size = (size + packInfo.pack - 1) / packInfo.pack * packInfo.pack;
-                    }
-                    // A declared StructLayoutAttribute.Size is a floor the
-                    // runtime applies AFTER the trailing round - it is never
-                    // re-rounded (Size=9 -> 9, not 16) - but only where the
-                    // runtime honors it at all.
-                    var sla = type.StructLayoutAttribute;
-                    int attrSize = sla?.Size ?? 0;
-                    if (attrSize > 0 && HonorsDeclaredSize(type, sla, packInfo.hasObjectField))
-                    {
-                        size = Math.Max(size, attrSize);
-                    }
-                    lock (_Cache)
-                    {
-                        _Cache[type.TypeHandle] = size;
-                    }
-                    return size;
+                    return GetSizeByFields(type);
                 }
             }
             public static int GetSize<T>()
@@ -624,11 +628,162 @@ namespace Mod.LowLevel
                     return GetSize(type);
                 }
             }
+
+            private static Func<int> _RawSizeStub = RawSize<int>;
+            public static int RawSizePlatDep(Type type)
+            {
+                if (type.IsByRef || type.IsPointer || !type.IsValueType)
+                {
+                    return IntPtr.Size;
+                }
+                int size = -1;
+                lock (_Cache)
+                {
+                    if (_Cache.TryGetValue(type.TypeHandle, out size))
+                    {
+                        return size;
+                    }
+                }
+                switch (Type.GetTypeCode(type))
+                {
+                    case TypeCode.Empty: size = 0; break;
+                    case TypeCode.Boolean: size = 1; break;
+                    case TypeCode.Char: size = 2; break;
+                    case TypeCode.SByte: size = 1; break;
+                    case TypeCode.Byte: size = 1; break;
+                    case TypeCode.Int16: size = 2; break;
+                    case TypeCode.UInt16: size = 2; break;
+                    case TypeCode.Int32: size = 4; break;
+                    case TypeCode.UInt32: size = 4; break;
+                    case TypeCode.Int64: size = 8; break;
+                    case TypeCode.UInt64: size = 8; break;
+                    case TypeCode.Single: size = 4; break;
+                    case TypeCode.Double: size = 8; break;
+                    case TypeCode.DateTime: size = 8; break;
+                    case TypeCode.Decimal: size = 16; break;
+                }
+
+                if (size < 0)
+                {
+                    if (type == typeof(IntPtr) || type == typeof(UIntPtr))
+                    {
+                        size = IntPtr.Size;
+                    }
+                }
+                if (size >= 0)
+                {
+                    lock (_Cache)
+                    {
+                        _Cache[type.TypeHandle] = size;
+                    }
+                    return size;
+                }
+
+                return GetSizePlatDepByGenericOrFallback(type);
+            }
+
+            public static int RawSizeByGeneric(Type type)
+            {
+                try
+                {
+                    var gmethod = _RawSizeStub.Method.GetGenericMethodDefinition();
+                    var imethod = gmethod.MakeGenericMethod(type);
+                    Func<int> ifunc = (Func<int>)Delegate.CreateDelegate(typeof(Func<int>), imethod);
+                    int size = ifunc();
+                    lock (_Cache)
+                    {
+                        _Cache[type.TypeHandle] = size;
+                    }
+                    return size;
+                }
+                catch
+                {
+                    return -1;
+                }
+            }
+
+            public static int GetSizePlatDep(Type type)
+            {
+                if (type.IsByRef || type.IsPointer)
+                {
+                    return IntPtr.Size;
+                }
+                lock (_Cache)
+                {
+                    if (_Cache.TryGetValue(type.TypeHandle, out var size))
+                    {
+                        return size;
+                    }
+                }
+                if (type.IsValueType)
+                {
+                    int size = -1;
+                    switch (Type.GetTypeCode(type))
+                    {
+                        case TypeCode.Empty: size = 0; break;
+                        case TypeCode.Boolean: size = 1; break;
+                        case TypeCode.Char: size = 2; break;
+                        case TypeCode.SByte: size = 1; break;
+                        case TypeCode.Byte: size = 1; break;
+                        case TypeCode.Int16: size = 2; break;
+                        case TypeCode.UInt16: size = 2; break;
+                        case TypeCode.Int32: size = 4; break;
+                        case TypeCode.UInt32: size = 4; break;
+                        case TypeCode.Int64: size = 8; break;
+                        case TypeCode.UInt64: size = 8; break;
+                        case TypeCode.Single: size = 4; break;
+                        case TypeCode.Double: size = 8; break;
+                        case TypeCode.DateTime: size = 8; break;
+                        case TypeCode.Decimal: size = 16; break;
+                    }
+
+                    if (size < 0)
+                    {
+                        if (type == typeof(IntPtr) || type == typeof(UIntPtr))
+                        {
+                            size = IntPtr.Size;
+                        }
+                    }
+                    if (size >= 0)
+                    {
+                        lock (_Cache)
+                        {
+                            _Cache[type.TypeHandle] = size;
+                        }
+                        return size;
+                    }
+                }
+                //else
+                {
+                    return GetSizePlatDepByGenericOrFallback(type);
+                }
+            }
+
+            public static int GetSizePlatDepByGenericOrFallback(Type type)
+            {
+                int size = -1;
+                if (type.IsValueType)
+                {
+                    if ((size = RawSizeByGeneric(type)) >= 0)
+                    {
+                        return size;
+                    }
+                }
+                if (RuntimeInfo.IsIl2Cpp)
+                {
+                    // import func from il2cpp c library
+                }
+                else if (RuntimeInfo.IsNativeAOT)
+                {
+                    // alloc on gc heap, and calculate allocated delta.
+                }
+                return GetSizeByFields(type);
+            }
         }
 
         public static int Size(this Type t)
         {
-            return SizeMeasurer.GetSize(t);
+            return SizeMeasurer.GetSizePlatDep(t);
         }
         public static int Size<T>()
         {
@@ -697,14 +852,7 @@ namespace Mod.LowLevel
 
         public static int RawSize(this Type t)
         {
-            if (t.IsValueType)
-            {
-                return SizeMeasurer.GetSize(t);
-            }
-            else
-            {
-                return IntPtr.Size;
-            }
+            return SizeMeasurer.RawSizePlatDep(t);
         }
         public static int RawSize<T>()
         {
