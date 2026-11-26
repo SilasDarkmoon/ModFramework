@@ -542,7 +542,7 @@ namespace Mod.LowLevel
                 }
                 return size;
             }
-            public static int GetSize(Type type)
+            public static int GetSizeByCacheAndTypeCode(Type type)
             {
                 if (type.IsByRef || type.IsPointer)
                 {
@@ -593,7 +593,16 @@ namespace Mod.LowLevel
                         return size;
                     }
                 }
-                //else
+                return -1;
+            }
+            public static int GetSize(Type type)
+            {
+                int size = -1;
+                if ((size = GetSizeByCacheAndTypeCode(type)) >= 0)
+                {
+                    return size;
+                }
+                else
                 {
                     return GetSizeByFields(type);
                 }
@@ -637,49 +646,14 @@ namespace Mod.LowLevel
                     return IntPtr.Size;
                 }
                 int size = -1;
-                lock (_Cache)
+                if ((size = GetSizeByCacheAndTypeCode(type)) >= 0)
                 {
-                    if (_Cache.TryGetValue(type.TypeHandle, out size))
-                    {
-                        return size;
-                    }
-                }
-                switch (Type.GetTypeCode(type))
-                {
-                    case TypeCode.Empty: size = 0; break;
-                    case TypeCode.Boolean: size = 1; break;
-                    case TypeCode.Char: size = 2; break;
-                    case TypeCode.SByte: size = 1; break;
-                    case TypeCode.Byte: size = 1; break;
-                    case TypeCode.Int16: size = 2; break;
-                    case TypeCode.UInt16: size = 2; break;
-                    case TypeCode.Int32: size = 4; break;
-                    case TypeCode.UInt32: size = 4; break;
-                    case TypeCode.Int64: size = 8; break;
-                    case TypeCode.UInt64: size = 8; break;
-                    case TypeCode.Single: size = 4; break;
-                    case TypeCode.Double: size = 8; break;
-                    case TypeCode.DateTime: size = 8; break;
-                    case TypeCode.Decimal: size = 16; break;
-                }
-
-                if (size < 0)
-                {
-                    if (type == typeof(IntPtr) || type == typeof(UIntPtr))
-                    {
-                        size = IntPtr.Size;
-                    }
-                }
-                if (size >= 0)
-                {
-                    lock (_Cache)
-                    {
-                        _Cache[type.TypeHandle] = size;
-                    }
                     return size;
                 }
-
-                return GetSizePlatDepByGenericOrFallback(type);
+                else
+                {
+                    return GetSizePlatDepByGenericOrFallback(type);
+                }
             }
 
             public static int RawSizeByGeneric(Type type)
@@ -704,56 +678,12 @@ namespace Mod.LowLevel
 
             public static int GetSizePlatDep(Type type)
             {
-                if (type.IsByRef || type.IsPointer)
+                int size = -1;
+                if ((size = GetSizeByCacheAndTypeCode(type)) >= 0)
                 {
-                    return IntPtr.Size;
+                    return size;
                 }
-                lock (_Cache)
-                {
-                    if (_Cache.TryGetValue(type.TypeHandle, out var size))
-                    {
-                        return size;
-                    }
-                }
-                if (type.IsValueType)
-                {
-                    int size = -1;
-                    switch (Type.GetTypeCode(type))
-                    {
-                        case TypeCode.Empty: size = 0; break;
-                        case TypeCode.Boolean: size = 1; break;
-                        case TypeCode.Char: size = 2; break;
-                        case TypeCode.SByte: size = 1; break;
-                        case TypeCode.Byte: size = 1; break;
-                        case TypeCode.Int16: size = 2; break;
-                        case TypeCode.UInt16: size = 2; break;
-                        case TypeCode.Int32: size = 4; break;
-                        case TypeCode.UInt32: size = 4; break;
-                        case TypeCode.Int64: size = 8; break;
-                        case TypeCode.UInt64: size = 8; break;
-                        case TypeCode.Single: size = 4; break;
-                        case TypeCode.Double: size = 8; break;
-                        case TypeCode.DateTime: size = 8; break;
-                        case TypeCode.Decimal: size = 16; break;
-                    }
-
-                    if (size < 0)
-                    {
-                        if (type == typeof(IntPtr) || type == typeof(UIntPtr))
-                        {
-                            size = IntPtr.Size;
-                        }
-                    }
-                    if (size >= 0)
-                    {
-                        lock (_Cache)
-                        {
-                            _Cache[type.TypeHandle] = size;
-                        }
-                        return size;
-                    }
-                }
-                //else
+                else
                 {
                     return GetSizePlatDepByGenericOrFallback(type);
                 }
