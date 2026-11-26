@@ -293,13 +293,13 @@ namespace Mod.LowLevel
         private static class SizeMeasurer
         {
             public static readonly Dictionary<RuntimeTypeHandle, int> _Cache = new Dictionary<RuntimeTypeHandle, int>();
-            private static readonly Dictionary<RuntimeTypeHandle, (bool blittable, int pack)> _CacheForPack = new Dictionary<RuntimeTypeHandle, (bool blittable, int pack)>();
+            private static readonly Dictionary<RuntimeTypeHandle, (bool blittable, bool hasObjectField, int pack)> _CacheForPack = new Dictionary<RuntimeTypeHandle, (bool blittable, bool hasObjectField, int pack)>();
 
-            public static (bool blittable, int pack) GetBlittablePack(Type type)
+            public static (bool blittable, bool hasObjectField, int pack) GetBlittablePack(Type type)
             {
                 if (type.IsByRef || type.IsPointer)
                 {
-                    return (true, IntPtr.Size);
+                    return (true, false, IntPtr.Size);
                 }
                 lock (_CacheForPack)
                 {
@@ -323,11 +323,19 @@ namespace Mod.LowLevel
                         case TypeCode.UInt16: size = 2; break;
                         case TypeCode.Int32: size = 4; break;
                         case TypeCode.UInt32: size = 4; break;
-                        case TypeCode.Int64: size = 8; break;
-                        case TypeCode.UInt64: size = 8; break;
+                        // The 8-byte scalars: CoreCLR's 32-bit runtimes align
+                        // them to 4 (measured: G<string> = 12 on net48/net10
+                        // x86 - the long tail sits right behind the reference),
+                        // Mono keeps the natural 8 (measured: Unity Mono x86
+                        // G<string> = 16). IL2CPP x86 is unmeasured, it keeps
+                        // the historical 8.
+                        case TypeCode.Int64:
+                        case TypeCode.UInt64:
+                        case TypeCode.DateTime:
+                            size = (IntPtr.Size >= 8 || RuntimeInfo.IsMono || RuntimeInfo.IsIl2Cpp) ? 8 : 4;
+                            break;
                         case TypeCode.Single: size = 4; break;
                         case TypeCode.Double: size = 8; break;
-                        case TypeCode.DateTime: size = 8; break;
                         case TypeCode.Decimal: size = 4; break;
                     }
 
@@ -342,15 +350,16 @@ namespace Mod.LowLevel
                     {
                         lock (_CacheForPack)
                         {
-                            _CacheForPack[type.TypeHandle] = (true, size);
+                            _CacheForPack[type.TypeHandle] = (true, false, size);
                         }
-                        return (true, size);
+                        return (true, false, size);
                     }
                 }
                 //else
                 {
                     int autopack = 1;
                     bool isblittable = type.IsValueType;
+                    bool hasObjectField = false;
                     var fields = GetAllFields(type);
                     foreach (var field in fields)
                     {
@@ -361,27 +370,59 @@ namespace Mod.LowLevel
                         }
                         else if (fieldType.IsValueType)
                         {
-                            (var fieldisblittable, var fieldpack) = GetBlittablePack(fieldType);
+                            (var fieldisblittable, var fieldHasChildObjectField, var fieldpack) = GetBlittablePack(fieldType);
                             isblittable = isblittable && fieldisblittable;
+                            hasObjectField = hasObjectField || fieldHasChildObjectField;
                             autopack = Math.Max(autopack, fieldpack);
                         }
                         else
                         {
                             isblittable = false;
+                            hasObjectField = true;
                             autopack = Math.Max(autopack, IntPtr.Size);
                         }
                     }
+                    // The returned pack is the alignment the runtime rounds the
+                    // walked field extent up to (A). Baseline for every layout
+                    // kind is the largest field alignment (N) - the traversal
+                    // above has already computed it as `autopack`.
                     int pack = autopack;
-                    if (isblittable && (type.StructLayoutAttribute?.Pack ?? 0) > 0)
+                    var sla = type.StructLayoutAttribute;
+                    bool sequential = sla == null ? type.IsValueType : sla.Value == LayoutKind.Sequential;
+                    int attrPack = sla?.Pack ?? 0;
+                    if (sequential && attrPack > 0)
                     {
-                        pack = Math.Min(autopack, type.StructLayoutAttribute.Pack);
+                        if (hasObjectField)
+                        {
+                            // Measured (Mono x64/x86, IL2CPP; CoreCLR discards
+                            // the layout, which coincides on both bitnesses): a
+                            // declared Pack caps the alignment of the VALUE
+                            // fields, but GC-reference slots keep pointer size -
+                            // the pointer floor sits OUTSIDE the cap
+                            // (SeqP2RefMid Pack=2: A = 4 on x86 / 8 on x64, not
+                            // 2 and not N=8).
+                            pack = Math.Max(IntPtr.Size, Math.Min(autopack, attrPack));
+                        }
+                        else
+                        {
+                            // Cap semantics everywhere the Pack is honored:
+                            // min(Pack, natural) - a Pack above the natural
+                            // alignment never inflates it (P16 measured: the
+                            // long lands at offset 4).
+                            pack = Math.Min(autopack, attrPack);
+                        }
                     }
+                    // Explicit: offsets are hand-declared - the runtime ignores
+                    // the declared Pack for placement AND the trailing round
+                    // (measured: extent 9 with a long rounds to 16 = N).
+                    // Auto: the layout engine regenerates everything, the Pack
+                    // means nothing. Both keep A = N, hence no cap above.
 
                     lock (_CacheForPack)
                     {
-                        _CacheForPack[type.TypeHandle] = (isblittable, pack);
+                        _CacheForPack[type.TypeHandle] = (isblittable, hasObjectField, pack);
                     }
-                    return (isblittable, pack);
+                    return (isblittable, hasObjectField, pack);
                 }
             }
             public static int GetPack(Type type)
@@ -578,6 +619,14 @@ namespace Mod.LowLevel
         public static bool IsBlittable<T>()
         {
             return IsBlittable(typeof(T));
+        }
+        public static bool HasObjectField(this Type t)
+        {
+            return SizeMeasurer.GetBlittablePack(t).hasObjectField;
+        }
+        public static bool HasObjectField<T>()
+        {
+            return HasObjectField(typeof(T));
         }
 
         private static readonly Dictionary<RuntimeFieldHandle, int> _FieldOffsetCache = new Dictionary<RuntimeFieldHandle, int>();
