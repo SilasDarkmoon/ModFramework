@@ -48,6 +48,21 @@ namespace ModClrExUnsafe.Tests
         }
 
         [Fact]
+        public void Internal_HostBinary_UnknownSymbol_GracefulMiss()
+        {
+            // The "__Internal" keyword resolves against the host binary (the
+            // main executable plus, when one is loaded, the il2cpp host
+            // module - GameAssembly/libil2cpp). On the desktop test host
+            // neither exports these symbols: the miss must be a graceful
+            // default - never an exception and never a crash.
+            if (RuntimeInfo.Platform != RuntimeInfo.OSPlatform.Windows) return;
+            FunctionPointer p = NativeFuncLoader.LoadNativeFunction("__Internal", "No__Such__Export__12345");
+            Assert.Equal(IntPtr.Zero, p.Pfn);
+            FunctionPointer il2cpp = NativeFuncLoader.LoadNativeFunction("__Internal", "il2cpp_object_header_size");
+            Assert.Equal(IntPtr.Zero, il2cpp.Pfn); // no GameAssembly on the desktop
+        }
+
+        [Fact]
         public void Resolves_TheSamePointerTwice()
         {
             if (RuntimeInfo.Platform != RuntimeInfo.OSPlatform.Windows) return;

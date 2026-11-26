@@ -91,6 +91,8 @@ namespace Mod.LowLevel
         private static extern IntPtr LoadLibraryW(string name);
         [DllImport("kernel32", SetLastError = true, CharSet = CharSet.Ansi)]
         private static extern IntPtr GetProcAddress(IntPtr hModule, string name);
+        [DllImport("kernel32", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern IntPtr GetModuleHandleW(string name);
 
         // ---- Unix ------------------------------------------------------------
         // Apple: dlopen/dlsym are libSystem exports - reference them through
@@ -245,6 +247,64 @@ namespace Mod.LowLevel
         {
             if (string.IsNullOrEmpty(functionName)) return default;
 
+            // The special "__Internal" name means the HOST binary. On the
+            // statically linked platforms (iOS) that is the main executable -
+            // dlsym(RTLD_DEFAULT), exactly what a DllImport("__Internal")
+            // resolves to. On the IL2CPP players the il2cpp_* symbols live in
+            // the GameAssembly module (Windows/macOS/Linux players) or
+            // libil2cpp.so (Android), which Unity has already loaded into the
+            // process - try the main program first, then those hosts.
+            if (dllName == "__Internal")
+            {
+                if (RuntimeInfo.Platform == RuntimeInfo.OSPlatform.Windows)
+                {
+                    IntPtr hMain = GetModuleHandleW(null);
+                    if (hMain != IntPtr.Zero)
+                    {
+                        IntPtr pMain = GetProcAddress(hMain, functionName);
+                        if (pMain != IntPtr.Zero) return pMain.AsFunctionPointer(true);
+                    }
+                    IntPtr hGa = GetModuleHandleW("GameAssembly"); // Windows IL2CPP player (loaded)
+                    if (hGa == IntPtr.Zero) hGa = LoadLibraryW("GameAssembly");
+                    if (hGa != IntPtr.Zero)
+                    {
+                        IntPtr pGa = GetProcAddress(hGa, functionName);
+                        if (pGa != IntPtr.Zero) return pGa.AsFunctionPointer(true);
+                    }
+                    return default;
+                }
+                if (IsApple)
+                {
+                    IntPtr pDef = Dlsym(RtldDefault, functionName);
+                    if (pDef != IntPtr.Zero) return pDef.AsFunctionPointer(true);
+                    // macOS IL2CPP player: GameAssembly.dylib may not be RTLD_GLOBAL.
+                    IntPtr hGa = Dlopen("GameAssembly", RTLD_NOW | RTLD_GLOBAL_MAC);
+                    return hGa == IntPtr.Zero ? default : Dlsym(hGa, functionName).AsFunctionPointer(true);
+                }
+                // Linux / Android: the main program handle first...
+                IntPtr hProg = Dlopen(null, RTLD_NOW | RTLD_GLOBAL_LINUX);
+                if (hProg != IntPtr.Zero)
+                {
+                    IntPtr pProg = Dlsym(hProg, functionName);
+                    if (pProg != IntPtr.Zero) return pProg.AsFunctionPointer(true);
+                }
+                // ...then the il2cpp hosts: GameAssembly.so (Linux player) /
+                // libil2cpp.so (Android) - dlopen completes the ".so" suffix itself.
+                IntPtr hGa2 = Dlopen("GameAssembly", RTLD_NOW | RTLD_GLOBAL_LINUX);
+                if (hGa2 != IntPtr.Zero)
+                {
+                    IntPtr pGa2 = Dlsym(hGa2, functionName);
+                    if (pGa2 != IntPtr.Zero) return pGa2.AsFunctionPointer(true);
+                }
+                IntPtr hLib = Dlopen("libil2cpp", RTLD_NOW | RTLD_GLOBAL_LINUX);
+                if (hLib != IntPtr.Zero)
+                {
+                    IntPtr pLib = Dlsym(hLib, functionName);
+                    if (pLib != IntPtr.Zero) return pLib.AsFunctionPointer(true);
+                }
+                return default;
+            }
+
             if (RuntimeInfo.Platform == RuntimeInfo.OSPlatform.iOS)
             {
                 // Static linking: the symbol lives in the main executable;
@@ -268,12 +328,17 @@ namespace Mod.LowLevel
 
         // Unix dlopen does no lib-prefix/suffix probing (unlike DllImport):
         // complete "lua55" to the full soname unless one was already given.
+        // A name that already carries the "lib" prefix only gets the suffix
+        // completed ("libil2cpp" -> libil2cpp.so, never "liblibil2cpp.so").
         private static string CompleteUnixLibName(string dllName)
         {
             if (dllName.IndexOf('.') >= 0) return dllName;
+            string stem = dllName.StartsWith("lib", StringComparison.OrdinalIgnoreCase)
+                ? dllName
+                : "lib" + dllName;
             return RuntimeInfo.Platform == RuntimeInfo.OSPlatform.Mac
-                ? "lib" + dllName + ".dylib"
-                : "lib" + dllName + ".so";
+                ? stem + ".dylib"
+                : stem + ".so";
         }
     }
 }
