@@ -67,6 +67,32 @@ namespace Mod.LowLevel
             return _ArrayFirstElementOffset;
         }
 
+        // Calibration twin of GetArrayFirstElementOffset for strings: the
+        // first char's offset, already minus the object header (the cached
+        // array value is adjusted the same way in its calibration). The
+        // fixed-char probe adapts to every runtime - IL2CPP and HybridCLR
+        // hot strings included - no C API needed.
+        private static int _StringFirstCharOffset;
+        private static int GetStringFirstCharOffset()
+        {
+            if (_StringFirstCharOffset <= 0)
+            {
+                var s = "a";
+                long addC, addS;
+                unsafe
+                {
+                    fixed (char* p = s)
+                    {
+                        addC = (long)p;
+                        addS = (long)RawRef.Of(s).Address;
+                    }
+                }
+                var offset = (int)(addC - addS);
+                _StringFirstCharOffset = offset - GetObjectHeaderSize();
+            }
+            return _StringFirstCharOffset;
+        }
+
         //public static ref IntPtr GetTypeHandleRef(this object obj)
         //{
         //    var offset = GetObjectHeaderSize() - IntPtr.Size;
@@ -288,6 +314,14 @@ namespace Mod.LowLevel
         public static ref T GetFirstElementRef<T>(this T[] arr)
         {
             return ref GetFirstElementRef<T>((Array)arr);
+        }
+        public static ref char GetFirstElementRef(this string str)
+        {
+            if (str == null)
+            {
+                return ref Ref.GetEmptyRef<char>();
+            }
+            return ref GetFieldRef<char>(str, GetStringFirstCharOffset());
         }
 
         private static class SizeMeasurer
@@ -605,6 +639,32 @@ namespace Mod.LowLevel
             if (obj == null)
             {
                 return 0;
+            }
+            else if (obj is string str)
+            {
+                // Variable length: the chars (including the terminator) live
+                // in the instance, the type walk cannot see them. The
+                // calibrated first-char offset is header-adjusted (same frame
+                // as the array route below).
+                return GetStringFirstCharOffset() + (str.Length + 1) * 2;
+            }
+            else if (obj is Array arr)
+            {
+                // Variable length: elements behind the calibrated
+                // first-element offset. The stride is the element size
+                // rounded up to the element's own alignment (a Pack=1 struct
+                // array strides by its raw size); reference elements are one
+                // pointer each. NOTE: rank > 1 arrays store their dimension
+                // bounds between the length and the data - the SZ-calibrated
+                // offset misses that, multi-dim results are a lower bound.
+                var elemType = arr.GetType().GetElementType();
+                int elemSize = elemType.IsValueType ? Size(elemType) : IntPtr.Size;
+                int align = SizeMeasurer.GetPack(elemType);
+                if (align > 1)
+                {
+                    elemSize = (elemSize + align - 1) / align * align;
+                }
+                return GetArrayFirstElementOffset() + arr.Length * elemSize;
             }
             return Size(obj.GetType());
         }
