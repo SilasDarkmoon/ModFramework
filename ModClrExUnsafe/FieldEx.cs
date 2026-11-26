@@ -350,9 +350,8 @@ namespace Mod.LowLevel
                     {
                         lock (_CacheForPack)
                         {
-                            _CacheForPack[type.TypeHandle] = (true, false, size);
+                            return _CacheForPack[type.TypeHandle] = (true, false, size);
                         }
-                        return (true, false, size);
                     }
                 }
                 //else
@@ -420,14 +419,46 @@ namespace Mod.LowLevel
 
                     lock (_CacheForPack)
                     {
-                        _CacheForPack[type.TypeHandle] = (isblittable, hasObjectField, pack);
+                        return _CacheForPack[type.TypeHandle] = (isblittable, hasObjectField, pack);
                     }
-                    return (isblittable, hasObjectField, pack);
                 }
             }
             public static int GetPack(Type type)
             {
                 return GetBlittablePack(type).pack;
+            }
+
+            // Whether the runtime applies a declared StructLayoutAttribute.Size
+            // as a floor on this type's layout. Measured per
+            // runtime/layout/blittability (SizeofMatrixProbe [Y] matrix):
+            //   Mono / IL2CPP: never dropped - any layout kind, blittable or
+            //     not, value type or class. (IL2CPP reports the computed size
+            //     instead of the declared one for value types, which is even
+            //     better: it IS the exact runtime size. HybridCLR hot types
+            //     lie in both directions - that needs the il2cpp C API route,
+            //     not this walk.)
+            //   CoreCLR family: Sequential - only while the layout survives:
+            //     GC-reference fields discard the whole ClassLayout (auto
+            //     layout), the declared Size goes with it; Explicit - value
+            //     types always honor it, classes only on .NET Framework and
+            //     only without refs (.NET Core/5+ ignores it for classes
+            //     outright); Auto - never.
+            private static bool HonorsDeclaredSize(Type type, StructLayoutAttribute sla, bool hasObjectField)
+            {
+                if (RuntimeInfo.IsMono || RuntimeInfo.IsIl2Cpp)
+                {
+                    return true;
+                }
+                var kind = sla == null ? (type.IsValueType ? LayoutKind.Sequential : LayoutKind.Auto) : sla.Value;
+                switch (kind)
+                {
+                    case LayoutKind.Sequential:
+                        return !hasObjectField;
+                    case LayoutKind.Explicit:
+                        return type.IsValueType || (RuntimeInfo.IsNetFramework && !hasObjectField);
+                    default:
+                        return false;
+                }
             }
 
             public static int GetSize(Type type)
@@ -484,30 +515,43 @@ namespace Mod.LowLevel
                 //else
                 {
                     int size = 0;
-                    int offset = -1;
                     var fields = GetAllFields(type);
                     foreach (var field in fields)
                     {
                         var foffset = GetFieldOffset(field);
-                        if (foffset > offset)
+                        var fieldType = field.FieldType;
+                        // The extent is the largest field END, not the end of
+                        // the field with the largest offset: overlapping
+                        // (explicit/union) layouts would be cut short otherwise
+                        // ({byte@0, long@0} -> 1 instead of 8).
+                        int end;
+                        if (fieldType.IsValueType && !fieldType.IsPointer && !fieldType.IsByRef)
                         {
-                            offset = foffset;
-                            size = foffset;
-                            var fieldType = field.FieldType;
-                            if (fieldType.IsValueType && !fieldType.IsPointer && !fieldType.IsByRef)
-                            {
-                                size += GetSize(fieldType);
-                            }
-                            else
-                            {
-                                size += IntPtr.Size;
-                            }
+                            end = foffset + GetSize(fieldType);
+                        }
+                        else
+                        {
+                            end = foffset + IntPtr.Size;
+                        }
+                        if (end > size)
+                        {
+                            size = end;
                         }
                     }
-                    int pack = GetPack(type);
-                    if (pack > 0)
+                    var packInfo = GetBlittablePack(type);
+                    if (packInfo.pack > 0)
                     {
-                        size = (size + pack - 1) / pack * pack;
+                        size = (size + packInfo.pack - 1) / packInfo.pack * packInfo.pack;
+                    }
+                    // A declared StructLayoutAttribute.Size is a floor the
+                    // runtime applies AFTER the trailing round - it is never
+                    // re-rounded (Size=9 -> 9, not 16) - but only where the
+                    // runtime honors it at all.
+                    var sla = type.StructLayoutAttribute;
+                    int attrSize = sla?.Size ?? 0;
+                    if (attrSize > 0 && HonorsDeclaredSize(type, sla, packInfo.hasObjectField))
+                    {
+                        size = Math.Max(size, attrSize);
                     }
                     lock (_Cache)
                     {
