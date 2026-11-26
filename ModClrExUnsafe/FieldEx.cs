@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -323,6 +324,24 @@ namespace Mod.LowLevel
                 return ref Ref.GetEmptyRef<char>();
             }
             return ref GetFieldRef<char>(str, GetStringFirstCharOffset());
+        }
+        public static ref object GetFirstElementRef(this ArrayList list)
+        {
+            if (list == null || list.Count == 0)
+            {
+                return ref Ref.GetEmptyRef<object>();
+            }
+            var arr = list.GetField<object[]>(0);
+            return ref arr.GetFirstElementRef();
+        }
+        public static ref T GetFirstElementRef<T>(this List<T> list)
+        {
+            if (list == null || list.Count == 0)
+            {
+                return ref Ref.GetEmptyRef<T>();
+            }
+            var arr = list.GetField<T[]>(0);
+            return ref arr.GetFirstElementRef();
         }
 
         private static class SizeMeasurer
