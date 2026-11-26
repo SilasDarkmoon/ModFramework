@@ -41,23 +41,5 @@ namespace Mod.Lua
         {
             return new LuaScope(l);
         }
-
-        internal static LuaUserData GetUserData(this lua.State l, int index)
-        {
-            IntPtr addr = l.touserdata(index);
-            return RawRef.Of(addr).GetValue<LuaUserData>();
-        }
-        public static T GetUserData<T>(this lua.State l, int index)
-        {
-            var lobj = l.GetUserData(index);
-            if (lobj.TargetObject is T rv)
-            {
-                return rv;
-            }
-            else
-            {
-                return default;
-            }
-        }
     }
 }

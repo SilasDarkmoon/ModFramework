@@ -571,6 +571,15 @@ namespace Mod.LowLevel
             }
         }
 
+        public static bool IsBlittable(this Type t)
+        {
+            return SizeMeasurer.GetBlittablePack(t).blittable;
+        }
+        public static bool IsBlittable<T>()
+        {
+            return IsBlittable(typeof(T));
+        }
+
         private static readonly Dictionary<RuntimeFieldHandle, int> _FieldOffsetCache = new Dictionary<RuntimeFieldHandle, int>();
         public static FieldOffset GetFieldOffset(this FieldInfo fi)
         {

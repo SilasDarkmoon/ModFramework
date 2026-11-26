@@ -5,6 +5,13 @@ using System.Runtime.InteropServices;
 
 namespace Mod.Lua
 {
+    [Flags]
+    internal enum LuaUserDataFlags
+    {
+        ValueType = 0,
+        Object = 1,
+    }
+
     [StructLayout(LayoutKind.Sequential)]
     internal struct LuaUserDataHeader
     {
@@ -20,7 +27,7 @@ namespace Mod.Lua
             TypeHandle = default;
         }
 
-        public object TypeProcessor => TypeHandle == IntPtr.Zero ? null : GCHandle.FromIntPtr(TypeHandle).Target;
+        public ILuaTypeRef TypeHandler => TypeHandle == IntPtr.Zero ? null : GCHandle.FromIntPtr(TypeHandle).Target as ILuaTypeRef;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -32,11 +39,11 @@ namespace Mod.Lua
         public static readonly int Size = LuaUserDataHeader.Size + UnsafeEx.Size<T>();
         public LuaUserDataValueType(T value)
         {
-            Header = new LuaUserDataHeader(Size);
+            Header = new LuaUserDataHeader(Size) { Flags = (uint)LuaUserDataFlags.ValueType };
             Data = value;
         }
 
-        public object TypeProcessor => Header.TypeProcessor;
+        public ILuaTypeRef TypeHandler => Header.TypeHandler;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -47,12 +54,12 @@ namespace Mod.Lua
 
         public static readonly int Size = LuaUserDataHeader.Size + IntPtr.Size;
 
-        public object TypeProcessor => Header.TypeProcessor;
+        public ILuaTypeRef TypeHandler => Header.TypeHandler;
         public object TargetObject => ObjectHandle == IntPtr.Zero ? null : GCHandle.FromIntPtr(ObjectHandle).Target;
 
         public LuaUserData(object obj)
         {
-            Header = new LuaUserDataHeader(Size);
+            Header = new LuaUserDataHeader(Size) { Flags = (uint)LuaUserDataFlags.Object };
             ObjectHandle = obj == null ? IntPtr.Zero : GCHandle.ToIntPtr(GCHandle.Alloc(obj));
         }
         public LuaUserData(IntPtr typeHandle, object obj) : this(obj)

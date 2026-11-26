@@ -55,7 +55,7 @@ namespace Mod.Lua
                     RawRef.Of(attachaddr).GetRef<LuaUserData>() = lobj;
                     l.newtable();
                     l.pushlstringn(lua.Consts.SKEY_GC.CString);
-                    l.pushcfunction(_LuaFuncGlobalAttachmentGC);
+                    l.pushcfunction(LuaExporter.LuaFuncCommonGC);
                     l.rawset(-3);
                     l.setmetatable(-2);
                     l.rawset(-3);
@@ -63,25 +63,6 @@ namespace Mod.Lua
                 cache[id] = attachment;
                 return attachment;
             }
-        }
-
-        private static readonly lua.CFunction _LuaFuncGlobalAttachmentGC = new lua.CFunction(LuaMetaGlobalAttachmentGC);
-        [AOT.MonoPInvokeCallback(typeof(lua.CFunction))]
-        private static int LuaMetaGlobalAttachmentGC(lua.State l)
-        {
-            var lobj = l.GetUserData(1);
-            var attach = lobj.GetTargetAndDispose<LuaGlobalAttachment>();
-            attach.Dispose();
-            var id = l.Indicator();
-            var cache = _Cache;
-            if (cache != null)
-            {
-                if (cache.TryGetValue(id, out var old) && old == attach)
-                {
-                    cache.Remove(id);
-                }
-            }
-            return 0;
         }
 
         private lua.State _L;
@@ -99,6 +80,16 @@ namespace Mod.Lua
             if (!_IsClosed)
             {
                 _IsClosed = true;
+
+                var id = _L.Indicator();
+                var cache = _Cache;
+                if (cache != null)
+                {
+                    if (cache.TryGetValue(id, out var old) && old == this)
+                    {
+                        cache.Remove(id);
+                    }
+                }
             }
         }
 
